@@ -143,13 +143,56 @@ CREATE TABLE IF NOT EXISTS public.notificaciones (
     task_id TEXT
 );
 
-ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Permitir notificaciones" ON public.notificaciones;
-CREATE POLICY "Permitir notificaciones" ON public.notificaciones FOR ALL USING (true) WITH CHECK (true);
+-- TABLA: CLIENTES
+CREATE TABLE IF NOT EXISTS public.clientes (
+    id TEXT PRIMARY KEY,
+    codigo TEXT UNIQUE NOT NULL,
+    nombre TEXT NOT NULL,
+    cuit TEXT,
+    telefono TEXT,
+    email TEXT,
+    condicion_id TEXT DEFAULT '0',
+    condicion_nombre TEXT DEFAULT 'NO USAR',
+    deposito_id TEXT DEFAULT '0',
+    deposito_nombre TEXT DEFAULT 'Depósito 0',
+    transporte_id TEXT DEFAULT '0',
+    transporte_nombre TEXT DEFAULT 'Transporte 0',
+    vendedor_id TEXT DEFAULT '1',
+    vendedor_nombre TEXT DEFAULT '',
+    estado TEXT DEFAULT 'ACTIVOS',
+    domicilio TEXT DEFAULT '',
+    localidad TEXT DEFAULT '',
+    deuda_actual NUMERIC(15, 2) DEFAULT 0.00,
+    facturas_mora JSONB DEFAULT '[]'::jsonb
+);
+
+ALTER TABLE public.clientes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir acceso clientes" ON public.clientes;
+CREATE POLICY "Permitir acceso clientes" ON public.clientes FOR ALL USING (true) WITH CHECK (true);
 
 -- ====================================================================
 -- SEED DATA: CARGA INICIAL DIRECTA EN SUPABASE
 -- ====================================================================
+
+-- Cargar los 11 Clientes Oficiales
+INSERT INTO public.clientes (id, codigo, nombre, cuit, telefono, email, condicion_id, condicion_nombre, deposito_id, deposito_nombre, transporte_id, transporte_nombre, vendedor_id, vendedor_nombre, estado, domicilio, localidad, deuda_actual)
+VALUES
+    ('ACOSTA SERVICIOS SRL - 30718686217', '7', 'ACOSTA SERVICIOS SRL', '30718686217', '', '', '0', 'NO USAR', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', 'GARAY 1021', 'PUERTO GENERAL SAN MARTIN', 0.00),
+    ('CARGILL SACI - 30506792165_2', '2', 'CARGILL SACI', '30506792165', '3415890126', '8', '2', '30 Y 60 DIAS 50\50', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', 'YRIGOYEN Y PUNTA QUBRACHO', 'PUERTO GENERAL SAN MARTIN', 0.00),
+    ('CARGILL SACI - 30506792165_3', '3', 'CARGILL SACI', '30506792165', '3413269645', '9', '2', '30 Y 60 DIAS 50\50', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', 'SOLIS 822', 'VILLA GOBERNADOR GALVEZ', 0.00),
+    ('CARGILL SACI - 30506792165_4', '4', 'CARGILL SACI', '30506792165', '', '', '3', '30 DIAS', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', 'LUIS RAUL MAZA 35', 'BERNARDO LARROUDE', 0.00),
+    ('CONSUMIDOR FINAL - 23402204', '1', 'CONSUMIDOR FINAL', '23402204', '', '', '1', 'CONTADO', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', '', 'ROSARIO', 0.00),
+    ('JULIO ALVAREZ - 30716236990', '5', 'JULIO ALVAREZ', '30716236990', '', '', '0', 'NO USAR', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', 'BS AS 1122', 'PUERTO GENERAL SAN MARTIN', 0.00),
+    ('PV SERVICIOS SRL - 30716598205', '10', 'PV SERVICIOS SRL', '30716598205', '', '', '0', 'NO USAR', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', '', '', 0.00),
+    ('SAO CLIMA SRL - 30715472313', '11', 'SAO CLIMA SRL', '30715472313', '', '', '0', 'NO USAR', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', 'GRAL PAZ 344', 'CAPITAN BERMUDEZ', 0.00),
+    ('SILC SERVICIOS SRL - 30717824594', '8', 'SILC SERVICIOS SRL', '30717824594', '', '', '0', 'NO USAR', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', '', '', 0.00),
+    ('T6 INDUSTRIAL S.A - 33689206099', '9', 'T6 INDUSTRIAL S.A', '33689206099', '', '', '0', 'NO USAR', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', 'Hipolito Yrigoyen y Gral. Luci', 'PUERTO GENERAL SAN MARTIN', 0.00),
+    ('Terminal 6 s.a - 30615829699', '6', 'Terminal 6 s.a', '30615829699', '', '', '0', 'NO USAR', '0', 'Depósito 0', '0', 'Transporte 0', '1', '', 'ACTIVOS', 'Hipolito Yrigoyen y Costa Del', 'PUERTO GENERAL SAN MARTIN', 0.00)
+ON CONFLICT (codigo) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    cuit = EXCLUDED.cuit,
+    domicilio = EXCLUDED.domicilio,
+    localidad = EXCLUDED.localidad;
 
 -- Cargar los 8 usuarios oficiales
 INSERT INTO public.usuarios (id, username, password, email, role, rubro_defecto, vendedor_codigo, vendedor_nombre)

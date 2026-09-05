@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="styles.css?v=32">
+    <link rel="stylesheet" href="styles.css?v=66">
 </head>
 <body>
     <div id="app">
@@ -619,7 +619,7 @@
                             <!-- viii. Duración estimada de la Ejecución -->
                             <div style="display: grid; grid-template-columns: 240px 1fr; gap: 10px; align-items: center;">
                                 <label id="lbl-meca-duracion" style="font-size: 12px; font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">viii. <u>Duración estimada de la Ejecución:</u></label>
-                                <input type="text" id="req-meca-duracion" placeholder="Ej: 25-30días" style="background: rgba(234, 179, 8, 0.08); color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 13px;" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('req-meca-fecha-fin')?.focus();}">
+                                <input type="text" id="req-meca-duracion" placeholder="" value="" style="background: rgba(234, 179, 8, 0.08); color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 13px;" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('req-meca-fecha-fin')?.focus();}">
                             </div>
 
                             <!-- ix. Plazo Máximo de Finalización -->
@@ -1222,10 +1222,13 @@
 
                 <!-- Botonera de Gestión y Compartir -->
                 <div class="modal-auth-buttons-group">
-                    <button id="btn-modal-avance-obra" type="button" class="btn btn-sm btn-modal-avance" onclick="abrirModalAvanceObra(pedidoActivo.id)" title="Registrar Avance de Obra (%) y notificar facturación">
+                    <button id="btn-modal-editar-presupuesto" type="button" class="btn btn-sm" onclick="verDetallePedido(pedidoActivo.id, 'editar')" style="background: #f59e0b; color: #0f172a; font-weight: 800; border: 1px solid #d97706; border-radius: 6px; padding: 4px 10px; display: none; align-items: center; gap: 5px;" title="Editar los artículos y datos del presupuesto">
+                        <i class="fas fa-edit"></i> <span>Editar</span>
+                    </button>
+                    <button id="btn-modal-avance-obra" type="button" class="btn btn-sm btn-modal-avance" onclick="abrirModalAvanceObra(pedidoActivo.id)" style="display: none;" title="Registrar Avance de Obra (%) y notificar facturación">
                         <i class="fas fa-hammer"></i> <span>Avance</span>
                     </button>
-                    <button id="btn-modal-basar-presupuesto" type="button" class="btn btn-sm btn-modal-basar" onclick="crearPresupuestoBasadoEnActual()" title="Crear un nuevo presupuesto precompletando los datos de este">
+                    <button id="btn-modal-basar-presupuesto" type="button" class="btn btn-sm btn-modal-basar" onclick="crearPresupuestoBasadoEnActual()" style="display: none;" title="Crear un nuevo presupuesto precompletando los datos de este">
                         <i class="fas fa-copy"></i> <span>Basar Pres.</span>
                     </button>
                     <button type="button" class="btn btn-sm btn-modal-wa" onclick="compartirWhatsAppPedido(pedidoActivo.id)" title="Enviar por WhatsApp">
@@ -1234,7 +1237,7 @@
                     <button type="button" class="btn btn-sm btn-modal-email" onclick="enviarEmailPedido(pedidoActivo.id)" title="Enviar por Correo Electrónico">
                         <i class="fas fa-envelope"></i> <span>Email</span>
                     </button>
-                    <button type="button" class="btn btn-sm btn-modal-print" onclick="window.print()" title="Imprimir / Exportar a PDF">
+                    <button type="button" class="btn btn-sm btn-modal-print" onclick="imprimirPresupuestoModal()" title="Imprimir / Exportar a PDF">
                         <i class="fas fa-print"></i> <span>PDF / Imprimir</span>
                     </button>
                 </div>
@@ -1253,19 +1256,21 @@
                 <div class="mobile-only-scroll-hint">
                     <i class="fa-solid fa-arrows-left-right"></i> Deslice horizontalmente para consultar la planilla completa
                 </div>
-                <div class="palaversich-sheet">
+                <div class="palaversich-sheet" style="position: relative; overflow: hidden;">
+                <!-- Marca de Agua Central SG MONTAJES (Marca personal oficial PRESEA) -->
+                <div class="sheet-watermark" aria-hidden="true">
+                    <img src="logo_sg_montajes.png" alt="Marca de agua SG MONTAJES">
+                </div>
+
                 <!-- Cabecera Oficial -->
-                <div class="invoice-header">
+                <div class="invoice-header" style="background: rgba(30, 41, 59, 0.78); backdrop-filter: blur(2px);">
                     <!-- Caja Izquierda: Logo y Empresa -->
                     <div class="header-box header-left">
-                        <div class="logo-container">
-                            <img src="logo_sg_montajes.png" alt="SG MONTAJES Logo" style="height: 38px; width: auto; object-fit: contain;">
-                            <div class="logo-text">
-                                <span class="brand-name" style="font-size: 17px; font-weight: bold; color: #ffffff;">SG MONTAJES</span>
-                            </div>
+                        <div class="logo-container" style="display: flex; align-items: center; margin-bottom: 6px;">
+                            <img src="logo_sg_montajes.png" alt="SG MONTAJES" style="height: 48px; max-height: 48px; width: auto; max-width: 220px; object-fit: contain; display: block;">
                         </div>
-                        <div class="company-details" style="font-size: 10px; line-height: 1.3; color: var(--text-muted);">
-                            <strong style="color: #ffffff;">I.V.A. Responsable Inscripto</strong><br>
+                        <div class="company-details" style="font-size: 10px; line-height: 1.3; color: #94a3b8;">
+                            <strong style="color: #f8fafc;">I.V.A. Responsable Inscripto</strong><br>
                             Av. Pellegrini 1234 (CP 2000)<br>
                             Rosario - Pcia. Santa Fe
                         </div>
@@ -1280,100 +1285,80 @@
                     <!-- Caja Derecha: Título e Identificación -->
                     <div class="header-box header-right">
                         <div class="invoice-title">PRESUPUESTO</div>
-                        <div class="invoice-number">Nro. <span id="auth-id">00000-00014873</span></div>
-                        <div class="invoice-date">Fecha: <span id="auth-date-val">17/09/2023</span></div>
-                        <div id="auth-header-oc-container" style="font-size: 10px; font-weight: 800; margin-top: 3px; background: rgba(2, 132, 199, 0.15); padding: 2px 6px; border-radius: 4px; border: 1px dashed #0284c7; color: #38bdf8;">
+                        <div class="invoice-number">Nro. <span id="auth-id" style="color: #38bdf8; font-weight: 800;">00000-00014873</span></div>
+                        <div class="invoice-date">Fecha: <span id="auth-date-val" style="color: #f8fafc; font-weight: 600;">17/09/2023</span></div>
+                        <div id="auth-header-oc-container" style="font-size: 10px; font-weight: 800; margin-top: 3px; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px; border: 1px dashed #38bdf8; color: #38bdf8;">
                             Orden de Compra: <span id="auth-header-nro-oc-val" style="color: #38bdf8; font-weight: 800;">-</span>
                         </div>
-                        <div style="font-size: 9.5px; margin-top: 4px; color: var(--text-muted); line-height: 1.3;">
-                            C.U.I.T.: <span style="color: #ffffff;">30-00000000-0</span><br>
-                            I.I.B.B.: <span style="color: #ffffff;">000-000000-0</span><br>
-                            Fecha Inicio Actividades: <span style="color: #ffffff;">01/01/2020</span>
+                        <div style="font-size: 9.5px; margin-top: 4px; color: #94a3b8; line-height: 1.3;">
+                            C.U.I.T.: <span style="color: #f8fafc; font-weight: 600;">30-00000000-0</span><br>
+                            I.I.B.B.: <span style="color: #f8fafc; font-weight: 600;">000-000000-0</span><br>
+                            Fecha Inicio Actividades: <span style="color: #f8fafc; font-weight: 600;">01/01/2020</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Ficha Identificación de la Oferta / Propuesta Técnica -->
-                <div id="auth-mecanico-header-box" style="display: none; margin-bottom: 12px; background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; overflow: hidden; font-size: 12px; color: var(--text-main); text-align: left; box-shadow: var(--glass-shadow);">
-                    <div style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; font-weight: 800; font-size: 13px; padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 8px;">
-                        <span style="background: #0891b2; color: white; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 800;">1</span>
-                        <span style="letter-spacing: 0.5px; font-weight: 800; text-decoration: underline;">IDENTIFICACIÓN DE LA OFERTA</span>
+                <!-- Ficha Cliente y Datos de la Orden (Formato Oficial PRESEA) -->
+                <div id="auth-mecanico-header-box" style="display: block; margin-bottom: 12px; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; font-size: 11.5px; color: #f8fafc; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
+                    <!-- Fila 1: Cliente | Código -->
+                    <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Cliente:</span>
+                            <span id="auth-meca-cliente-val" style="font-weight: 800; color: #ffffff; text-transform: uppercase;">-</span>
+                        </div>
+                        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Código:</span>
+                            <span id="auth-meca-cliente-codigo-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
+                        </div>
                     </div>
                     
-                    <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center;">
-                            <span style="font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">i. Denominación del Servicio:</span>
-                            <span id="auth-meca-denominacion-val" style="font-weight: 700; color: #ffffff;">-</span>
+                    <!-- Fila 2: Domicilio | Localidad -->
+                    <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Domicilio:</span>
+                            <span id="auth-meca-domicilio-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
                         </div>
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center;">
-                            <span style="font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">ii. Cliente:</span>
-                            <span id="auth-meca-cliente-val" style="font-weight: 700; color: #ffffff;">CARGILL SACI</span>
+                        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Localidad:</span>
+                            <span id="auth-meca-localidad-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
                         </div>
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center;">
-                            <span style="font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">iii. Nombre del Proveedor:</span>
-                            <span id="auth-meca-proveedor-val" style="font-weight: 700; color: #ffffff;">SG MONTAJES SRL</span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center; background: rgba(234, 179, 8, 0.12); padding: 4px 8px; border-radius: 6px;">
-                            <span style="font-style: italic; font-weight: 700; color: #fde047;">iv. Fecha de Oferta:</span>
-                            <span id="auth-meca-oferta-val" style="font-weight: 800; color: #fde047;">-</span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center;">
-                            <span style="font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">v. Validez de la Oferta:</span>
-                            <span id="auth-meca-validez-val" style="font-weight: 700; color: #ffffff;">5 días</span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center;">
-                            <span style="font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">vi. Planta:</span>
-                            <span id="auth-meca-planta-val" style="font-weight: 700; color: #ffffff;">APS</span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center;">
-                            <span id="lbl-auth-meca-inicio" style="font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">vii. Fecha estimada de Inicio:</span>
-                            <span id="auth-meca-inicio-val" style="font-weight: 700; color: #ffffff;">-</span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center;">
-                            <span id="lbl-auth-meca-duracion" style="font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">viii. Duración estimada de la Ejecución:</span>
-                            <span id="auth-meca-duracion-val" style="font-weight: 700; color: #ffffff;">-</span>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 240px 1fr; gap: 8px; align-items: center; background: rgba(234, 179, 8, 0.12); padding: 4px 8px; border-radius: 6px;">
-                            <span id="lbl-auth-meca-fin" style="font-style: italic; font-weight: 700; color: #fde047;">ix. Plazo Máximo de Finalización:</span>
-                            <span id="auth-meca-fin-val" style="font-weight: 800; color: #fde047;">-</span>
-                        </div>
+                    </div>
 
-                        <!-- 2. PROPUESTA TÉCNICA -->
-                        <div id="auth-meca-propuesta-box" style="border-top: 1px solid rgba(255, 255, 255, 0.08); margin-top: 6px; padding-top: 8px; display: flex; flex-direction: column; gap: 6px;">
-                            <div style="font-weight: 800; color: #22d3ee; margin-bottom: 2px;">2. PROPUESTA TÉCNICA (DESCRIPCIÓN)</div>
-                            <div><strong style="color: rgba(255,255,255,0.75);">DETALLAR PROPUESTA:</strong> <span id="auth-meca-propuesta-val" style="color: #ffffff;">-</span></div>
-                            <div><strong style="color: rgba(255,255,255,0.75);">CANT DE PERSONAL DESTINADO:</strong> <span id="auth-meca-personal-val" style="color: #ffffff;">-</span></div>
-                            <div><strong style="color: rgba(255,255,255,0.75);">INDICAR EXCLUSIONES:</strong> <span id="auth-meca-exclusiones-val" style="color: #ffffff;">-</span></div>
+                    <!-- Fila 3: C.U.I.T. | Fecha de Entrega -->
+                    <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">C.U.I.T.:</span>
+                            <span id="auth-meca-cuit-val" style="font-weight: 700; color: #38bdf8; font-family: monospace;">-</span>
+                        </div>
+                        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Fecha de Entrega:</span>
+                            <span id="auth-meca-entrega-val" style="font-weight: 700; color: #38bdf8; font-family: monospace;">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Fila 4: Condición de venta | Nro Presupuesto -->
+                    <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Condición de venta:</span>
+                            <span id="auth-meca-condicion-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
+                        </div>
+                        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Nro Presupuesto:</span>
+                            <span id="auth-meca-nro-presupuesto-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Fila 5: Fabricado en Planta -->
+                    <div style="display: flex; padding: 6px 12px; align-items: center; justify-content: space-between;">
+                        <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Fabricado en Planta:</span>
+                            <span id="auth-meca-planta-val" style="font-weight: 700; color: #f8fafc;">VGG</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Contenedor del Tarifario / Propuesta Comercial con Pestañas (Paso 2: Ubicado después del Paso 1) -->
-                <div id="auth-mecanico-excel-container" style="display: none; margin-bottom: 12px;"></div>
-
-                <!-- Ficha del Cliente (Customer Info Box) -->
-                <div class="customer-info-box" id="auth-customer-info-box">
-                    <div class="info-row">
-                        <div class="info-cell cell-100"><strong>Cliente:</strong> <span id="auth-client-display">-</span></div>
-                    </div>
-                    <div class="info-row border-top">
-                        <div class="info-cell cell-60"><strong>Domicilio:</strong> <span id="auth-domicilio-val">-</span></div>
-                        <div class="info-cell cell-40 border-left"><strong>Localidad:</strong> <span id="auth-localidad-val">-</span></div>
-                    </div>
-                    <div class="info-row border-top">
-                        <div class="info-cell cell-60"><strong>Cond. I.V.A.:</strong> <span id="auth-iva-val">CONSUMIDOR FINAL</span></div>
-                        <div class="info-cell cell-40 border-left"><strong>C.U.I.T.:</strong> <span id="auth-cuit-val">-</span></div>
-                    </div>
-                    <div class="info-row border-top">
-                        <div class="info-cell cell-50"><strong>Condición de venta:</strong> <span id="auth-condition-container">-</span></div>
-                        <div class="info-cell cell-50 border-left"><strong>Forma de Pago / Plazo:</strong> <span id="auth-pago-val">-</span></div>
-                    </div>
-                    <div class="info-row border-top bg-light">
-                        <div class="info-cell cell-33"><strong>Moneda:</strong> <span id="auth-currency-container">-</span></div>
-                        <div class="info-cell cell-33 border-left"><strong>Cargado Por:</strong> <span id="auth-user-val">-</span></div>
-                        <div class="info-cell cell-34 border-left"><strong>Control SLA:</strong> <span id="auth-sla-val">-</span></div>
-                    </div>
-                </div>
+                <!-- Contenedor del Tarifario / Propuesta Comercial con Pestañas -->
+                <div id="auth-mecanico-excel-container" style="display: block; margin-bottom: 12px;"></div>
 
                 <!-- Desglose de Artículos (Grilla Oficial) -->
                 <div id="auth-items-panel" style="display: none; margin-bottom: 15px;">
@@ -1433,31 +1418,31 @@
                 </div>
 
                 <!-- Banner Informativo de Precios -->
-                <div style="border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 8px; text-align: center; font-weight: 800; font-size: 11px; margin-top: 10px; margin-bottom: 8px; color: var(--text-muted); background: rgba(30, 41, 59, 0.4); letter-spacing: 0.5px;">
+                <div style="border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 7px 12px; text-align: center; font-weight: 800; font-size: 11px; margin-top: 10px; margin-bottom: 8px; color: #94a3b8; background: rgba(15, 23, 42, 0.35); letter-spacing: 0.5px;">
                     PRECIOS DEL PRESUPUESTO, SUJETOS A MODIFICACIONES SIN PREVIO AVISO
                 </div>
 
                 <!-- Aclaraciones & Condiciones Oficiales de Presupuesto Mecánico -->
-                <div id="auth-mecanico-aclaraciones" style="display: none; margin-top: 10px; margin-bottom: 10px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px; font-size: 11px; color: var(--text-main); text-align: left; background: rgba(30, 41, 59, 0.4);">
-                    <div style="color: #f43f5e; font-weight: bold; font-size: 12px; margin-bottom: 6px;">
+                <div id="auth-mecanico-aclaraciones" style="display: none; margin-top: 10px; margin-bottom: 10px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; padding: 10px; font-size: 11px; color: #f8fafc; text-align: left; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px);">
+                    <div style="color: #f87171; font-weight: bold; font-size: 12px; margin-bottom: 6px;">
                         ⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.
                     </div>
-                    <div style="line-height: 1.6; color: var(--text-main);">
-                        <div><strong style="color: rgba(255,255,255,0.75);">i. Garantía Requerida:</strong> 6 MESES</div>
-                        <div><strong style="color: rgba(255,255,255,0.75);">ii. Convenio:</strong> La Mano de Obra contempla el Convenio UOCRA vigente. Los trabajos en planta contemplan el convenio Agroexportador.</div>
-                        <div><strong style="color: rgba(255,255,255,0.75);">iii. Forma de Pago:</strong> 30 días fecha de factura</div>
+                    <div style="line-height: 1.6; color: #cbd5e1;">
+                        <div><strong style="color: #ffffff;">i. Garantía Requerida:</strong> 6 MESES</div>
+                        <div><strong style="color: #ffffff;">ii. Convenio:</strong> La Mano de Obra contempla el Convenio UOCRA vigente. Los trabajos en planta contemplan el convenio Agroexportador.</div>
+                        <div><strong style="color: #ffffff;">iii. Forma de Pago:</strong> 30 días fecha de factura</div>
                     </div>
                 </div>
 
                 <!-- Footer de Equivalencia y Entrega -->
-                <div class="invoice-footer-info">
-                    <div class="footer-info-left">
-                        <div class="system-footer-line" style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">
-                            Presea &nbsp;&nbsp; Usuario:<span id="auth-sys-user" style="color: #fff;">1</span> &nbsp;&nbsp; Fecha:<span id="auth-sys-date" style="color: #fff;">-</span> &nbsp;&nbsp; Item: <span id="auth-sys-items-count" style="color: #fff;">0</span> &nbsp;&nbsp; Reporte: PRESUPUE_GR &nbsp;&nbsp; Página: 1
+                <div class="invoice-footer-info" style="display: flex; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; margin-top: 8px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px); overflow: hidden; color: #cbd5e1;">
+                    <div class="footer-info-left" style="flex: 1.5; border-right: 1px solid rgba(255, 255, 255, 0.14); display: flex; flex-direction: column; justify-content: space-between;">
+                        <div class="system-footer-line" style="font-size: 10px; color: #94a3b8; padding: 5px 8px; background: transparent;">
+                            Presea &nbsp;&nbsp; Usuario:<span id="auth-sys-user" style="color: #ffffff; font-weight: 700;">1</span> &nbsp;&nbsp; Fecha:<span id="auth-sys-date" style="color: #ffffff; font-weight: 700;">-</span> &nbsp;&nbsp; Item: <span id="auth-sys-items-count" style="color: #ffffff; font-weight: 700;">0</span> &nbsp;&nbsp; Reporte: <span id="auth-sys-report-name" style="color: #ffffff; font-weight: 700;">Presupuesto</span> &nbsp;&nbsp; Página: 1
                         </div>
                     </div>
-                    <div class="footer-info-right">
-                        <div class="cai-details">
+                    <div class="footer-info-right" style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div class="cai-details" style="padding: 5px 8px; font-size: 9px; text-align: right; font-weight: bold; background: transparent; color: #cbd5e1;">
                             Nro C.A.I.: <span id="auth-cai-val">0</span> &nbsp;&nbsp; Vto: <span id="auth-cai-vto">/ /</span>
                         </div>
                     </div>
@@ -2460,6 +2445,6 @@
     <script src="supabase_config.js?v=2"></script>
     
     <!-- Script principal de lógica de negocio -->
-    <script src="app.js?v=159"></script>
+    <script src="app.js?v=205"></script>
 </body>
 </html>

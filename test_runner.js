@@ -442,9 +442,8 @@ function initFirebaseSync(callback) {
 }
 
 function getCurrentUser() {
-    if (!appData || !Array.isArray(appData.users)) return null;
-    const found = appData.users.find(u => String(u.id) === String(appData.currentUserId));
-    return found || appData.users[0] || null;
+    if (!appData || !Array.isArray(appData.users) || !appData.currentUserId) return null;
+    return appData.users.find(u => String(u.id) === String(appData.currentUserId)) || null;
 }
 
 // Utilidades
@@ -956,33 +955,19 @@ function buildSidebar() {
     const user = getCurrentUser();
     if (!user) return;
     const sidebar = document.getElementById('sidebar-menu');
+    if (!sidebar) return;
     sidebar.innerHTML = '';
 
-    // Brand logo decorativo en el sidebar
-    const brandDiv = document.createElement('div');
-    brandDiv.style.display = 'flex';
-    brandDiv.style.alignItems = 'center';
-    brandDiv.style.gap = '10px';
-    brandDiv.style.padding = '12px 15px';
-    brandDiv.style.borderBottom = '1px solid rgba(255, 255, 255, 0.08)';
-    brandDiv.style.marginBottom = '10px';
-    brandDiv.innerHTML = `
-        <img src="logo_sg_montajes.png" alt="SG MONTAJES Logo" style="width: auto; height: 24px; object-fit: contain;">
-        <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.5px; color: white;">SG <span style="font-weight: 400; color: var(--warning);">MONTAJES</span></span>
-    `;
-    sidebar.appendChild(brandDiv);
-
-    // Título decorativo del menú lateral con Botón Volver al lado
-    const titleDiv = document.createElement('div');
-    titleDiv.className = 'sidebar-title';
-    titleDiv.style.cssText = 'display: flex; align-items: center; justify-content: space-between; padding-right: 10px;';
-    titleDiv.innerHTML = `
-        <span style="display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-bars-staggered"></i> NAVEGACIÓN</span>
-        <button id="btn-sidebar-volver" type="button" class="btn btn-sm btn-nav-volver" onclick="volverAccionAnterior()" title="Volver a la pantalla anterior" style="font-family: inherit; font-size: 11px; font-weight: 700; height: 26px; padding: 0 10px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;">
-            <i class="fa-solid fa-arrow-left"></i> Volver
-        </button>
-    `;
-    sidebar.appendChild(titleDiv);
+    // Botón Volver al inicio de la barra
+    const btnVolver = document.createElement('button');
+    btnVolver.id = 'btn-sidebar-volver';
+    btnVolver.type = 'button';
+    btnVolver.className = 'btn btn-sm btn-nav-volver';
+    btnVolver.onclick = () => volverAccionAnterior();
+    btnVolver.title = 'Volver a la pantalla anterior';
+    btnVolver.style.cssText = 'font-family: inherit; font-size: 11.5px; font-weight: 700; height: 30px; padding: 0 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; white-space: nowrap; margin-right: 6px; flex-shrink: 0;';
+    btnVolver.innerHTML = `<i class="fa-solid fa-arrow-left"></i> Volver`;
+    sidebar.appendChild(btnVolver);
 
     document.getElementById('current-user-name').innerText = user.username;
     
@@ -1017,11 +1002,6 @@ function buildSidebar() {
             if (typeof window.registrarNavegacion === 'function') {
                 window.registrarNavegacion({ type: 'menu', id: item.id, tpl: item.tpl, label: item.label });
             }
-
-            // Cerrar sidebar en móvil automáticamente
-            if (window.innerWidth <= 900) {
-                sidebar.classList.remove('open');
-            }
         };
         sidebar.appendChild(a);
 
@@ -1029,35 +1009,29 @@ function buildSidebar() {
         if (index === 0) a.click();
     });
 
-    // Agregar selector de temas al pie de la barra lateral
+    // Agregar selector de temas a la derecha de la barra horizontal
     const themeContainer = document.createElement('div');
     themeContainer.className = 'theme-selector-container';
+    themeContainer.style.cssText = 'margin-left: auto; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding-left: 10px;';
     themeContainer.innerHTML = `
-        <span class="theme-label"><i class="fa-solid fa-palette"></i> Tema</span>
-        <div class="theme-buttons">
-            <button class="theme-btn" data-theme="cyberpunk" title="Corporativo GR (Default)" style="background: #2563eb; border: 1.5px solid #fbbf24;"></button>
-            <button class="theme-btn" data-theme="midnight" title="Midnight Purple" style="background: #a855f7;"></button>
-            <button class="theme-btn" data-theme="emerald" title="Emerald Credit" style="background: #10b981;"></button>
-            <button class="theme-btn" data-theme="light" title="Light Glass" style="background: #0284c7; border: 1px solid rgba(255, 255, 255, 0.2);"></button>
+        <span class="theme-label" style="font-size: 11px; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px;"><i class="fa-solid fa-palette"></i></span>
+        <div class="theme-buttons" style="display: inline-flex; gap: 4px;">
+            <button class="theme-btn" data-theme="cyberpunk" title="Corporativo GR (Default)" style="width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: #2563eb; border: 1.5px solid #fbbf24;"></button>
+            <button class="theme-btn" data-theme="midnight" title="Midnight Purple" style="width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: #a855f7; border: 1px solid rgba(255,255,255,0.2);"></button>
+            <button class="theme-btn" data-theme="emerald" title="Emerald Credit" style="width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: #10b981; border: 1px solid rgba(255,255,255,0.2);"></button>
+            <button class="theme-btn" data-theme="light" title="Light Glass" style="width: 18px; height: 18px; border-radius: 50%; cursor: pointer; background: #0284c7; border: 1px solid rgba(255, 255, 255, 0.2);"></button>
         </div>
     `;
     sidebar.appendChild(themeContainer);
     
     // Configurar listeners para los botones de tema
-    const activeTheme = document.body.getAttribute('data-theme') || 'cyberpunk';
     themeContainer.querySelectorAll('.theme-btn').forEach(btn => {
-        const theme = btn.getAttribute('data-theme');
-        if (theme === activeTheme) btn.classList.add('active');
-        
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const selectedTheme = btn.getAttribute('data-theme');
-            document.body.setAttribute('data-theme', selectedTheme);
-            localStorage.setItem('presea_theme', selectedTheme);
-            
-            themeContainer.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        });
+        btn.onclick = () => {
+            const theme = btn.dataset.theme;
+            if (typeof window.aplicarTema === 'function') {
+                window.aplicarTema(theme);
+            }
+        };
     });
 }
 
@@ -1227,6 +1201,7 @@ function closeModal() {
         overlay.style.display = 'none';
         overlay.innerHTML = '';
     }
+    document.title = 'Gestión de Presupuestos';
     if (typeof window.actualizarBotonVolver === 'function') {
         window.actualizarBotonVolver();
     }
@@ -1674,7 +1649,7 @@ function updateTipoPresupuestoBadge() {
     if (lblVal) lblVal.innerHTML = isElec ? 'iv. <u>Validez de la Oferta:</u>' : 'iv. <u>Validez de la Oferta:</u>';
     if (lblPlanta) lblPlanta.innerHTML = isElec ? 'v. <u>Planta de Cargill</u>' : 'v. <u>Planta de Cargill:</u>';
     if (lblInicio) lblInicio.innerHTML = isElec ? 'vi. <u>Fecha de Inicio:</u>' : 'vi. <u>Fecha estimada de Inicio:</u>';
-    if (lblDuracion) lblDuracion.innerHTML = isElec ? 'vii. <u>Numeros de OT:</u>' : 'vii. <u>Duración estimada de la Ejecución:</u>';
+    if (lblDuracion) lblDuracion.innerHTML = isElec ? 'vii. <u>Número OT:</u>' : 'vii. <u>Número OT / Duración:</u>';
     if (lblFin) lblFin.innerHTML = isElec ? 'viii. <u>Plazo Máximo de Finalización:</u>' : 'viii. <u>Plazo Máximo de Finalización:</u>';
 
     const reqMecaPropuestaBox = document.getElementById('req-meca-propuesta-box');
@@ -1687,13 +1662,19 @@ function updateTipoPresupuestoBadge() {
         if (valValidez && !valValidez.value) valValidez.value = '5 dias';
         if (valPlanta && !valPlanta.value) valPlanta.value = 'Complejo APS- PGSM';
         if (valInicio && !valInicio.value) valInicio.value = '12-ago-26';
-        if (valDuracion && !valDuracion.value) valDuracion.value = 'OT-';
+        if (valDuracion) {
+            valDuracion.placeholder = '';
+            if (valDuracion.value === 'OT-' || valDuracion.value === '25-30días') valDuracion.value = '';
+        }
     } else {
         if (valProveedor && (!valProveedor.value || valProveedor.value === 'SG Montajes S.R.L')) valProveedor.value = 'SG MONTAJES SRL';
         if (valValidez && (!valValidez.value || valValidez.value === '5 dias')) valValidez.value = '5 días';
         if (valPlanta && (!valPlanta.value || valPlanta.value === 'Complejo APS- PGSM')) valPlanta.value = 'APS';
         if (valInicio && !valInicio.value) valInicio.value = '12-ago-26';
-        if (valDuracion && (!valDuracion.value || valDuracion.value === 'OT-')) valDuracion.value = '25-30días';
+        if (valDuracion) {
+            valDuracion.placeholder = '';
+            if (valDuracion.value === 'OT-' || valDuracion.value === '25-30días') valDuracion.value = '';
+        }
     }
 
     // Auto-populate hidden required standard values for both
@@ -4221,10 +4202,10 @@ window.renderEditableStatusDropdown = function(p) {
     }
 
     return `
-        <div onclick="event.stopPropagation()" style="display: inline-block; text-align: center; min-width: 175px;">
+        <div onclick="event.stopPropagation()" style="display: inline-block; text-align: center; width: 100%; max-width: 140px;">
             <select onchange="cambiarEstadoPresupuesto('${p.id}', this.value)" 
                     title="Haga clic aquí para modificar el estado de este presupuesto"
-                    style="background: ${matched.bg}; color: ${matched.color}; border: 1.5px solid ${matched.border}; padding: 5px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; cursor: pointer; outline: none; transition: all 0.2s ease; box-shadow: 0 0 8px rgba(0,0,0,0.3); width: 100%;">
+                    style="background: ${matched.bg}; color: ${matched.color}; border: 1.5px solid ${matched.border}; padding: 4px 6px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; cursor: pointer; outline: none; transition: all 0.2s ease; box-shadow: 0 0 8px rgba(0,0,0,0.3); width: 100%;">
                 ${optsHtml}
             </select>
             ${btnFacturadoHtml}
@@ -4962,17 +4943,47 @@ window.rechazarPedidoRapido = function(id) {
     renderAssignmentsTable();
 };
 
+function formatFechaCorta(fechaStr) {
+    if (!fechaStr) return '-';
+    const cleanStr = String(fechaStr).trim();
+    const datePart = cleanStr.split(/[ T]/)[0];
+    
+    if (datePart.includes('-')) {
+        const parts = datePart.split('-');
+        if (parts.length === 3) {
+            const year = parts[0].length === 4 ? parts[0] : (parts[2].length === 4 ? parts[2] : parts[0]);
+            const month = parts[1].padStart(2, '0');
+            const day = (parts[0].length === 4 ? parts[2] : parts[0]).padStart(2, '0');
+            return `${day}/${month}/${year}`;
+        }
+    }
+    if (datePart.includes('/')) {
+        const parts = datePart.split('/');
+        if (parts.length === 3) {
+            const day = parts[0].padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            let year = parts[2];
+            if (year.length === 2) year = '20' + year;
+            return `${day}/${month}/${year}`;
+        }
+    }
+    return datePart;
+}
+window.formatFechaCorta = formatFechaCorta;
+
 // --- CONFIGURACIÓN DE COLUMNAS REORDENABLES Y AGRUPACIÓN ---
-let tableColumnOrder = ['id', 'fecha', 'cliente', 'importe', 'estado', 'accion'];
-const defaultTableColumnOrder = ['id', 'fecha', 'cliente', 'importe', 'estado', 'accion'];
+let tableColumnOrder = ['id', 'fecha', 'planta', 'cliente', 'denominacion', 'estado', 'importe', 'accion'];
+const defaultTableColumnOrder = ['id', 'fecha', 'planta', 'cliente', 'denominacion', 'estado', 'importe', 'accion'];
 
 const tableColumnDefs = {
-    id: { key: 'id', label: 'N° ID', width: '65px', align: 'left', sortable: true },
-    fecha: { key: 'fecha', label: 'Fecha', width: '105px', align: 'left', sortable: true },
-    cliente: { key: 'cliente', label: 'Denominación del Servicio', width: 'auto', align: 'left', sortable: true },
-    importe: { key: 'importe', label: 'Importe ($)', width: '100px', align: 'right', sortable: true },
-    estado: { key: 'estado', label: 'Estado', width: '130px', align: 'center', sortable: true },
-    accion: { key: 'accion', label: 'Acción', width: '240px', align: 'center', sortable: false }
+    id: { key: 'id', label: 'N° ID', width: '120px', align: 'left', sortable: true },
+    fecha: { key: 'fecha', label: 'Fecha', width: '90px', align: 'left', sortable: true },
+    planta: { key: 'planta', label: 'Planta', width: '135px', align: 'center', sortable: true },
+    denominacion: { key: 'denominacion', label: 'Detalle', width: 'auto', align: 'left', sortable: true },
+    cliente: { key: 'cliente', label: 'Cliente', width: '160px', align: 'left', sortable: true },
+    estado: { key: 'estado', label: 'Estado', width: '135px', align: 'center', sortable: true },
+    importe: { key: 'importe', label: 'Importe ($)', width: '110px', align: 'right', sortable: true },
+    accion: { key: 'accion', label: 'Acción', width: '140px', align: 'center', sortable: false }
 };
 
 let tableSortColumn = 'fecha';
@@ -5119,17 +5130,21 @@ window.eliminarVistaPersonalizada = function(viewId) {
 };
 
 try {
-    const savedOrder = localStorage.getItem('sg_table_col_order');
+    const savedOrder = localStorage.getItem('sg_table_col_order_v5');
     if (savedOrder) {
         const parsed = JSON.parse(savedOrder);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-            const validCols = parsed.filter(c => defaultTableColumnOrder.includes(c) && c !== 'condicion');
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.includes('denominacion') && parsed.includes('planta')) {
+            const validCols = parsed.filter(c => defaultTableColumnOrder.includes(c));
             defaultTableColumnOrder.forEach(c => {
                 if (!validCols.includes(c)) validCols.push(c);
             });
             tableColumnOrder = validCols;
-            try { localStorage.setItem('sg_table_col_order', JSON.stringify(tableColumnOrder)); } catch(e) {}
+        } else {
+            tableColumnOrder = [...defaultTableColumnOrder];
+            try { localStorage.setItem('sg_table_col_order_v5', JSON.stringify(tableColumnOrder)); } catch(e) {}
         }
+    } else {
+        tableColumnOrder = [...defaultTableColumnOrder];
     }
 } catch(e) {}
 
@@ -5148,7 +5163,7 @@ window.handleColDragOver = function(e) {
     if (th) th.classList.add('drag-over');
 };
 
-window.handleColDragLeave = function(e) {
+window.handleColLeave = function(e) {
     const th = e.currentTarget;
     if (th) th.classList.remove('drag-over');
 };
@@ -5165,7 +5180,7 @@ window.handleColDrop = function(e, targetColKey) {
         tableColumnOrder.splice(fromIdx, 1);
         tableColumnOrder.splice(toIdx, 0, draggedColKey);
         try {
-            localStorage.setItem('sg_table_col_order', JSON.stringify(tableColumnOrder));
+            localStorage.setItem('sg_table_col_order_v4', JSON.stringify(tableColumnOrder));
         } catch(err) {}
         renderAssignmentsTable();
     }
@@ -5216,16 +5231,14 @@ function renderTableHeaderRow() {
         th.setAttribute('data-col', colKey);
         th.setAttribute('draggable', 'true');
         
-        let colWidth = def.width;
-        if (viewMode === 'EstadoPresupuesto') {
-            if (colKey === 'id') colWidth = '75px';
-            else if (colKey === 'fecha') colWidth = '110px';
-            else if (colKey === 'cliente') colWidth = '320px';
-            else if (colKey === 'importe') colWidth = '130px';
-            else if (colKey === 'estado') colWidth = '220px';
-        }
+        let colWidth = def.width || 'auto';
         th.style.width = colWidth;
+        if (colWidth !== 'auto' && !colWidth.includes('%')) {
+            th.style.minWidth = colWidth;
+        }
         th.style.textAlign = def.align;
+        th.style.whiteSpace = 'nowrap';
+        th.style.padding = '8px 6px';
         th.title = 'Arrastrá para reordenar la columna | Clic para ordenar';
 
         let colLabel = def.label;
@@ -5240,7 +5253,7 @@ function renderTableHeaderRow() {
         }
 
         th.innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: ${def.align === 'right' ? 'flex-end' : (def.align === 'center' ? 'center' : 'flex-start')}; gap: 4px; user-select: none;">
+            <div style="display: flex; align-items: center; justify-content: ${def.align === 'right' ? 'flex-end' : (def.align === 'center' ? 'center' : 'flex-start')}; gap: 4px; user-select: none; white-space: nowrap;">
                 <span style="opacity: 0.35; font-size: 10px; cursor: grab;" title="Arrastrar para mover">⋮⋮</span>
                 <span>${colLabel}</span>${sortIcon}
             </div>
@@ -5254,12 +5267,6 @@ function renderTableHeaderRow() {
 
         theadRow.appendChild(th);
     });
-
-    if (viewMode === 'EstadoPresupuesto') {
-        const thSpacer = document.createElement('th');
-        thSpacer.style.width = 'auto';
-        theadRow.appendChild(thSpacer);
-    }
 }
 
 function renderAssignmentsTable() {
@@ -5276,18 +5283,14 @@ function renderAssignmentsTable() {
     
     listBody.innerHTML = '';
     
-    // Filtrar pedidos por rubro activo (Eléctrico vs Mecánico) de manera robusta
+    // Filtrar pedidos según filtros activos
     let filtered = appData.pedidos.filter(p => {
-        if (reqTipoPresupuesto) {
-            const pTipoStr = (p.tipo_presupuesto || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const pIdStr = String(p.id || '').toUpperCase();
-            const isMec = (pTipoStr.includes('mec') || pIdStr.startsWith('101') || pIdStr.includes('MEC'));
-            const pTipo = isMec ? 'Mecánico' : 'Eléctrico';
-            const reqTipoNorm = (reqTipoPresupuesto || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            const isReqMec = reqTipoNorm.includes('mec');
-            if (isMec !== isReqMec) return false;
-        }
-        
+        // 1. Filtro estricto por Rubro activo (Eléctrico / Mecánico)
+        const curRubro = reqTipoPresupuesto || (typeof getCurrentUser === 'function' && getCurrentUser() && getCurrentUser().rubro_defecto) || 'Eléctrico';
+        const isItemMec = (p.tipo_presupuesto === 'Mecánico' || (p.id && (String(p.id).startsWith('101') || String(p.id).toUpperCase().includes('MEC'))));
+        const pTipo = isItemMec ? 'Mecánico' : 'Eléctrico';
+        if (pTipo !== curRubro) return false;
+
         if (viewMode === 'Rechazados') {
             if (p.estado !== 'Rechazado') return false;
         } else if (viewMode === 'EstadoPresupuesto') {
@@ -5303,15 +5306,18 @@ function renderAssignmentsTable() {
             if (pEstNorm !== statusVal) return false;
         }
         
-        const pDate = p.fecha.substring(0, 10);
-        if (dateFrom && pDate < dateFrom) return false;
-        if (dateTo && pDate > dateTo) return false;
+        const pDate = p.fecha ? p.fecha.substring(0, 10) : '';
+        if (dateFrom && pDate && pDate < dateFrom) return false;
+        if (dateTo && pDate && pDate > dateTo) return false;
         
         if (searchVal) {
-            const matchesText = p.cliente_nombre.toLowerCase().includes(searchVal) || 
-                                p.cuit.includes(searchVal) || 
-                                p.id.includes(searchVal) ||
-                                p.estado.toLowerCase().includes(searchVal);
+            const matchesText = (p.cliente_nombre || '').toLowerCase().includes(searchVal) || 
+                                (p.meca_denominacion || '').toLowerCase().includes(searchVal) ||
+                                (p.motivo || '').toLowerCase().includes(searchVal) ||
+                                (p.meca_planta || '').toLowerCase().includes(searchVal) ||
+                                (p.cuit || '').includes(searchVal) || 
+                                String(p.id || '').toLowerCase().includes(searchVal) ||
+                                (p.estado || '').toLowerCase().includes(searchVal);
             if (!matchesText) return false;
         }
         
@@ -5327,13 +5333,18 @@ function renderAssignmentsTable() {
             valA = parseFloat(a.importe) || 0;
             valB = parseFloat(b.importe) || 0;
             return tableSortAsc ? valA - valB : valB - valA;
-        }
-        if (tableSortColumn === 'cliente') {
-            valA = (a.meca_denominacion || a.motivo || a.cliente_nombre || '').toLowerCase();
-            valB = (b.meca_denominacion || b.motivo || b.cliente_nombre || '').toLowerCase();
+        } else if (tableSortColumn === 'denominacion') {
+            valA = (a.meca_denominacion || a.motivo || a.denominacion || '').toLowerCase();
+            valB = (b.meca_denominacion || b.motivo || b.denominacion || '').toLowerCase();
+        } else if (tableSortColumn === 'cliente') {
+            valA = (a.cliente_nombre || a.cliente || '').toLowerCase();
+            valB = (b.cliente_nombre || b.cliente || '').toLowerCase();
+        } else if (tableSortColumn === 'planta') {
+            valA = (a.meca_planta || a.planta || 'VGG').toLowerCase();
+            valB = (b.meca_planta || b.planta || 'VGG').toLowerCase();
         } else if (tableSortColumn === 'id') {
-            valA = parseInt(a.id, 10) || 0;
-            valB = parseInt(b.id, 10) || 0;
+            valA = parseInt(String(a.id).replace(/\D/g, ''), 10) || 0;
+            valB = parseInt(String(b.id).replace(/\D/g, ''), 10) || 0;
             return tableSortAsc ? valA - valB : valB - valA;
         } else {
             valA = String(valA).toLowerCase();
@@ -5345,48 +5356,78 @@ function renderAssignmentsTable() {
         return 0;
     });
 
-    const activeCols = tableColumnOrder;
-    const totalCols = activeCols.length;
+    const totalCols = tableColumnOrder.length;
 
     if (filtered.length === 0) {
-        listBody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align: center; color: var(--text-muted); padding: 20px;">No se encontraron presupuestos comerciales.</td></tr>`;
+        listBody.innerHTML = `<tr><td colspan="${totalCols}" style="text-align:center; padding: 24px; color: var(--text-muted);">No se encontraron presupuestos en esta sección.</td></tr>`;
         return;
     }
 
     function formatFechaCorta(fechaStr) {
         if (!fechaStr) return '-';
-        const parts = fechaStr.split(' ');
-        const d = parts[0] ? parts[0].split('-') : [];
-        if (d.length === 3) {
-            const time = parts[1] ? parts[1].substring(0, 5) : '';
-            return `${d[2]}/${d[1]}/${d[0].substring(2)} ${time}`;
+        const cleanStr = String(fechaStr).trim();
+        const datePart = cleanStr.split(/[ T]/)[0];
+        
+        if (datePart.includes('-')) {
+            const parts = datePart.split('-');
+            if (parts.length === 3) {
+                const year = parts[0].length === 4 ? parts[0] : (parts[2].length === 4 ? parts[2] : parts[0]);
+                const month = parts[1].padStart(2, '0');
+                const day = (parts[0].length === 4 ? parts[2] : parts[0]).padStart(2, '0');
+                return `${day}/${month}/${year}`;
+            }
         }
-        return fechaStr;
+        if (datePart.includes('/')) {
+            const parts = datePart.split('/');
+            if (parts.length === 3) {
+                const day = parts[0].padStart(2, '0');
+                const month = parts[1].padStart(2, '0');
+                let year = parts[2];
+                if (year.length === 2) year = '20' + year;
+                return `${day}/${month}/${year}`;
+            }
+        }
+        return datePart;
     }
 
     function createBudgetTableRow(p) {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        
+        const activeCols = tableColumnOrder;
+
         const statusBadge = getBudgetStatusBadgeHtml(p.estado, p.oc_limite_fecha);
 
         let actionBtnHtml = '';
-        if (viewMode === 'EstadoPresupuesto') {
+        if (viewMode === 'Autorizador') {
             actionBtnHtml = `
-                <div style="display: flex; gap: 4px; align-items: center; justify-content: center;">
-                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
+                <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: nowrap;">
+                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Revisar: Ver comprobante completo para autorizar o rechazar">
                         <i class="fas fa-eye"></i> Ver
+                    </button>
+                    <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); autorizarPedidoRapido('${p.id}')" style="background: #10b981; color: #fff; border: 1px solid #10b981; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Autorizar Presupuesto">
+                        <i class="fas fa-check"></i> Autorizar
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); rechazarPedidoRapido('${p.id}')" style="background: #e11d48; color: #fff; border: 1px solid #e11d48; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Rechazar Presupuesto">
+                        <i class="fas fa-times"></i> Rechazar
                     </button>
                 </div>
             `;
         } else if (viewMode === 'Rechazados' || p.estado === 'Rechazado') {
             actionBtnHtml = `
-                <div style="display: flex; gap: 4px; align-items: center; justify-content: center;">
+                <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: nowrap;">
                     <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
                         <i class="fas fa-eye"></i> Ver
                     </button>
                     <button class="btn btn-sm" onclick="event.stopPropagation(); crearPresupuestoBasadoEnActual('${p.id}')" style="background: #7c3aed; color: #fff; border: 1px solid #7c3aed; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Basar Presupuesto: Crear un nuevo presupuesto precompletando los datos de este">
-                        <i class="fas fa-copy"></i> Basar Pres.
+                        <i class="fas fa-copy"></i> Basar
+                    </button>
+                </div>
+            `;
+        } else if (viewMode === 'EstadoPresupuesto') {
+            actionBtnHtml = `
+                <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: nowrap;">
+                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
+                        <i class="fas fa-eye"></i> Ver
                     </button>
                 </div>
             `;
@@ -5413,7 +5454,7 @@ function renderAssignmentsTable() {
                         <i class="fas fa-hammer"></i> Avance
                     </button>
                     <button class="btn btn-sm" onclick="event.stopPropagation(); crearPresupuestoBasadoEnActual('${p.id}')" style="background: #7c3aed; color: #fff; border: 1px solid #7c3aed; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Basar Presupuesto: Crear un nuevo presupuesto precompletando los datos de este">
-                        <i class="fas fa-copy"></i> Basar Pres.
+                        <i class="fas fa-copy"></i> Basar
                     </button>
                 `);
             }
@@ -5428,27 +5469,13 @@ function renderAssignmentsTable() {
             }
 
             actionBtnHtml = `
-                <div style="display: flex; gap: 4px; align-items: center; justify-content: center;">
+                <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: nowrap;">
                     ${btns.join('')}
-                </div>
-            `;
-        } else if (viewMode === 'Autorizador') {
-            actionBtnHtml = `
-                <div style="display: flex; gap: 4px; align-items: center; justify-content: center;">
-                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Revisar: Ver comprobante completo para autorizar o rechazar">
-                        <i class="fas fa-eye"></i> Revisar
-                    </button>
-                    <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); autorizarPedidoRapido('${p.id}')" style="background: #10b981; color: #fff; border: 1px solid #10b981; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Autorizar Presupuesto">
-                        <i class="fas fa-check"></i> Autorizar
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); rechazarPedidoRapido('${p.id}')" style="background: #e11d48; color: #fff; border: 1px solid #e11d48; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Rechazar Presupuesto">
-                        <i class="fas fa-times"></i> Rechazar
-                    </button>
                 </div>
             `;
         } else {
             actionBtnHtml = `
-                <div style="display: flex; gap: 4px; align-items: center; justify-content: center;">
+                <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: nowrap;">
                     <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
                         <i class="fas fa-eye"></i> Ver
                     </button>
@@ -5456,7 +5483,7 @@ function renderAssignmentsTable() {
                         <i class="fas fa-hammer"></i> Avance
                     </button>
                     <button class="btn btn-sm" onclick="event.stopPropagation(); crearPresupuestoBasadoEnActual('${p.id}')" style="background: #7c3aed; color: #fff; border: 1px solid #7c3aed; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Basar Presupuesto: Crear un nuevo presupuesto precompletando los datos de este">
-                        <i class="fas fa-copy"></i> Basar Pres.
+                        <i class="fas fa-copy"></i> Basar
                     </button>
                 </div>
             `;
@@ -5464,8 +5491,8 @@ function renderAssignmentsTable() {
 
         const isItemMec = (p.tipo_presupuesto === 'Mecánico' || (p.id && (String(p.id).startsWith('101') || String(p.id).toUpperCase().includes('MEC'))));
         const tipoPresBadge = isItemMec 
-            ? `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #22d3ee; font-size: 9.5px; padding: 1px 5px; border: 1px solid rgba(6, 182, 212, 0.4); margin-left: 4px; border-radius: 4px; font-weight: 700;">⚙️ Mec</span>`
-            : `<span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-size: 9.5px; padding: 1px 5px; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 4px; border-radius: 4px; font-weight: 700;">⚡ Elec</span>`;
+            ? `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #22d3ee; font-size: 10px; padding: 2px 7px; border: 1px solid rgba(6, 182, 212, 0.4); margin-left: 6px; border-radius: 4px; font-weight: 800; white-space: nowrap;">⚙️ Mecánico</span>`
+            : `<span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-size: 10px; padding: 2px 7px; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 6px; border-radius: 4px; font-weight: 800; white-space: nowrap;">⚡ Eléctrico</span>`;
 
         const avanceAcc = (Array.isArray(p.avances) && p.avances.length > 0) ? p.avances.reduce((s, a) => s + (parseFloat(a.porcentaje) || 0), 0) : (p.avance_porcentaje_acumulado || 0);
         const avanceBadge = (avanceAcc > 0 && viewMode !== 'EstadoPresupuesto' && viewMode !== 'Rechazados' && p.estado !== 'Rechazado')
@@ -5475,65 +5502,76 @@ function renderAssignmentsTable() {
         let cellsHtml = activeCols.map(colKey => {
             switch (colKey) {
                 case 'id':
-                    return `<td style="font-family: monospace; font-weight: bold; color: var(--primary); font-size: 11.5px;">${p.id}</td>`;
+                    return `<td style="font-family: monospace; font-weight: 800; color: #38bdf8; font-size: 12px; white-space: nowrap; width: 120px; min-width: 110px; padding: 6px 8px;">${p.id}</td>`;
                 case 'fecha':
-                    return `<td style="font-size: 10.5px; color: var(--text-muted); white-space: nowrap;">${formatFechaCorta(p.fecha)}</td>`;
-                case 'cliente':
+                    return `<td style="font-size: 11.5px; color: #cbd5e1; font-weight: 600; white-space: nowrap; width: 90px; min-width: 85px; padding: 6px 8px;">${formatFechaCorta(p.fecha)}</td>`;
+                case 'planta':
+                    const plantaVal = (p.meca_planta || p.planta || 'VGG').toUpperCase();
+                    return `
+                        <td style="padding: 6px 8px; text-align: center; white-space: nowrap; width: 135px; min-width: 120px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; display: inline-block; white-space: nowrap;">${plantaVal}</span>
+                        </td>`;
+                case 'denominacion':
                     let alertFaltaFacturar = '';
-                    if (viewMode === 'EstadoPresupuesto') {
-                        const avancesArr = Array.isArray(p.avances) ? p.avances : [];
-                        const totAvance = avancesArr.reduce((s, a) => s + (parseFloat(a.porcentaje) || 0), 0);
-                        const totFacturado = parseFloat(p.facturado_porcentaje || 0);
-                        const faltaFact = Math.max(0, parseFloat((totAvance - totFacturado).toFixed(2)));
+                    const avancesArr = Array.isArray(p.avances) ? p.avances : [];
+                    const totAvance = avancesArr.reduce((s, a) => s + (parseFloat(a.porcentaje) || 0), 0);
+                    const totFacturado = parseFloat(p.facturado_porcentaje || 0);
+                    const faltaFact = Math.max(0, parseFloat((totAvance - totFacturado).toFixed(2)));
 
-                        if (faltaFact > 0) {
-                            alertFaltaFacturar = `
-                                <div style="margin-top: 7px;">
-                                    <span style="display: inline-flex; align-items: center; gap: 6px; background: rgba(239, 68, 68, 0.22); border: 1.5px solid #ef4444; padding: 4px 10px; border-radius: 6px; color: #fee2e2; font-weight: 900; font-size: 12px; letter-spacing: 0.3px; box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);">
-                                        <i class="fa-solid fa-triangle-exclamation" style="color: #f87171; font-size: 14px;"></i>
-                                        <span>⚠️ FALTA FACTURAR: <strong style="color: #fde047; font-size: 13px; text-decoration: underline;">${String(faltaFact).replace('.', ',')}%</strong> <span style="font-size: 10.5px; opacity: 0.85; font-weight: normal;">(Avance Obra: ${String(totAvance).replace('.', ',')}%)</span></span>
-                                    </span>
-                                </div>
-                            `;
-                        } else if (totFacturado >= 100 || p.estado === 'Facturado Total') {
-                            alertFaltaFacturar = `
-                                <div style="margin-top: 4px;">
-                                    <span style="display: inline-flex; align-items: center; gap: 5px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 8px; border-radius: 4px; color: #6ee7b7; font-weight: 800; font-size: 10.5px;">
-                                        <i class="fa-solid fa-circle-check"></i> 100% FACTURADO TOTAL
-                                    </span>
-                                </div>
-                            `;
-                        } else if (totFacturado >= totAvance && totAvance > 0) {
-                            alertFaltaFacturar = `
-                                <div style="margin-top: 4px;">
-                                    <span style="display: inline-flex; align-items: center; gap: 5px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 8px; border-radius: 4px; color: #6ee7b7; font-weight: 800; font-size: 10.5px;">
-                                        <i class="fa-solid fa-circle-check"></i> FACTURACIÓN AL DÍA (${String(totFacturado).replace('.', ',')}%)
-                                    </span>
-                                </div>
-                            `;
-                        }
+                    if (faltaFact > 0) {
+                        alertFaltaFacturar = `
+                            <div style="margin-top: 4px;">
+                                <span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; padding: 2px 6px; border-radius: 4px; color: #fca5a5; font-weight: 800; font-size: 10.5px;">
+                                    <i class="fa-solid fa-triangle-exclamation" style="color: #f87171;"></i>
+                                    <span>FALTA FACTURAR: <strong style="color: #fde047;">${String(faltaFact).replace('.', ',')}%</strong></span>
+                                </span>
+                            </div>
+                        `;
+                    } else if (totFacturado >= 100 || p.estado === 'Facturado Total') {
+                        alertFaltaFacturar = `
+                            <div style="margin-top: 4px;">
+                                <span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 6px; border-radius: 4px; color: #6ee7b7; font-weight: 800; font-size: 10.5px;">
+                                    <i class="fa-solid fa-circle-check"></i> 100% FACTURADO
+                                </span>
+                            </div>
+                        `;
+                    } else if (totFacturado >= totAvance && totAvance > 0) {
+                        alertFaltaFacturar = `
+                            <div style="margin-top: 4px;">
+                                <span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 6px; border-radius: 4px; color: #6ee7b7; font-weight: 800; font-size: 10.5px;">
+                                    <i class="fa-solid fa-circle-check"></i> AL DÍA (${String(totFacturado).replace('.', ',')}%)
+                                </span>
+                            </div>
+                        `;
                     }
 
                     return `
-                        <td>
-                            <div class="client-name-cell" style="line-height: 1.25;">
-                                <span class="client-name" style="font-size: 11.5px; font-weight: 600; color: white;">${p.meca_denominacion || p.motivo || p.cliente_nombre} ${tipoPresBadge}</span>
-                                <span class="client-id" style="font-size: 10px; color: var(--text-muted); display: block;">${p.meca_planta ? 'Planta: ' + p.meca_planta : ''} ${p.meca_nro_oc ? '| OC: ' + p.meca_nro_oc : ''}</span>
+                        <td style="padding: 6px 12px; min-width: 220px;">
+                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                    <span style="font-size: 12px; font-weight: 700; color: #ffffff;">${p.meca_denominacion || p.motivo || 'Cotización de Servicio'}</span>
+                                    ${tipoPresBadge}
+                                </div>
                                 ${avanceBadge}
                                 ${alertFaltaFacturar}
                             </div>
                         </td>`;
-                case 'importe':
-                    return `<td style="text-align: right; font-family: monospace; font-weight: 700; font-size: 11.5px; color: white; white-space: nowrap;">$${parseFloat(p.importe || 0).toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>`;
+                case 'cliente':
+                    return `
+                        <td style="padding: 6px 8px; width: 160px; min-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${(p.cliente_nombre || p.cliente || 'CLIENTE').toUpperCase()}">
+                            <span style="font-size: 12px; font-weight: 700; color: #f8fafc; letter-spacing: 0.3px;">${(p.cliente_nombre || p.cliente || 'CLIENTE').toUpperCase()}</span>
+                        </td>`;
                 case 'estado':
                     if (viewMode === 'EstadoPresupuesto') {
-                        return `<td style="text-align: center;">${renderEditableStatusDropdown(p)}</td>`;
+                        return `<td style="text-align: center; padding: 6px 6px; white-space: nowrap; width: 135px; min-width: 135px;">${renderEditableStatusDropdown(p)}</td>`;
                     }
-                    return `<td style="text-align: center;">${statusBadge}</td>`;
+                    return `<td style="text-align: center; padding: 6px 6px; white-space: nowrap; width: 135px; min-width: 135px;">${statusBadge}</td>`;
+                case 'importe':
+                    return `<td style="text-align: right; font-family: monospace; font-weight: 800; font-size: 12px; color: #ffffff; white-space: nowrap; width: 110px; min-width: 100px; padding: 6px 8px;">$${parseFloat(p.importe || 0).toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>`;
                 case 'accion':
-                    return `<td style="text-align: center;">${actionBtnHtml}</td>`;
+                    return `<td style="text-align: center; padding: 6px 6px; white-space: nowrap; width: 140px; min-width: 130px;">${actionBtnHtml}</td>`;
                 default:
-                    return `<td>-</td>`;
+                    return `<td style="padding: 6px 6px;">-</td>`;
             }
         }).join('');
 
@@ -5548,7 +5586,7 @@ function renderAssignmentsTable() {
                 if (segPerms.canEdit) verDetallePedido(p.id, 'editar');
                 else verDetallePedido(p.id, 'ver');
             } else {
-                verDetallePedido(p.id);
+                verDetallePedido(p.id, 'ver');
             }
         };
 
@@ -5564,6 +5602,10 @@ function renderAssignmentsTable() {
             let grpName = 'Otros';
             if (tableGroupBy === 'estado') {
                 grpName = p.estado || 'Enviado sin OC';
+            } else if (tableGroupBy === 'cliente') {
+                grpName = (p.cliente_nombre || p.cliente || 'Sin Cliente').toUpperCase();
+            } else if (tableGroupBy === 'planta') {
+                grpName = (p.meca_planta || p.planta || 'VGG').toUpperCase();
             } else if (tableGroupBy === 'condicion') {
                 grpName = p.condicion_nombre || 'Sin Condición';
             }
@@ -5603,7 +5645,7 @@ function renderAssignmentsTable() {
             listBody.appendChild(tr);
         });
     }
-}
+};
 
 // 5. PLANILLA DETALLE / AUTORIZACIÓN PRESEA
 let pedidoActivo = null;
@@ -5619,6 +5661,18 @@ window.saveTempEdits = function() {
     };
     if (getEditVal('auth-edit-meca-denominacion') !== null) pedidoActivo.meca_denominacion = getEditVal('auth-edit-meca-denominacion');
     if (getEditVal('auth-edit-meca-cliente') !== null) pedidoActivo.cliente_nombre = getEditVal('auth-edit-meca-cliente');
+    if (getEditVal('auth-edit-meca-domicilio') !== null) pedidoActivo.domicilio = getEditVal('auth-edit-meca-domicilio');
+    if (getEditVal('auth-edit-meca-localidad') !== null) pedidoActivo.localidad = getEditVal('auth-edit-meca-localidad');
+    if (getEditVal('auth-edit-meca-cuit') !== null) pedidoActivo.cuit = getEditVal('auth-edit-meca-cuit');
+    if (getEditVal('auth-edit-meca-entrega') !== null) pedidoActivo.fecha_entrega = getEditVal('auth-edit-meca-entrega');
+    if (getEditVal('auth-edit-meca-oc-mo') !== null) {
+        const valOc = getEditVal('auth-edit-meca-oc-mo');
+        pedidoActivo.meca_nro_oc = valOc;
+        pedidoActivo.nro_oc = valOc;
+        const authHeaderOc = document.getElementById('auth-header-nro-oc-val');
+        if (authHeaderOc) authHeaderOc.innerText = valOc || '-';
+    }
+    if (getEditVal('auth-edit-meca-oc-mat') !== null) pedidoActivo.oc_materiales = getEditVal('auth-edit-meca-oc-mat');
     if (getEditVal('auth-edit-meca-proveedor') !== null) pedidoActivo.meca_proveedor = getEditVal('auth-edit-meca-proveedor');
     if (getEditVal('auth-edit-meca-oferta') !== null) pedidoActivo.meca_fecha_oferta = getEditVal('auth-edit-meca-oferta');
     if (getEditVal('auth-edit-meca-validez') !== null) pedidoActivo.meca_validez = getEditVal('auth-edit-meca-validez');
@@ -5889,6 +5943,27 @@ window.guardarModificacionesPedido = function() {
     const newAmount = activeItems.reduce((sum, item) => sum + (item.cantidad * item.precio), 0);
     const realOrder = appData.pedidos[orderIdx];
     
+    realOrder.cliente_nombre = pedidoActivo.cliente_nombre || '';
+    realOrder.domicilio = pedidoActivo.domicilio || '';
+    realOrder.localidad = pedidoActivo.localidad || '';
+    realOrder.cuit = pedidoActivo.cuit || '';
+    realOrder.condicion_iva = pedidoActivo.condicion_iva || 'RESPONSABLE INSCRIPTO';
+    realOrder.fecha_entrega = pedidoActivo.fecha_entrega || '';
+    realOrder.oc_materiales = pedidoActivo.oc_materiales || '';
+    realOrder.meca_proveedor = pedidoActivo.meca_proveedor || '';
+    realOrder.meca_fecha_oferta = pedidoActivo.meca_fecha_oferta || '';
+    realOrder.meca_validez = pedidoActivo.meca_validez || '';
+    realOrder.meca_planta = pedidoActivo.meca_planta || '';
+    realOrder.meca_fecha_inicio = pedidoActivo.meca_fecha_inicio || '';
+    realOrder.meca_duracion = pedidoActivo.meca_duracion || '';
+    realOrder.meca_fecha_fin = pedidoActivo.meca_fecha_fin || '';
+    realOrder.meca_propuesta = pedidoActivo.meca_propuesta || '';
+    realOrder.meca_personal = pedidoActivo.meca_personal || '';
+    realOrder.meca_exclusiones = pedidoActivo.meca_exclusiones || '';
+    realOrder.meca_nro_oc = pedidoActivo.meca_nro_oc || '';
+    realOrder.nro_oc = pedidoActivo.meca_nro_oc || '';
+    realOrder.meca_nro_ot = pedidoActivo.meca_nro_ot || '';
+
     realOrder.condicion_id = pedidoActivo.condicion_id;
     realOrder.condicion_nombre = pedidoActivo.condicion_nombre;
     realOrder.deposito_id = pedidoActivo.deposito_id;
@@ -6171,7 +6246,7 @@ window.verDetallePedido = function(id, explicitMode) {
     
     // Determinar si la apertura es en modo edición o solo consulta/historial
     const isEditRequested = (explicitMode === 'editar') || (!explicitMode && viewMode === 'Modificacion' && segPerms.canEdit);
-    const isEditingAllowed = isEditRequested && segPerms.canEdit && pedido.estado !== 'Rechazado' && viewMode === 'Modificacion';
+    const isEditingAllowed = isEditRequested && segPerms.canEdit && pedido.estado !== 'Rechazado' && viewMode !== 'EstadoPresupuesto' && viewMode !== 'Rechazados' && viewMode !== 'Autorizador';
     
     if (isEditingAllowed) {
         if (!pedidoEdicionTemp || pedidoEdicionTemp.id !== id) {
@@ -6186,20 +6261,33 @@ window.verDetallePedido = function(id, explicitMode) {
 
     openModal('tpl-modal-auth');
 
+    if (typeof window.getBudgetDocTitle === 'function') {
+        document.title = window.getBudgetDocTitle(p);
+    }
+
     if (typeof window.registrarNavegacion === 'function') {
         window.registrarNavegacion({ type: 'modal_auth', pedidoId: id, label: `Presupuesto #${id}` });
     }
 
-    // Ocultar botón 'Basar Presupuesto' si estamos en vista de Autorización, EstadoPresupuesto o si el usuario en Seguimiento no tiene permiso de editar
-    const btnBasarModal = document.getElementById('btn-modal-basar-presupuesto');
-    if (btnBasarModal) {
-        btnBasarModal.style.display = (viewMode === 'Autorizador' || viewMode === 'EstadoPresupuesto' || (viewMode === 'Modificacion' && !segPerms.canEdit)) ? 'none' : 'inline-block';
+    // Controlar visibilidad del botón 'Editar' en el modal (Solo en vista Modificación/Seguimiento)
+    const btnEditModal = document.getElementById('btn-modal-editar-presupuesto');
+    if (btnEditModal) {
+        const canShowEdit = (viewMode === 'Modificacion' && segPerms.canEdit && p.estado !== 'Rechazado' && !isEditingAllowed);
+        btnEditModal.style.display = canShowEdit ? 'inline-flex' : 'none';
     }
 
-    // Ocultar botón 'Avance de Obra' si estamos en 'EstadoPresupuesto', 'Rechazados', si el presupuesto está Rechazado o si no tiene permiso de editar
+    // Controlar visibilidad del botón 'Basar Presupuesto' (Solo en vista Modificación/Seguimiento)
+    const btnBasarModal = document.getElementById('btn-modal-basar-presupuesto');
+    if (btnBasarModal) {
+        const canShowBasar = (viewMode === 'Modificacion' && segPerms.canEdit && p.estado !== 'Rechazado');
+        btnBasarModal.style.display = canShowBasar ? 'inline-block' : 'none';
+    }
+
+    // Controlar visibilidad del botón 'Avance de Obra' (Solo en vista Modificación/Seguimiento)
     const btnAvanceModal = document.getElementById('btn-modal-avance-obra');
     if (btnAvanceModal) {
-        btnAvanceModal.style.display = (viewMode === 'EstadoPresupuesto' || viewMode === 'Rechazados' || p.estado === 'Rechazado' || (viewMode === 'Modificacion' && !segPerms.canEdit)) ? 'none' : 'inline-flex';
+        const canShowAvance = (viewMode === 'Modificacion' && segPerms.canEdit && p.estado !== 'Rechazado');
+        btnAvanceModal.style.display = canShowAvance ? 'inline-flex' : 'none';
     }
 
     const setElemText = (elId, txt) => {
@@ -6209,6 +6297,15 @@ window.verDetallePedido = function(id, explicitMode) {
     const setElemHtml = (elId, html) => {
         const el = document.getElementById(elId);
         if (el) el.innerHTML = (html !== null && html !== undefined) ? String(html) : '';
+    };
+
+    const cleanVal = (val, fallback) => {
+        if (val === undefined || val === null) return (fallback !== undefined && fallback !== null && fallback !== '-') ? fallback : '-';
+        const s = String(val).trim();
+        if (s === '' || s === '-' || s.toLowerCase() === 'undefined' || s.toLowerCase() === 'null') {
+            return (fallback !== undefined && fallback !== null && fallback !== '-') ? fallback : '-';
+        }
+        return s;
     };
 
     // Popular planilla SG MONTAJES con el código respetando 101-MEC / 102-ELEC
@@ -6225,22 +6322,53 @@ window.verDetallePedido = function(id, explicitMode) {
     setElemText('auth-date-val', formattedDate);
     setElemText('auth-header-nro-oc-val', p.meca_nro_oc || p.nro_oc || '-');
     
-    const rawClient = (typeof clientesDB !== 'undefined' && Array.isArray(clientesDB)) ? clientesDB.find(c => c.codigo === p.cliente_id) : null;
-    const clientCode = p.cliente_id || '';
-    const clientName = (p.cliente_nombre || 'CARGILL SACI').toUpperCase();
-    setElemText('auth-client-display', `${clientCode}  ${clientName}`);
-    
-    setElemText('auth-domicilio-val', rawClient ? (rawClient.domicilio || 'XX').toUpperCase() : 'XX');
-    setElemText('auth-localidad-val', rawClient ? (rawClient.localidad || '(2000) SANTA FE').toUpperCase() : '(2000) SANTA FE');
-    setElemText('auth-cuit-val', p.cuit || '- 999999-9');
-    setElemText('auth-iva-val', 'CONSUMIDOR FINAL');
+    const rawClient = (typeof clientesDB !== 'undefined' && Array.isArray(clientesDB)) 
+        ? clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (p.cliente_nombre && c.nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase())) 
+        : null;
+
+    const formatDisplayDate = (val) => {
+        if (!val || val === '-') return '-';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(val))) {
+            const parts = String(val).split('-');
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return String(val);
+    };
+
+    const formatCuitDisplay = (val) => {
+        if (!val || val === '-') return '-';
+        const clean = String(val).replace(/\D/g, '');
+        if (clean.length === 11) {
+            return `${clean.substring(0, 2)}-${clean.substring(2, 10)}-${clean.substring(10)}`;
+        }
+        return String(val);
+    };
+
+    const rawCliCode = cleanVal(p.cliente_id, rawClient ? rawClient.codigo : '-');
+    const rawCliName = cleanVal(p.cliente_nombre, rawClient ? rawClient.nombre : '-').toUpperCase();
+    const rawCliDom = cleanVal(p.domicilio, rawClient ? rawClient.domicilio : '-').toUpperCase();
+    const rawCliLoc = cleanVal(p.localidad, rawClient ? rawClient.localidad : '-').toUpperCase();
+    const rawCliIva = cleanVal(p.condicion_iva, rawClient ? rawClient.condicion_iva : 'RESPONSABLE INSCRIPTO').toUpperCase();
+    const rawCliCuit = formatCuitDisplay(cleanVal(p.cuit, rawClient ? rawClient.cuit : '-'));
+    const rawCliCond = cleanVal(p.condicion_nombre, rawClient ? rawClient.condicion_nombre : (p.forma_pago || 'CONTADO')).toUpperCase();
+    const rawCliEnt = formatDisplayDate(cleanVal(p.fecha_entrega || p.meca_fecha_fin, p.fecha || formattedDate));
+    const rawOcMo = cleanVal(p.meca_nro_oc, p.nro_oc || '-');
+    const rawOcMat = cleanVal(p.oc_materiales, '-');
+    const rawPlanta = cleanVal(p.meca_planta || p.planta, 'VGG').toUpperCase();
+    const rawNroPres = formatPresupuestoCodigo(p) || p.id || '-';
+
+    setElemText('auth-client-display', `${rawCliCode}  ${rawCliName}`);
+    setElemText('auth-domicilio-val', rawCliDom);
+    setElemText('auth-localidad-val', rawCliLoc);
+    setElemText('auth-cuit-val', rawCliCuit);
+    setElemText('auth-iva-val', rawCliIva);
     
     setElemText('auth-comisionista-val', p.is_comisionista ? 'SÍ' : 'NO');
     const isDetailMec = (p.tipo_presupuesto === 'Mecánico' || (p.id && (String(p.id).startsWith('101') || String(p.id).toUpperCase().includes('MEC'))));
     const isElec = !isDetailMec;
     setElemText('auth-tiponv-val', `${isElec ? '⚡' : '⚙️'} PRESUPUESTO ${isElec ? 'ELÉCTRICO' : 'MECÁNICO'}`);
     setElemText('auth-entrega-val', (p.tipo_entrega || 'RETIRA CLIENTE').toUpperCase());
-    setElemText('auth-pago-val', (p.forma_pago || 'CONTADO').toUpperCase());
+    setElemText('auth-pago-val', rawCliCond);
     
     // Ficha y Aclaraciones para Presupuestos Excel (Mecánico y Eléctrico)
     const mecaHeaderBox = document.getElementById('auth-mecanico-header-box');
@@ -6251,31 +6379,27 @@ window.verDetallePedido = function(id, explicitMode) {
     const isElectrical = tipoStr.includes('eléctrico') || tipoStr.includes('electrico') || (!tipoStr.includes('mecánico') && !tipoStr.includes('mecanico'));
     const isExcelFlow = true;
 
+    const isRejectedOrder = (p.estado === 'Rechazado' || p.estado === 'Anulado' || viewMode === 'Rechazados');
+    const canEditControls = (!isRejectedOrder && isEditingAllowed);
+
     if (mecaHeaderBox) {
         mecaHeaderBox.style.display = 'block';
-        
-        const authMecaPropuestaBox = document.getElementById('auth-meca-propuesta-box');
-        if (authMecaPropuestaBox) {
-            authMecaPropuestaBox.style.display = isElectrical ? 'none' : 'flex';
-        }
-
-        const devVal = p.meca_denominacion || p.motivo || 'SERVICIOS Y MONTAJES';
-
-        const formatDisplayDate = (val) => {
-            if (!val || val === '-') return '-';
-            if (/^\d{4}-\d{2}-\d{2}$/.test(String(val))) {
-                const parts = String(val).split('-');
-                return `${parts[2]}/${parts[1]}/${parts[0]}`;
-            }
-            return String(val);
-        };
-
         setElemText('auth-meca-denominacion-val', devVal);
-        setElemText('auth-meca-cliente-val', p.cliente_nombre || 'CARGILL SACI');
+        setElemText('auth-meca-cliente-val', rawCliName);
+        setElemText('auth-meca-cliente-codigo-val', rawCliCode);
+        setElemText('auth-meca-domicilio-val', rawCliDom);
+        setElemText('auth-meca-localidad-val', rawCliLoc);
+        setElemText('auth-meca-iva-val', rawCliIva);
+        setElemText('auth-meca-cuit-val', rawCliCuit);
+        setElemText('auth-meca-condicion-val', rawCliCond);
+        setElemText('auth-meca-entrega-val', rawCliEnt);
+        setElemText('auth-meca-oc-mo-val', rawOcMo);
+        setElemText('auth-meca-oc-mat-val', rawOcMat);
         setElemText('auth-meca-proveedor-val', p.meca_proveedor || 'SG MONTAJES SRL');
         setElemText('auth-meca-oferta-val', formatDisplayDate(p.meca_fecha_oferta || p.fecha || formattedDate));
         setElemText('auth-meca-validez-val', p.meca_validez || '5 DÍAS');
-        setElemText('auth-meca-planta-val', (p.meca_planta === 'PGSM') ? 'PGSM' : 'VGG');
+        setElemText('auth-meca-planta-val', rawPlanta);
+        setElemText('auth-meca-nro-presupuesto-val', rawNroPres);
         
         setElemText('auth-meca-inicio-val', formatDisplayDate(p.meca_fecha_inicio || p.fecha || formattedDate));
         setElemText('auth-meca-duracion-val', p.meca_duracion || '-');
@@ -6300,6 +6424,10 @@ window.verDetallePedido = function(id, explicitMode) {
     if (sysDate) sysDate.innerText = p.fecha || formattedDate;
     const sysCount = document.getElementById('auth-sys-items-count');
     if (sysCount) sysCount.innerText = p.items ? p.items.length : 0;
+    const sysReportName = document.getElementById('auth-sys-report-name');
+    if (sysReportName) {
+        sysReportName.innerText = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(p) : `Presupuesto ${p.cliente_nombre || ''} ${p.id || ''}`.trim();
+    }
     
     const isRejectedOrder = (p.estado === 'Rechazado' || p.estado === 'Anulado' || viewMode === 'Rechazados');
     const canEditControls = (viewMode === 'Modificacion' && !isRejectedOrder && isEditingAllowed);
@@ -6539,49 +6667,67 @@ window.verDetallePedido = function(id, explicitMode) {
         }
     }
 
-    function renderModalReportTable(p, currentMode) {
+    window.renderModalReportTable = function(p, currentMode) {
         if (!p) return;
         const isRejectedOrder = (p.estado === 'Rechazado' || p.estado === 'Anulado' || viewMode === 'Rechazados');
-        const currentReportType = String(p.tipo_reporte || 'detallado').toLowerCase().trim();
-        const isRes = (!isRejectedOrder && currentReportType === 'resumido');
+        const isEditMode = (currentMode === 'detallado_edit' || (currentMode === 'editar' && isEditingAllowed));
+        const activeMode = (currentMode === 'resumido' || currentMode === 'detallado') 
+            ? currentMode 
+            : (isEditMode ? 'detallado' : (p.tipo_reporte || 'resumido'));
+        const isRes = (activeMode === 'resumido');
 
-        // Sincronizar botones de la cabecera
-        const btnDet = document.getElementById('btn-toggle-report-detallado');
-        const btnRes = document.getElementById('btn-toggle-report-resumido');
-        if (btnDet && btnRes) {
+        const btnRes = document.getElementById('btn-toggle-report-resumido') || document.getElementById('auth-btn-report-resumido');
+        const btnDet = document.getElementById('btn-toggle-report-detallado') || document.getElementById('auth-btn-report-detallado');
+
+        if (btnRes && btnDet) {
             if (isRes) {
+                btnRes.style.background = '#0284c7';
+                btnRes.style.color = '#ffffff';
+                btnRes.style.boxShadow = '0 2px 8px rgba(2, 132, 199, 0.4)';
                 btnDet.style.background = 'transparent';
                 btnDet.style.color = 'var(--text-muted)';
-                btnRes.style.background = '#10b981';
-                btnRes.style.color = 'white';
+                btnDet.style.boxShadow = 'none';
             } else {
                 btnDet.style.background = '#0284c7';
-                btnDet.style.color = 'white';
+                btnDet.style.color = '#ffffff';
+                btnDet.style.boxShadow = '0 2px 8px rgba(2, 132, 199, 0.4)';
                 btnRes.style.background = 'transparent';
                 btnRes.style.color = 'var(--text-muted)';
+                btnRes.style.boxShadow = 'none';
             }
         }
+
+        const mecaHeaderBox = document.getElementById('auth-mecanico-header-box');
+        const customerInfoBox = document.getElementById('auth-customer-info-box');
+
+        if (mecaHeaderBox) mecaHeaderBox.style.display = 'block';
+        if (customerInfoBox) customerInfoBox.style.display = 'none';
 
         const authMecaContainer = document.getElementById('auth-mecanico-excel-container');
         if (!authMecaContainer) return;
         authMecaContainer.style.display = 'block';
 
+        const obsHtml = (p.motivo && p.motivo.trim() && p.motivo.trim().toLowerCase() !== 'sin observaciones')
+            ? `<div style="margin-top: 10px; padding: 8px 12px; background: rgba(15, 23, 42, 0.35); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; font-size: 11.5px; text-align: left; color: #f8fafc;">
+                <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800; margin-right: 6px;">Observaciones:</span>
+                <span style="color: #f8fafc; font-weight: 600;">${p.motivo.trim()}</span>
+               </div>`
+            : '';
+
         if (isRejectedOrder) {
             authMecaContainer.innerHTML = `
-                <div style="background: rgba(244,63,94,0.08); border: 1.5px solid rgba(244,63,94,0.3); border-radius: 10px; padding: 14px; margin-bottom: 15px; color: #fda4af;">
-                    <div style="font-weight: 800; font-size: 14px; margin-bottom: 4px;"><i class="fas fa-times-circle"></i> PRESUPUESTO RECHAZADO</div>
-                    <div style="font-size: 12px;"><strong>Motivo:</strong> ${p.motivo_rechazo || 'Presupuesto rechazado por el cliente o administración.'}</div>
+                <div style="background: rgba(244, 63, 94, 0.15); border: 1.5px solid #f43f5e; border-radius: 8px; padding: 12px; margin-bottom: 12px; color: #fca5a5;">
+                    <div style="font-weight: 800; font-size: 13px; margin-bottom: 4px;"><i class="fas fa-times-circle"></i> PRESUPUESTO RECHAZADO</div>
+                    <div style="font-size: 11.5px;"><strong>Motivo:</strong> ${p.motivo_rechazo || 'Presupuesto rechazado por el cliente o administración.'}</div>
                 </div>
             `;
         } else if (isRes) {
-            // ================= COMPROBANTE RESUMIDO =================
+            // ================= COMPROBANTE RESUMIDO (FORMATO OFICIAL PRESEA) =================
             const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
             const validItems = (Array.isArray(p.items) ? p.items : []).filter(it => {
                 const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
                 return q > 0 && it.estado !== 'Rechazado';
             });
-            const totalUnitsCount = validItems.reduce((sum, it) => sum + (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0), 0);
-            const itemsCountTotal = totalUnitsCount > 0 ? totalUnitsCount.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2}) : '1';
             const netAmt = parseFloat(p.importe) || validItems.reduce((sum, it) => sum + (parseFloat(it.subtotal) || (parseFloat(it.cantidad) * parseFloat(it.precio)) || 0), 0);
             const ivaAmt = netAmt * 0.21;
             const totalWithIvaAmt = netAmt * 1.21;
@@ -6590,55 +6736,63 @@ window.verDetallePedido = function(id, explicitMode) {
             const totalWithIvaStr = `$${totalWithIvaAmt.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
             authMecaContainer.innerHTML = `
-                <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; overflow: hidden; color: var(--text-main); font-family: inherit; margin-bottom: 15px; text-align: left; box-shadow: var(--glass-shadow);">
-                    <div style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 800; font-size: 13px; padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
-                        <span style="letter-spacing: 0.5px; font-weight: 800;"><i class="fas fa-clipboard-list"></i> PROPUESTA COMERCIAL (REPORTE RESUMIDO)</span>
-                        <span style="font-size: 11px; background: rgba(16, 185, 129, 0.25); color: #34d399; padding: 2px 8px; border-radius: 4px; font-weight: 700; border: 1px solid rgba(16, 185, 129, 0.4);">Modo Resumido</span>
-                    </div>
-                    <div style="overflow-x: auto; padding: 10px;">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: var(--text-main); background: transparent;">
+                <div style="background: rgba(15, 23, 42, 0.28); backdrop-filter: blur(2px); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; color: #f8fafc; font-family: inherit; margin-bottom: 12px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
+                    <div style="overflow-x: auto; padding: 0;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; color: #f8fafc; background: transparent;">
                             <thead>
-                                <tr style="background: rgba(15, 23, 42, 0.7); border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-weight: bold; text-align: left;">
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: center; width: 45px; color: #ffffff !important; font-weight: 800; font-size: 12px;">#</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; color: #ffffff !important; font-weight: 800; font-size: 12px;">Denominación del Servicio / Obra</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: center; width: 120px; color: #ffffff !important; font-weight: 800; font-size: 12px;">Cantidad</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; width: 180px; color: #ffffff !important; font-weight: 800; font-size: 12px;">Importe Neto</th>
+                                <tr style="background: rgba(15, 23, 42, 0.50); border-bottom: 2px solid rgba(255, 255, 255, 0.14); font-weight: bold; text-align: left;">
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; width: 100px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">ARTÍCULO</span>
+                                    </th>
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">DETALLE</span>
+                                    </th>
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 130px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">PRECIO</span>
+                                    </th>
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: center; width: 90px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">CANTIDAD</span>
+                                    </th>
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 140px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">TOTAL</span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.02);">
-                                    <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 12px; text-align: center; color: var(--text-muted) !important; font-family: monospace; font-weight: 800; font-size: 12px;">1</td>
-                                    <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 12px; font-weight: 800; color: #ffffff !important; font-size: 13px;">${devText}</td>
-                                    <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 12px; text-align: center; font-weight: 800; font-family: monospace; font-size: 13px; color: #ffffff !important;">${itemsCountTotal}</td>
-                                    <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 12px; text-align: right; font-family: monospace; font-weight: 900; color: #38bdf8 !important; font-size: 14px;">${subtotalStr}</td>
+                                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: transparent;">
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; font-family: monospace; font-weight: 700; font-size: 12px; color: #38bdf8;">${formatPresupuestoCodigo(p) || '001'}</td>
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; font-weight: 700; color: #ffffff; font-size: 12px;">${devText}</td>
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; font-family: monospace; font-weight: 700; color: #f8fafc; font-size: 12px;">${subtotalStr}</td>
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: center; font-weight: 800; font-family: monospace; font-size: 12px; color: #f8fafc;">1</td>
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; font-family: monospace; font-weight: 900; color: #38bdf8; font-size: 13px;">${subtotalStr}</td>
                                 </tr>
                             </tbody>
                             <tfoot>
-                                <tr style="background: rgba(15, 23, 42, 0.7); font-size: 11px;">
-                                    <td colspan="3" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 14px; text-align: right; color: var(--text-muted);"><strong>SUBTOTAL (NETO):</strong></td>
-                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 14px; text-align: right; font-family: monospace; font-weight: 700; color: #ffffff;">${subtotalStr}</td>
+                                <tr style="background: rgba(15, 23, 42, 0.50); font-size: 11.5px;">
+                                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 12px; text-align: right; color: #cbd5e1; font-weight: 700;"><strong>SUBTOTAL (NETO):</strong></td>
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 12px; text-align: right; font-family: monospace; font-weight: 800; color: #f8fafc; font-size: 12.5px;">${subtotalStr}</td>
                                 </tr>
-                                <tr style="background: rgba(15, 23, 42, 0.7); font-size: 11px;">
-                                    <td colspan="3" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 14px; text-align: right; color: #fde047;"><strong>I.V.A. (21%):</strong></td>
-                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 14px; text-align: right; font-family: monospace; font-weight: 700; color: #fde047;">${ivaStr}</td>
+                                <tr style="background: rgba(15, 23, 42, 0.50); font-size: 11.5px;">
+                                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 12px; text-align: right; color: #fbbf24; font-weight: 700;"><strong>I.V.A. (21%):</strong></td>
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 12px; text-align: right; font-family: monospace; font-weight: 800; color: #fbbf24; font-size: 12.5px;">${ivaStr}</td>
                                 </tr>
-                                <tr style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: bold; font-size: 13px; border-top: 2px solid rgba(16, 185, 129, 0.5);">
-                                    <td colspan="3" style="border: 1px solid rgba(16, 185, 129, 0.2); padding: 10px 14px; text-align: right; text-transform: uppercase;"><strong>TOTAL (IVA Incluido):</strong></td>
-                                    <td style="border: 1px solid rgba(16, 185, 129, 0.2); padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 900; font-size: 15px; color: #34d399 !important;">${totalWithIvaStr}</td>
+                                <tr style="background: rgba(16, 185, 129, 0.18); border-top: 2px solid #10b981; font-size: 12.5px;">
+                                    <td colspan="4" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 9px 12px; text-align: right; text-transform: uppercase; color: #4ade80; font-weight: 900;"><strong>TOTAL (IVA Incluido):</strong></td>
+                                    <td style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 9px 12px; text-align: right; font-family: monospace; font-weight: 900; font-size: 15px; color: #4ade80;">${totalWithIvaStr}</td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
+                    ${obsHtml}
                 </div>
             `;
-        } else if (canEditControls && currentMode === 'editar') {
-            const prevTipo = reqTipoPresupuesto;
-            reqTipoPresupuesto = p.tipo_presupuesto || 'Eléctrico';
+        } else if (isEditMode) {
+            // ================= MODO EDICIÓN DETALLADO (TARIFARIO EXCEL) =================
+            reqTipoPresupuesto = (p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'));
             pedidoItems = JSON.parse(JSON.stringify(p.items || []));
             renderMecanicoExcelGridInContainer(authMecaContainer, true);
-            reqTipoPresupuesto = prevTipo;
         } else {
-            // ================= COMPROBANTE DETALLADO =================
+            // ================= COMPROBANTE DETALLADO (SOLO CONSULTA - DESGLOSE DE PRODUCTOS) =================
             const isMec = (p.tipo_presupuesto === 'Mecánico' || (p.id && (String(p.id).startsWith('101') || String(p.id).toUpperCase().includes('MEC'))));
             const catalog = isMec ? (window.presupuestoMecanicoDB || []) : (window.presupuestosCatalogDB || []);
 
@@ -6665,28 +6819,24 @@ window.verDetallePedido = function(id, explicitMode) {
                     grandTotal += sub;
 
                     itemsRowsHtml += `
-                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: ${idx % 2 === 0 ? 'rgba(255, 255, 255, 0.02)' : 'transparent'};">
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 10px; text-align: center; color: var(--text-muted); font-family: monospace; font-weight: 700;">${idx + 1}</td>
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${item.codigo || '-'}</td>
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 10px; font-weight: 600; color: #ffffff;">${item.detalle || 'Servicio'}</td>
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 10px; text-align: center; font-weight: 800; font-family: monospace; color: #ffffff;">${qty.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 10px; text-align: center; color: var(--text-muted); font-size: 11px; text-transform: uppercase;">${udm}</td>
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 10px; text-align: right; font-family: monospace; color: #ffffff;">$${price.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">$${sub.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: ${idx % 2 === 0 ? 'rgba(15, 23, 42, 0.15)' : 'transparent'};">
+                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${item.codigo || idx + 1}</td>
+                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-weight: 600; color: #f8fafc;">${item.detalle || 'Servicio'}</td>
+                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; color: #f8fafc; font-weight: 600;">$${price.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: center; font-weight: 800; font-family: monospace; color: #f8fafc;">${qty.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
+                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">$${sub.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                         </tr>
                     `;
                 });
             } else {
                 grandTotal = parseFloat(p.importe || 0);
                 itemsRowsHtml = `
-                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px; text-align: center;">1</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px; font-family: monospace; color: #38bdf8;">${formatPresupuestoCodigo(p)}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px; font-weight: 600; color: #ffffff;">${(p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase()}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px; text-align: center; font-family: monospace;">1</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px; text-align: center;">gl</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px; text-align: right; font-family: monospace;">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: transparent;">
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${formatPresupuestoCodigo(p) || '001'}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; font-weight: 600; color: #f8fafc;">${(p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase()}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; font-family: monospace; color: #f8fafc;">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: center; font-family: monospace; font-weight: 800; color: #f8fafc;">1</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                     </tr>
                 `;
             }
@@ -6699,47 +6849,52 @@ window.verDetallePedido = function(id, explicitMode) {
             const totalWithIvaStr = `$${totalWithIvaAmt.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
             authMecaContainer.innerHTML = `
-                <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; overflow: hidden; color: var(--text-main); font-family: inherit; margin-bottom: 15px; text-align: left; box-shadow: var(--glass-shadow);">
-                    <div style="background: rgba(2, 132, 199, 0.15); color: #38bdf8; font-weight: 800; font-size: 13px; padding: 10px 14px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center;">
-                        <span style="letter-spacing: 0.5px; font-weight: 800;"><i class="fas fa-file-lines"></i> PROPUESTA COMERCIAL (REPORTE DETALLADO)</span>
-                        <span style="font-size: 11px; background: rgba(2, 132, 199, 0.25); color: #38bdf8; padding: 2px 8px; border-radius: 4px; font-weight: 700; border: 1px solid rgba(2, 132, 199, 0.4);">Modo Detallado</span>
-                    </div>
-                    <div style="overflow-x: auto; padding: 10px;">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; color: var(--text-main); background: transparent;">
+                <div style="background: rgba(15, 23, 42, 0.28); backdrop-filter: blur(2px); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; color: #f8fafc; font-family: inherit; margin-bottom: 12px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
+                    <div style="overflow-x: auto; padding: 0;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; color: #f8fafc; background: transparent;">
                             <thead>
-                                <tr style="background: rgba(15, 23, 42, 0.7); border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-weight: bold; text-align: left;">
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; text-align: center; width: 40px; color: #ffffff !important; font-weight: 800;">#</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; width: 110px; color: #ffffff !important; font-weight: 800;">Código</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; color: #ffffff !important; font-weight: 800;">Detalle del Ítem / Servicio</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; text-align: center; width: 80px; color: #ffffff !important; font-weight: 800;">Cantidad</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; text-align: center; width: 75px; color: #ffffff !important; font-weight: 800;">U.D.M.</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; text-align: right; width: 130px; color: #ffffff !important; font-weight: 800;">Precio Unitario</th>
-                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px; text-align: right; width: 140px; color: #ffffff !important; font-weight: 800;">Precio Total</th>
+                                <tr style="background: rgba(15, 23, 42, 0.50); border-bottom: 2px solid rgba(255, 255, 255, 0.14); font-weight: bold; text-align: left;">
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; width: 100px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">CÓDIGO</span>
+                                    </th>
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">DETALLE DE PRODUCTOS / SERVICIOS</span>
+                                    </th>
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 130px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">PRECIO</span>
+                                    </th>
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: center; width: 95px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">CANTIDAD</span>
+                                    </th>
+                                    <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 140px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                        <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">TOTAL</span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${itemsRowsHtml}
                             </tbody>
                             <tfoot>
-                                <tr style="background: rgba(15, 23, 42, 0.7); font-size: 11px;">
-                                    <td colspan="6" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 14px; text-align: right; color: var(--text-muted);"><strong>SUBTOTAL (NETO):</strong></td>
-                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 14px; text-align: right; font-family: monospace; font-weight: 700; color: #ffffff;">${subtotalStr}</td>
+                                <tr style="background: rgba(15, 23, 42, 0.50); font-size: 11.5px;">
+                                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 12px; text-align: right; color: #cbd5e1; font-weight: 700;"><strong>SUBTOTAL (NETO):</strong></td>
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 12px; text-align: right; font-family: monospace; font-weight: 800; color: #f8fafc; font-size: 12.5px;">${subtotalStr}</td>
                                 </tr>
-                                <tr style="background: rgba(15, 23, 42, 0.7); font-size: 11px;">
-                                    <td colspan="6" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 14px; text-align: right; color: #fde047;"><strong>I.V.A. (21%):</strong></td>
-                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 14px; text-align: right; font-family: monospace; font-weight: 700; color: #fde047;">${ivaStr}</td>
+                                <tr style="background: rgba(15, 23, 42, 0.50); font-size: 11.5px;">
+                                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 12px; text-align: right; color: #fbbf24; font-weight: 700;"><strong>I.V.A. (21%):</strong></td>
+                                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 12px; text-align: right; font-family: monospace; font-weight: 800; color: #fbbf24; font-size: 12.5px;">${ivaStr}</td>
                                 </tr>
-                                <tr style="background: rgba(2, 132, 199, 0.15); color: #38bdf8; font-weight: bold; font-size: 13px; border-top: 2px solid rgba(2, 132, 199, 0.5);">
-                                    <td colspan="6" style="border: 1px solid rgba(2, 132, 199, 0.2); padding: 10px 14px; text-align: right; text-transform: uppercase;"><strong>TOTAL (IVA Incluido):</strong></td>
-                                    <td style="border: 1px solid rgba(2, 132, 199, 0.2); padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 900; font-size: 15px; color: #38bdf8 !important;">${totalWithIvaStr}</td>
+                                <tr style="background: rgba(16, 185, 129, 0.18); border-top: 2px solid #10b981; font-size: 12.5px;">
+                                    <td colspan="4" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 9px 12px; text-align: right; text-transform: uppercase; color: #4ade80; font-weight: 900;"><strong>TOTAL (IVA Incluido):</strong></td>
+                                    <td style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 9px 12px; text-align: right; font-family: monospace; font-weight: 900; font-size: 15px; color: #4ade80;">${totalWithIvaStr}</td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
+                    ${obsHtml}
                 </div>
             `;
         }
-    }
+    };
 
     window.cambiarTipoReporteEnVista = function(nuevoTipo) {
         const normTipo = String(nuevoTipo || 'detallado').toLowerCase().trim();
@@ -6752,7 +6907,10 @@ window.verDetallePedido = function(id, explicitMode) {
             if (typeof saveData === 'function') {
                 try { saveData(); } catch(e) {}
             }
-            renderModalReportTable(pedidoActivo, 'ver');
+            if (typeof window.getBudgetDocTitle === 'function') {
+                document.title = window.getBudgetDocTitle(pedidoActivo);
+            }
+            renderModalReportTable(pedidoActivo, normTipo);
         }
     };
 
@@ -6763,7 +6921,7 @@ window.verDetallePedido = function(id, explicitMode) {
     }
 
     // Renderizar la tabla de propuesta comercial (Detallado o Resumido) de forma directa
-    renderModalReportTable(p, explicitMode);
+    renderModalReportTable(p, (explicitMode === 'editar' || explicitMode === 'detallado_edit') ? 'detallado_edit' : (p.tipo_reporte || 'resumido'));
 
     // Actualizar badge de estado en el modal
     const badgeContainer = document.getElementById('modal-status-badge-container');
@@ -7254,6 +7412,100 @@ window.verDetallePedido = function(id, explicitMode) {
     recalcAuthTotal();
 };
 
+window.getBudgetDocTitle = function(p) {
+    if (!p) return 'Gestión de Presupuestos';
+    const cliName = (p.cliente_nombre || p.cliente || '').trim();
+    const nroPres = (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(p) : (p.id || '')).toString().trim();
+    const parts = ['Presupuesto'];
+    if (cliName) parts.push(cliName);
+    if (nroPres) parts.push(nroPres);
+    return parts.join(' ');
+};
+
+window.imprimirPresupuestoModal = function() {
+    try {
+        if (typeof saveTempEdits === 'function') {
+            saveTempEdits();
+        }
+        
+        if (pedidoActivo) {
+            // Asignar el nombre del documento para que el PDF se guarde como "Presupuesto + cliente + numero"
+            const docTitle = window.getBudgetDocTitle(pedidoActivo);
+            document.title = docTitle;
+            const sysReportName = document.getElementById('auth-sys-report-name');
+            if (sysReportName) sysReportName.innerText = docTitle;
+
+            // 1. Sincronizar ítems editados desde la grilla activa si existieran
+            if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+                pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
+                const newAmt = pedidoActivo.items.reduce((sum, item) => sum + ((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)), 0);
+                pedidoActivo.importe = newAmt;
+            }
+
+            // 2. Asegurar que los datos limpios en texto figuren en la cabecera oficial
+            const formatCuitDisplay = (val) => {
+                if (!val || val === '-') return '-';
+                const clean = String(val).replace(/\D/g, '');
+                return clean.length === 11 ? `${clean.substring(0,2)}-${clean.substring(2,10)}-${clean.substring(10)}` : String(val);
+            };
+            const setCleanText = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = (val !== null && val !== undefined && String(val).trim() !== '') ? String(val) : '-';
+            };
+
+            const rawCliName = (pedidoActivo.cliente_nombre || '-').toUpperCase();
+            const rawCliDom = (pedidoActivo.domicilio || '-').toUpperCase();
+            const rawCliLoc = (pedidoActivo.localidad || '-').toUpperCase();
+            const rawCliCuit = formatCuitDisplay(pedidoActivo.cuit || '-');
+            const rawCliCond = (pedidoActivo.condicion_nombre || pedidoActivo.forma_pago || 'CONTADO').toUpperCase();
+            const rawPlanta = (pedidoActivo.meca_planta || 'VGG').toUpperCase();
+
+            setCleanText('auth-meca-cliente-val', rawCliName);
+            setCleanText('auth-meca-domicilio-val', rawCliDom);
+            setCleanText('auth-meca-localidad-val', rawCliLoc);
+            setCleanText('auth-meca-cuit-val', rawCliCuit);
+            setCleanText('auth-meca-condicion-val', rawCliCond);
+            setCleanText('auth-meca-planta-val', rawPlanta);
+
+            // 3. Renderizar la tabla de comprobante oficial completa con todos los ítems e importes
+            const targetReport = pedidoActivo.tipo_reporte || 'resumido';
+            if (typeof window.renderModalReportTable === 'function') {
+                window.renderModalReportTable(pedidoActivo, targetReport);
+            }
+        }
+    } catch(err) {
+        console.error('Error preparando impresión:', err);
+    }
+    
+    setTimeout(() => {
+        window.print();
+    }, 150);
+};
+
+window.addEventListener('beforeprint', () => {
+    const modalOverlay = document.getElementById('modal-overlay');
+    if (modalOverlay && modalOverlay.style.display !== 'none' && pedidoActivo) {
+        document.title = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(pedidoActivo) : `Presupuesto ${pedidoActivo.cliente_nombre || ''} ${pedidoActivo.id || ''}`.trim();
+        if (typeof saveTempEdits === 'function') saveTempEdits();
+        if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+            pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
+            const newAmt = pedidoActivo.items.reduce((sum, item) => sum + ((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)), 0);
+            pedidoActivo.importe = newAmt;
+        }
+        if (typeof renderModalReportTable === 'function') {
+            renderModalReportTable(pedidoActivo, pedidoActivo.tipo_reporte || 'resumido');
+        }
+    }
+});
+
+window.addEventListener('afterprint', () => {
+    if (pedidoActivo && document.body.classList.contains('modal-open') && typeof window.getBudgetDocTitle === 'function') {
+        document.title = window.getBudgetDocTitle(pedidoActivo);
+    } else {
+        document.title = 'Gestión de Presupuestos';
+    }
+});
+
 window.onReqCurrencyChange = function() {
     const currencySelect = document.getElementById('req-currency');
     const rateContainer = document.getElementById('req-exchange-rate-container');
@@ -7643,6 +7895,10 @@ window.recalcAuthTotal = function() {
     }
     if (sysUserEl) {
         sysUserEl.innerText = (pedidoActivo.operador || 'admin').toUpperCase();
+    }
+    const sysReportNameEl = document.getElementById('auth-sys-report-name');
+    if (sysReportNameEl && pedidoActivo) {
+        sysReportNameEl.innerText = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(pedidoActivo) : `Presupuesto ${pedidoActivo.cliente_nombre || ''} ${pedidoActivo.id || ''}`.trim();
     }
 };
 
@@ -9680,7 +9936,7 @@ window.ejecutarLoginDirecto = function(e) {
         return;
     }
 
-    if (found.password && passVal && String(found.password).trim() !== passVal) {
+    if (found.password && String(found.password).trim() !== passVal) {
         showToast('Contraseña incorrecta para el usuario "' + found.username + '".', 'error');
         return;
     }
@@ -9724,23 +9980,18 @@ function startApp() {
     var savedUserId = null;
     try { savedUserId = localStorage.getItem('pedidos_current_user_id'); } catch(e) {}
 
-    var userFound = savedUserId && appData.users.find(function(u) { return u.id === savedUserId; });
+    var userFound = savedUserId ? appData.users.find(function(u) { return String(u.id) === String(savedUserId); }) : null;
 
-    if (!userFound || ['admin', 'aut', 'sol'].includes(String(userFound.username).trim().toLowerCase())) {
-        // Asignar primer usuario por defecto
-        userFound = appData.users[0];
-        savedUserId = userFound ? userFound.id : null;
-        try { if (savedUserId) localStorage.setItem('pedidos_current_user_id', savedUserId); } catch(e) {}
-    }
-
-    if (userFound) {
-        appData.currentUserId = savedUserId;
+    if (userFound && !['admin', 'aut', 'sol'].includes(String(userFound.username).trim().toLowerCase()) && userFound.role !== 'Congelado') {
+        appData.currentUserId = String(userFound.id);
         reqTipoPresupuesto = userFound.rubro_defecto || 'Eléctrico';
         switchView('main');
         buildSidebar();
         renderNotifications();
         if (window.checkScheduledOcAlerts) window.checkScheduledOcAlerts();
     } else {
+        appData.currentUserId = null;
+        try { localStorage.removeItem('pedidos_current_user_id'); } catch(e) {}
         switchView('login');
     }
 

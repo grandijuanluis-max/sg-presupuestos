@@ -51,6 +51,13 @@ def supabase_request(endpoint, method="GET", data=None):
 class SGBackendHandler(SimpleHTTPRequestHandler):
     """Maneja las rutas de la API y sirve el frontend estático"""
 
+    def end_headers(self):
+        """Envía headers anti-caché para que el navegador siempre pida la versión nueva"""
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
+
     def send_cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
