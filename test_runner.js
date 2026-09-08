@@ -307,7 +307,7 @@ const defaultData = {
             meca_planta: "Complejo APS- PGSM",
             estado: "Rechazado",
             motivo_rechazo: "Fuera de presupuesto operativo para el trimestre",
-            tipo_reporte: "resumido",
+            tipo_reporte: "detallado",
             operador: "juanluis",
             items: [
                 { codigo: "ELE-0020", detalle: "ARTEFACTO LED ESTANCO 100W", rubro: "Eléctrico", subrubro: "Iluminación", cantidad: 4, unidad: "UN", precio: 20798, subtotal: 83192, estado: "Rechazado" }
@@ -362,7 +362,7 @@ const defaultData = {
             meca_denominacion: "MANTENIMIENTO MECÁNICO LÍNEA DE MOLINOS",
             meca_planta: "Taller General",
             estado: "Enviado sin OC",
-            tipo_reporte: "resumido",
+            tipo_reporte: "detallado",
             operador: "roberto",
             items: [
                 { codigo: "MEC-0001", detalle: "Mano de Obra Especializada en Taller", rubro: "Mecánico", subrubro: "Taller", cantidad: 25, unidad: "HS", precio: 50000, subtotal: 1250000, estado: "Aprobado" }
@@ -410,7 +410,7 @@ const defaultData = {
             meca_planta: "Muelle Norte",
             estado: "Rechazado",
             motivo_rechazo: "Postergado para la próxima parada de planta general",
-            tipo_reporte: "resumido",
+            tipo_reporte: "detallado",
             operador: "roberto",
             items: [
                 { codigo: "MEC-0022", detalle: "Mano de Obra Mecánica en Planta", rubro: "Mecánico", subrubro: "Montajes", cantidad: 20, unidad: "HS", precio: 46000, subtotal: 920000, estado: "Rechazado" }
@@ -608,7 +608,7 @@ function initSupabaseSync(callback) {
             if (res.data) {
                 const data = res.data;
                 if (Array.isArray(data.pedidos) && data.pedidos.length > 0) {
-                    appData.pedidos = data.pedidos || [];
+                    appData.pedidos = normalizePresupuestosRubro(data.pedidos);
                 }
                 if (data.users) {
                     appData.users = mergeUsersList(appData.users, data.users);
@@ -633,12 +633,70 @@ function initSupabaseSync(callback) {
                 // Fallback directo a tabla 'presupuestos' de Supabase
                 client.from('presupuestos').select('*').then(function(pRes) {
                     if (pRes.data && pRes.data.length > 0) {
-                        appData.pedidos = pRes.data;
+                        appData.pedidos = normalizePresupuestosRubro(pRes.data);
                         saveData();
                         console.log("✅ " + pRes.data.length + " presupuestos leídos directamente de la tabla 'presupuestos' en Supabase.");
                     }
                 }).catch(function(pErr) { console.warn("Aviso tabla presupuestos:", pErr); });
             }
+
+            // Sincronizar items desde tabla presupuesto_items de Supabase
+            client.from('presupuesto_items').select('*').then(function(itemsRes) {
+                if (itemsRes.data && itemsRes.data.length > 0 && Array.isArray(appData.pedidos)) {
+                    const itemsMap = {};
+                    itemsRes.data.forEach(function(it) {
+                        const pid = String(it.presupuesto_id || '');
+                        if (!itemsMap[pid]) itemsMap[pid] = [];
+                        const cant = parseFloat(it.cantidad) || 1;
+                        const pu = parseFloat(it.precio_unitario || it.precio) || 0;
+                        itemsMap[pid].push({
+                            codigo: String(it.codigo || ''),
+                            detalle: String(it.detalle || ''),
+                            rubro: it.rubro || 'Eléctrico',
+                            subrubro: it.subrubro || '',
+                            cantidad: cant,
+                            unidad: it.unidad || 'UN',
+                            udm: it.unidad || 'UN',
+                            precio: pu,
+                            precio_unitario: pu,
+                            subtotal: parseFloat(it.subtotal) || (cant * pu),
+                            estado: 'Pendiente'
+                        });
+                    });
+                    let changed = false;
+                    appData.pedidos.forEach(function(p) {
+                        const pid = String(p.id);
+                        if ((!Array.isArray(p.items) || p.items.length === 0) && itemsMap[pid] && itemsMap[pid].length > 0) {
+                            p.items = itemsMap[pid];
+                            changed = true;
+                        }
+                        if (Array.isArray(p.items) && p.items.length > 0) {
+                            const tot = p.items.reduce(function(s, it) {
+                                const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
+                                const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
+                                const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
+                                return s + sub;
+                            }, 0);
+                            if (tot > 0 && (!p.importe || parseFloat(p.importe) === 0)) {
+                                p.importe = tot;
+                                p.importe_original = tot;
+                                changed = true;
+                            }
+                        }
+                    });
+                    if (changed) {
+                        saveData();
+                        if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                        if (pedidoActivo && typeof renderModalReportTable === 'function') {
+                            const refreshed = appData.pedidos.find(function(x) { return x.id === pedidoActivo.id; });
+                            if (refreshed) {
+                                pedidoActivo = refreshed;
+                                renderModalReportTable(pedidoActivo, pedidoActivo.tipo_reporte || 'detallado');
+                            }
+                        }
+                    }
+                }
+            }).catch(function(err) { console.warn("Aviso presupuesto_items:", err); });
 
             console.log("⚡ Supabase conectado y sincronizado en tiempo real.");
             saveData();
@@ -1495,17 +1553,6 @@ function closeModal() {
     document.title = 'Gestión de Presupuestos';
     if (typeof window.actualizarBotonVolver === 'function') {
         window.actualizarBotonVolver();
-    }
-    // Si estamos en la vista de nuevo presupuesto (Ingreso), asegurar que pedidoItems permanezca limpio
-    if (viewMode === 'Ingreso' && !window.pedidoEnEdicionId && !window.pedidoEnReutilizacion) {
-        pedidoItems = [];
-        if (typeof actualizarTablaItemsRequerimiento === 'function') {
-            actualizarTablaItemsRequerimiento();
-        }
-        const mecaStep2Container = document.getElementById('req-mecanico-step2-container');
-        if (mecaStep2Container) {
-            mecaStep2Container.innerHTML = '';
-        }
     }
 }
 
@@ -7474,7 +7521,14 @@ window.saveTempEdits = function() {
     // Save items from Excel grid if active
     if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
         pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
-        const newAmt = pedidoActivo.items.reduce((sum, item) => sum + ((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)), 0);
+        const newAmt = pedidoActivo.items.reduce((sum, item) => {
+            const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+            const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+            const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+                ? parseFloat(String(item.subtotal).replace(',', '.'))
+                : (q * pr);
+            return sum + sub;
+        }, 0);
         pedidoActivo.importe = newAmt;
     }
 
@@ -7489,11 +7543,12 @@ window.saveTempEdits = function() {
             
             if (chk && qtyInput) {
                 const isChecked = chk.checked;
-                const qty = parseFloat(qtyInput.value);
+                const qty = parseFloat(String(qtyInput.value || '0').replace(',', '.'));
+                const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
                 
                 item.estado = isChecked ? 'Pendiente' : 'Rechazado';
                 item.cantidad = isNaN(qty) || qty <= 0 ? 0.01 : qty;
-                item.subtotal = item.cantidad * item.precio;
+                item.subtotal = item.cantidad * pr;
             }
         });
     }
@@ -7679,7 +7734,12 @@ window.guardarModificacionesPedido = function() {
         }
     }
 
-    const activeItems = (pedidoActivo.items || []).filter(item => item.estado !== 'Rechazado' && (parseFloat(item.cantidad) || 0) > 0);
+    const activeItems = (pedidoActivo.items || []).filter(item => {
+        const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+        const sub = parseFloat(String(item.subtotal || '0').replace(',', '.')) || 0;
+        const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0;
+        return (q > 0 || sub > 0 || pr > 0) && item.estado !== 'Rechazado';
+    });
     if (activeItems.length === 0) {
         showToast('Debe dejar al menos un artículo activo en el presupuesto.', 'error');
         return;
@@ -7692,7 +7752,14 @@ window.guardarModificacionesPedido = function() {
     }
     const realOrder = appData.pedidos[orderIdx];
     
-    const newAmount = activeItems.reduce((sum, item) => sum + ((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)), 0);
+    const newAmount = activeItems.reduce((sum, item) => {
+        const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+        const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+        const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+            ? parseFloat(String(item.subtotal).replace(',', '.'))
+            : (q * pr);
+        return sum + sub;
+    }, 0);
     realOrder.meca_denominacion = pedidoActivo.meca_denominacion || pedidoActivo.motivo || '';
     realOrder.cliente_nombre = pedidoActivo.cliente_nombre || '';
     realOrder.domicilio = pedidoActivo.domicilio || '';
@@ -7725,11 +7792,21 @@ window.guardarModificacionesPedido = function() {
     realOrder.moneda_id = pedidoActivo.moneda_id;
     realOrder.cotizacion = pedidoActivo.cotizacion;
     
-    realOrder.items = pedidoActivo.items.map(item => ({
-        ...item,
-        cantidad_original: item.cantidad,
-        subtotal: (parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)
-    }));
+    realOrder.items = pedidoActivo.items.map(item => {
+        const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+        const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+        const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+            ? parseFloat(String(item.subtotal).replace(',', '.'))
+            : (q * pr);
+        return {
+            ...item,
+            cantidad: q,
+            precio: pr,
+            precio_unitario: pr,
+            cantidad_original: item.cantidad_original !== undefined ? item.cantidad_original : q,
+            subtotal: sub
+        };
+    });
     
     realOrder.importe = newAmount;
     realOrder.importe_original = newAmount;
@@ -8281,7 +8358,7 @@ window.verDetallePedido = function(id, explicitMode) {
         const isEditMode = (currentMode === 'detallado_edit' || (currentMode === 'editar' && isEditingAllowed));
         const activeMode = (currentMode === 'resumido' || currentMode === 'detallado') 
             ? currentMode 
-            : (isEditMode ? 'detallado' : (p.tipo_reporte || 'resumido'));
+            : (isEditMode ? 'detallado' : (p.tipo_reporte || 'detallado'));
         const isRes = (activeMode === 'resumido');
 
         const btnRes = document.getElementById('btn-toggle-report-resumido') || document.getElementById('auth-btn-report-resumido');
@@ -8334,9 +8411,22 @@ window.verDetallePedido = function(id, explicitMode) {
             const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
             const validItems = (Array.isArray(p.items) ? p.items : []).filter(it => {
                 const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-                return q > 0 && it.estado !== 'Rechazado';
+                const sub = parseFloat(String(it.subtotal || '0').replace(',', '.')) || 0;
+                const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
+                return (q > 0 || sub > 0 || pr > 0) && it.estado !== 'Rechazado';
             });
-            const netAmt = parseFloat(p.importe) || validItems.reduce((sum, it) => sum + (parseFloat(it.subtotal) || (parseFloat(it.cantidad) * parseFloat(it.precio)) || 0), 0);
+            let computedGrandTotal = 0;
+            if (validItems.length > 0) {
+                computedGrandTotal = validItems.reduce((sum, it) => {
+                    const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
+                    const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario !== undefined ? it.precio_unitario : (it.precioUnitario || 0))).replace(',', '.')) || 0;
+                    const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.'))))
+                        ? parseFloat(String(it.subtotal).replace(',', '.'))
+                        : (q * pr);
+                    return sum + sub;
+                }, 0);
+            }
+            const netAmt = (computedGrandTotal > 0) ? computedGrandTotal : (parseFloat(String(p.importe || '0').replace(',', '.')) || 0);
             const ivaAmt = netAmt * 0.21;
             const totalWithIvaAmt = netAmt * 1.21;
             const subtotalStr = `$${netAmt.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -8405,8 +8495,10 @@ window.verDetallePedido = function(id, explicitMode) {
             const catalog = isMec ? (window.presupuestoMecanicoDB || []) : (window.presupuestosCatalogDB || []);
 
             const validItems = (Array.isArray(p.items) ? p.items : []).filter(item => {
-                const q = parseFloat(item.cantidad) || 0;
-                return q > 0 && item.estado !== 'Rechazado';
+                const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+                const sub = parseFloat(String(item.subtotal || '0').replace(',', '.')) || 0;
+                const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0;
+                return (q > 0 || sub > 0 || pr > 0) && item.estado !== 'Rechazado';
             });
 
             let itemsRowsHtml = '';
@@ -8421,15 +8513,20 @@ window.verDetallePedido = function(id, explicitMode) {
                     }
                     if (!udm) udm = isMec ? 'horas' : 'gl';
 
-                    const qty = parseFloat(item.cantidad) || 0;
-                    const price = parseFloat(item.precio) || 0;
-                    const sub = (typeof item.subtotal === 'number' ? item.subtotal : (qty * price)) || 0;
+                    const qty = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+                    const price = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : (item.precioUnitario || 0))).replace(',', '.')) || 0;
+                    const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.')))) 
+                        ? parseFloat(String(item.subtotal).replace(',', '.')) 
+                        : (qty * price);
                     grandTotal += sub;
+
+                    const code = item.codigo || item.id || String(idx + 1);
+                    const desc = item.detalle || item.descripcion || item.denominacion || item.nombre || 'Servicio';
 
                     itemsRowsHtml += `
                         <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: ${idx % 2 === 0 ? 'rgba(15, 23, 42, 0.15)' : 'transparent'};">
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${item.codigo || idx + 1}</td>
-                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-weight: 600; color: #f8fafc;">${item.detalle || 'Servicio'}</td>
+                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${code}</td>
+                            <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-weight: 600; color: #f8fafc;">${desc}</td>
                             <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; color: #f8fafc; font-weight: 600;">$${price.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                             <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: center; font-weight: 800; font-family: monospace; color: #f8fafc;">${qty.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>
                             <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">$${sub.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
@@ -8437,19 +8534,20 @@ window.verDetallePedido = function(id, explicitMode) {
                     `;
                 });
             } else {
-                grandTotal = parseFloat(p.importe || 0);
+                grandTotal = parseFloat(String(p.importe || 0).replace(',', '.')) || 0;
+                const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
                 itemsRowsHtml = `
                     <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: transparent;">
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${formatPresupuestoCodigo(p) || '001'}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; font-weight: 600; color: #f8fafc;">${(p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase()}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; font-family: monospace; color: #f8fafc;">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; font-weight: 600; color: #f8fafc;">${devText}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; font-family: monospace; color: #f8fafc;">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: center; font-family: monospace; font-weight: 800; color: #f8fafc;">1</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     </tr>
                 `;
             }
 
-            const netAmt = grandTotal || parseFloat(p.importe) || 0;
+            const netAmt = grandTotal;
             const ivaAmt = netAmt * 0.21;
             const totalWithIvaAmt = netAmt * 1.21;
             const subtotalStr = `$${netAmt.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -8529,7 +8627,7 @@ window.verDetallePedido = function(id, explicitMode) {
     }
 
     // Renderizar la tabla de propuesta comercial (Detallado o Resumido) de forma directa
-    renderModalReportTable(p, (explicitMode === 'editar' || explicitMode === 'detallado_edit') ? 'detallado_edit' : (p.tipo_reporte || 'resumido'));
+    renderModalReportTable(p, (explicitMode === 'editar' || explicitMode === 'detallado_edit') ? 'detallado_edit' : (p.tipo_reporte || 'detallado'));
 
     // Actualizar badge de estado en el modal
     const badgeContainer = document.getElementById('modal-status-badge-container');
@@ -9015,7 +9113,14 @@ window.imprimirPresupuestoModal = function() {
             // 1. Sincronizar ítems editados desde la grilla activa si existieran
             if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
                 pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
-                const newAmt = pedidoActivo.items.reduce((sum, item) => sum + ((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)), 0);
+                const newAmt = pedidoActivo.items.reduce((sum, item) => {
+                    const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+                    const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+                    const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+                        ? parseFloat(String(item.subtotal).replace(',', '.'))
+                        : (q * pr);
+                    return sum + sub;
+                }, 0);
                 pedidoActivo.importe = newAmt;
             }
 
@@ -9051,7 +9156,7 @@ window.imprimirPresupuestoModal = function() {
             setCleanText('auth-meca-planta-val', rawPlanta);
 
             // 3. Renderizar la tabla de comprobante oficial completa con todos los ítems e importes
-            const targetReport = pedidoActivo.tipo_reporte || 'resumido';
+            const targetReport = pedidoActivo.tipo_reporte || 'detallado';
             if (typeof window.renderModalReportTable === 'function') {
                 window.renderModalReportTable(pedidoActivo, targetReport);
             }
@@ -9072,11 +9177,18 @@ window.addEventListener('beforeprint', () => {
         if (typeof saveTempEdits === 'function') saveTempEdits();
         if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
             pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
-            const newAmt = pedidoActivo.items.reduce((sum, item) => sum + ((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)), 0);
+            const newAmt = pedidoActivo.items.reduce((sum, item) => {
+                const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+                const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+                const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+                    ? parseFloat(String(item.subtotal).replace(',', '.'))
+                    : (q * pr);
+                return sum + sub;
+            }, 0);
             pedidoActivo.importe = newAmt;
         }
         if (typeof renderModalReportTable === 'function') {
-            renderModalReportTable(pedidoActivo, pedidoActivo.tipo_reporte || 'resumido');
+            renderModalReportTable(pedidoActivo, pedidoActivo.tipo_reporte || 'detallado');
         }
     }
 });
