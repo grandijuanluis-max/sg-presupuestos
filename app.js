@@ -1,18 +1,28 @@
-// --- ESTADO INICIAL Y ALMACENAMIENTO ---
-console.warn('✅✅✅ APP.JS v170 CARGADO CORRECTAMENTE ✅✅✅');
+// --- ESTADO INICIAL Y ALMACENAMIENTO (SUPABASE DIRECT SYNC) ---
+console.warn('✅✅✅ APP.JS v206 - FUENTE DE DATOS EXCLUSIVA: SUPABASE ✅✅✅');
 const LOCAL_STATE_KEY = 'solicitudes_pedidos_local_state';
 
-// Filtrar clientes especiales o inactivos que tengan *, + o \ en su nombre
-if (typeof clientesDB !== 'undefined') {
-    const filteredClients = clientesDB.filter(c => {
-        const name = c.nombre || '';
-        return !name.includes('*') && !name.includes('+') && !name.includes('\\');
-    });
-    clientesDB.length = 0;
-    for (let i = 0; i < filteredClients.length; i++) {
-        clientesDB.push(filteredClients[i]);
-    }
-}
+// Bases de datos globales centralizadas (Sincronizadas dinámicamente desde Supabase)
+window.clientesDB = window.clientesDB || [];
+window.condicionesDB = window.condicionesDB || [
+    { codigo: "1", nombre: "CONTADO", dias: 0 },
+    { codigo: "2", nombre: "30 Y 60 DIAS 50/50", dias: 30 },
+    { codigo: "3", nombre: "30 DIAS", dias: 30 },
+    { codigo: "4", nombre: "60 DIAS", dias: 60 }
+];
+window.depositosDB = window.depositosDB || [];
+window.transportesDB = window.transportesDB || [];
+window.vendedoresDB = window.vendedoresDB || [];
+window.stockDB = window.stockDB || [];
+window.presupuestosCatalogDB = window.presupuestosCatalogDB || [];
+
+var clientesDB = window.clientesDB;
+var condicionesDB = window.condicionesDB;
+var depositosDB = window.depositosDB;
+var transportesDB = window.transportesDB;
+var vendedoresDB = window.vendedoresDB;
+var stockDB = window.stockDB;
+var presupuestosCatalogDB = window.presupuestosCatalogDB;
 
 // Obtener fecha y hora local exacta en formato YYYY-MM-DD HH:mm:ss (Hora local real de carga)
 function getLocalCurrentDateTimeStr(d = new Date()) {
@@ -595,12 +605,39 @@ function initSupabaseSync(callback) {
         .eq('id', 'globalData')
         .maybeSingle()
         .then(function(res) {
-            if (res.data && Array.isArray(res.data.pedidos) && res.data.pedidos.length > 0) {
+            if (res.data) {
                 const data = res.data;
-                appData.pedidos = data.pedidos || [];
-                appData.users = mergeUsersList(appData.users, data.users);
-                appData.notifications = data.notifications || [];
-                if (data.user_permissions) appData.userPermissions = data.user_permissions;
+                if (Array.isArray(data.pedidos) && data.pedidos.length > 0) {
+                    appData.pedidos = data.pedidos || [];
+                }
+                if (data.users) {
+                    appData.users = mergeUsersList(appData.users, data.users);
+                }
+                if (data.notifications) {
+                    appData.notifications = data.notifications || [];
+                }
+                if (data.user_permissions) {
+                    appData.userPermissions = data.user_permissions;
+                }
+                if (data.custom_prices) {
+                    appData.customPrices = data.custom_prices;
+                    try {
+                        const localPrices = getCustomItemPrices();
+                        const merged = Object.assign({}, localPrices, data.custom_prices);
+                        localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(merged));
+                        if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') applyCustomPricesToCatalog(PRESUPUESTO_ELECTRICO_STOCK);
+                        if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') applyCustomPricesToCatalog(PRESUPUESTO_MECANICO_STOCK);
+                    } catch (e) {}
+                }
+            } else {
+                // Fallback directo a tabla 'presupuestos' de Supabase
+                client.from('presupuestos').select('*').then(function(pRes) {
+                    if (pRes.data && pRes.data.length > 0) {
+                        appData.pedidos = pRes.data;
+                        saveData();
+                        console.log("✅ " + pRes.data.length + " presupuestos leídos directamente de la tabla 'presupuestos' en Supabase.");
+                    }
+                }).catch(function(pErr) { console.warn("Aviso tabla presupuestos:", pErr); });
             }
 
             console.log("⚡ Supabase conectado y sincronizado en tiempo real.");
@@ -718,6 +755,7 @@ function saveData() {
             users: appData.users || [],
             notifications: appData.notifications || [],
             user_permissions: appData.userPermissions || {},
+            custom_prices: (typeof appData !== 'undefined' && appData && appData.customPrices) ? appData.customPrices : (typeof getCustomItemPrices === 'function' ? getCustomItemPrices() : {}),
             updated_at: new Date().toISOString()
         }, { onConflict: 'id' }).then(function(res) {
             if (res && res.error) {
@@ -1117,17 +1155,17 @@ function renderContent(templateId) {
 
 // --- LÓGICA DE ROLES, PERMISOS Y MENÚ ---
 const defaultMenuPermissions = {
-    Administrador: ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-metrics', 'menu-admin'],
-    Solicitante: ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-metrics'],
-    Autorizador: ['menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-metrics'],
-    Ventas: ['menu-ingresar', 'menu-estado-presupuesto', 'menu-all', 'menu-metrics']
+    Administrador: ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-metrics', 'menu-admin'],
+    Solicitante: ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados'],
+    Autorizador: ['menu-all', 'menu-estado-presupuesto', 'menu-rechazados'],
+    Ventas: ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto']
 };
 
 const allAvailableModules = [
     { id: 'menu-ingresar', label: 'Gestión de Presupuestos', icon: 'fa-solid fa-pen-to-square', tpl: 'tpl-request-ped', action: initRequestView },
+    { id: 'menu-all', label: 'Seguimiento', icon: 'fa-solid fa-clock-rotate-left', tpl: 'tpl-assignments', action: () => initAssignmentsView('Modificacion') },
     { id: 'menu-estado-presupuesto', label: 'Estado del Presupuesto', icon: 'fa-solid fa-list-check', tpl: 'tpl-assignments', action: () => initAssignmentsView('EstadoPresupuesto') },
     { id: 'menu-rechazados', label: 'Rechazo de Presupuesto', icon: 'fa-solid fa-ban', tpl: 'tpl-assignments', action: () => initAssignmentsView('Rechazados') },
-    { id: 'menu-all', label: 'Seguimiento', icon: 'fa-solid fa-clock-rotate-left', tpl: 'tpl-assignments', action: () => initAssignmentsView('Modificacion') },
     { id: 'menu-metrics', label: 'Estadísticas y BI', icon: 'fa-solid fa-chart-pie', tpl: 'tpl-metrics', action: initMetricsView },
     { id: 'menu-admin', label: 'Configuración', icon: 'fa-solid fa-gear', tpl: 'tpl-admin', action: initAdminView }
 ];
@@ -1182,10 +1220,6 @@ function getMenuItemsForUser(user) {
     // Permisos individuales por nombre de usuario
     if (appData.userPermissions[user.username] && Array.isArray(appData.userPermissions[user.username])) {
         const userPerms = appData.userPermissions[user.username];
-        // Asegurar que menu-metrics esté incluido por defecto
-        if (!userPerms.includes('menu-metrics')) {
-            userPerms.push('menu-metrics');
-        }
         return allAvailableModules.filter(m => {
             if (m.id === 'menu-all') {
                 return userPerms.includes('menu-all') || userPerms.includes('menu-all-ver') || userPerms.includes('menu-all-edit');
@@ -1196,7 +1230,7 @@ function getMenuItemsForUser(user) {
     // Por defecto si no se han configurado aún
     const defaultIds = (user.username === 'admin' || user.role === 'Administrador') 
         ? allAvailableModules.map(m => m.id) 
-        : (defaultMenuPermissions[user.role] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-metrics']);
+        : (defaultMenuPermissions[user.role] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all']);
     return allAvailableModules.filter(m => defaultIds.includes(m.id));
 }
 
@@ -1232,7 +1266,8 @@ function buildSidebar() {
         document.getElementById('current-user-name').insertAdjacentElement('afterend', vendedorBadge);
     }
     
-    document.getElementById('current-user-role').innerText = user.role;
+    const roleEl = document.getElementById('current-user-role');
+    if (roleEl) roleEl.remove();
 
     const items = getMenuItemsForUser(user);
     
@@ -1460,6 +1495,17 @@ function closeModal() {
     document.title = 'Gestión de Presupuestos';
     if (typeof window.actualizarBotonVolver === 'function') {
         window.actualizarBotonVolver();
+    }
+    // Si estamos en la vista de nuevo presupuesto (Ingreso), asegurar que pedidoItems permanezca limpio
+    if (viewMode === 'Ingreso' && !window.pedidoEnEdicionId && !window.pedidoEnReutilizacion) {
+        pedidoItems = [];
+        if (typeof actualizarTablaItemsRequerimiento === 'function') {
+            actualizarTablaItemsRequerimiento();
+        }
+        const mecaStep2Container = document.getElementById('req-mecanico-step2-container');
+        if (mecaStep2Container) {
+            mecaStep2Container.innerHTML = '';
+        }
     }
 }
 
@@ -1691,29 +1737,1334 @@ let reqTipoPresupuesto = null;
 window.getCustomItemPrices = function() {
     try {
         const saved = localStorage.getItem('PRESUPUESTO_CUSTOM_PRICES');
-        return saved ? JSON.parse(saved) : {};
+        const localObj = saved ? JSON.parse(saved) : {};
+        if (typeof appData !== 'undefined' && appData && appData.customPrices) {
+            return Object.assign({}, appData.customPrices, localObj);
+        }
+        return localObj;
     } catch (e) {
-        return {};
+        return (typeof appData !== 'undefined' && appData && appData.customPrices) ? appData.customPrices : {};
     }
 };
 
 window.saveCustomItemPrice = function(codigo, price) {
     if (!codigo) return;
+    const numPrice = parseFloat(price || 0);
+    if (isNaN(numPrice)) return;
+    
     const customPrices = getCustomItemPrices();
-    customPrices[codigo] = parseFloat(price || 0);
+    customPrices[codigo] = numPrice;
+    
+    if (typeof appData !== 'undefined' && appData) {
+        if (!appData.customPrices) appData.customPrices = {};
+        appData.customPrices[codigo] = numPrice;
+    }
+    
     try {
         localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices));
     } catch (e) {}
 
     if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
         const itemM = PRESUPUESTO_MECANICO_STOCK.find(i => i.codigo === codigo);
-        if (itemM) itemM.precio = parseFloat(price || 0);
+        if (itemM) itemM.precio = numPrice;
     }
     if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
         const itemE = PRESUPUESTO_ELECTRICO_STOCK.find(i => i.codigo === codigo);
-        if (itemE) itemE.precio = parseFloat(price || 0);
+        if (itemE) itemE.precio = numPrice;
     }
 };
+
+const PRESUPUESTO_ELECTRICO_STOCK = [
+  {
+    "codigo": "ELE-001",
+    "detalle": "CAJA ALUMINIO 200X200X100",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-002",
+    "detalle": "CAJA ALUMINIO 300X300X100",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-003",
+    "detalle": "CONDULET ( L ) 1\" 1/2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-004",
+    "detalle": "CONDULET DE PASO 1\"1/2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-005",
+    "detalle": "UNION DOBLE 1\" 1/2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-006",
+    "detalle": "CUPLAS 1\" 1/2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-007",
+    "detalle": "GRAMPAS U-BOLT 1\" 1/2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-008",
+    "detalle": "FLEXIBLE ZOLODA 1\" 1/2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "mts",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-009",
+    "detalle": "CONECTOR ZOLODA CON TUERCA 1\" 1/2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-010",
+    "detalle": "CAÑO ACERO GALVANIZADO SEMIPESADO 1\" 1/2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-011",
+    "detalle": "CINTA PROTECCION SE CAÑOS POLIGUARD",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-012",
+    "detalle": "BARRA UPN 80 MM X 6 MTS",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-013",
+    "detalle": "BARRA ANGULO 1\" 1/2 X 3,16 X 6 MTS",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-014",
+    "detalle": "LLAVE SELECTORA 0.1.2",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-015",
+    "detalle": "CABLE 485",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "mts",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-016",
+    "detalle": "CABLE SINTENAX 7X1,5 MM",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "mts",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-017",
+    "detalle": "CABLE SINTENAX 3X1,5 MM",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "mts",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-018",
+    "detalle": "CABLE SINTENAX 3X2,5 MM",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "mts",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-019",
+    "detalle": "BROCA 10 MM",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-020",
+    "detalle": "BULON 1/4X1\"1/2CON DOBLE ARANDELA PLANA + TUERCA",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-021",
+    "detalle": "BULON 5/16X 1\"1/2 CON DOBLE ARANDELA PLANA Y TUERCA",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-022",
+    "detalle": "PINTURA AMARILLA",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "LTS",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-023",
+    "detalle": "PINTURA NEGRO",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "LTS",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-024",
+    "detalle": "CINTA REFLECTIVA ROJO/NEGRO ADHESIVA",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "mts",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-025",
+    "detalle": "TUERCA 1\" 1/2 PARA CAÑOS",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-026",
+    "detalle": "BOQUILLA 1\" 1/2 ALUMINIO",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-027",
+    "detalle": "RIEL DIN",
+    "rubro": "Eléctrico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "c/u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-028",
+    "detalle": "Tecnico en seguridad",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 10023.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-029",
+    "detalle": "Oficial Esp",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 20616.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-030",
+    "detalle": "Ayudante",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 17577.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-031",
+    "detalle": "Supervisor",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 16363.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-032",
+    "detalle": "Hidro elevador",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "u",
+    "precio": 24028.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-033",
+    "detalle": "Tecnico en seguridad",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 5695.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-034",
+    "detalle": "Oficial Esp",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 11712.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-035",
+    "detalle": "Ayudante",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 9992.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-036",
+    "detalle": "Supervisor",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 12072.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-037",
+    "detalle": "Hidro elevador",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "u",
+    "precio": 24028.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-038",
+    "detalle": "x",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-039",
+    "detalle": "Técnico en Seguridad",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 5695.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-040",
+    "detalle": "Oficial Esp",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 11712.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-041",
+    "detalle": "Ayudante",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 9992.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-042",
+    "detalle": "Supervisor",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 12072.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-043",
+    "detalle": "Camion Hidro elevador",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 24028.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-044",
+    "detalle": "Técnico en Seguridad",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 28468.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-045",
+    "detalle": "Oficial Esp",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 59347.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-046",
+    "detalle": "Ayudante",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 50649.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-047",
+    "detalle": "Supervisor",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "u",
+    "precio": 61144.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-048",
+    "detalle": "Camion Hidro elevador",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "u",
+    "precio": 24028.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-049",
+    "detalle": "Tecnico en seguridad",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 7720.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-050",
+    "detalle": "Oficial Esp",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 20889.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-051",
+    "detalle": "Ayudante",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 17830.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-052",
+    "detalle": "Supervisor",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 21521.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-053",
+    "detalle": "Hidro elevador",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "u",
+    "precio": 24028.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-054",
+    "detalle": "Tecnico en seguridad",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 5964.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-055",
+    "detalle": "Oficial Esp",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 16141.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-056",
+    "detalle": "Ayudante",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 10128.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-057",
+    "detalle": "Supervisor",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 16141.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-058",
+    "detalle": "Hidro elevador",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "u",
+    "precio": 24028.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-059",
+    "detalle": "x",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "u",
+    "precio": 0.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-060",
+    "detalle": "Técnico en Seguridad",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 4386.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-061",
+    "detalle": "Oficial Esp",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 11871.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-062",
+    "detalle": "Ayudante",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 10128.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-063",
+    "detalle": "Supervisor",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 12233.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "ELE-064",
+    "detalle": "Camion Hidro elevador",
+    "rubro": "Eléctrico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 24028.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  }
+];
+
+const PRESUPUESTO_MECANICO_STOCK = [
+  {
+    "codigo": "MEC-001",
+    "detalle": "Hidroelevador",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 83983.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-002",
+    "detalle": "Hidro elevador con barquilla",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 71062.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-003",
+    "detalle": "Alquiler de oficinas",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 310089.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-004",
+    "detalle": "Alquiler de manitou (incluye chofer y combustible)",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 137566.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-005",
+    "detalle": "Traslados ida y vuelta para APG/PA",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 464144.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-006",
+    "detalle": "Traslados ida y vuelta para APS",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 111842.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-007",
+    "detalle": "Relevamiento",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 1750000.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-008",
+    "detalle": "Documentos y 3D",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 5120350.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-009",
+    "detalle": "Ing. Civil",
+    "rubro": "Mecánico",
+    "subrubro": "Materiales y Equipos",
+    "udm": "u",
+    "precio": 4350000.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-010",
+    "detalle": "Ayudante (Taller)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EN TALLER",
+    "udm": "horas",
+    "precio": 25275.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-011",
+    "detalle": "Medio Oficial (Taller)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EN TALLER",
+    "udm": "horas",
+    "precio": 25319.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-012",
+    "detalle": "Oficial (Taller)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EN TALLER",
+    "udm": "horas",
+    "precio": 26444.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-013",
+    "detalle": "Oficial Especializado (Taller)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EN TALLER",
+    "udm": "horas",
+    "precio": 28652.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-014",
+    "detalle": "Oficial soldador calificado combinado procesos SMAW / GTAW",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EN TALLER",
+    "udm": "horas",
+    "precio": 29601.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-015",
+    "detalle": "Supervisor (Taller)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EN TALLER",
+    "udm": "horas",
+    "precio": 28652.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-016",
+    "detalle": "Ayudante hora Normal (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 28657.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-017",
+    "detalle": "Medio Oficial hora normal (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 28962.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-018",
+    "detalle": "Oficial hora normal (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 30423.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-019",
+    "detalle": "Oficial Especializado hora normal (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 33654.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-020",
+    "detalle": "Oficial soldador calificado hora normal (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 34672.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-021",
+    "detalle": "Supervisor horas normales (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 33654.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-022",
+    "detalle": "Técnico HyS hora normal (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 27419.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-023",
+    "detalle": "Ayudante hora EXTRA SIMPLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 38969.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-024",
+    "detalle": "Medio Oficial hora EXTRA SIMPLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 39391.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-025",
+    "detalle": "Oficial hora EXTRA SIMPLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 41366.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-026",
+    "detalle": "Oficial Especializado hora EXTRA SIMPLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 45753.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-027",
+    "detalle": "Oficial soldador calificado hora EXTRA SIMPLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 47146.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-028",
+    "detalle": "Supervisor horas EXTRA SIMPLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 45753.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-029",
+    "detalle": "Técnico HyS hora EXTRA SIMPLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 37290.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-030",
+    "detalle": "Ayudante hora EXTRA DOBLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 50421.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-031",
+    "detalle": "Medio Oficial hora EXTRA DOBLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 50981.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-032",
+    "detalle": "Oficial hora EXTRA DOBLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 53523.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-033",
+    "detalle": "Oficial Especializado hora EXTRA DOBLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 59216.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-034",
+    "detalle": "Oficial soldador calificado hora EXTRA DOBLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 61016.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-035",
+    "detalle": "Supervisor hora EXTRA DOBLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 59216.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-036",
+    "detalle": "Técnico HyS hora EXTRA DOBLE (Mantenimiento)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 48806.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-037",
+    "detalle": "Ayudante hora Normal (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 29067.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-038",
+    "detalle": "Medio Oficial hora normal (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 29422.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-039",
+    "detalle": "Oficial hora normal (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 30866.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-040",
+    "detalle": "Oficial Especializado hora normal (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 34186.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-041",
+    "detalle": "Oficial soldador calificado hora normal (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 35214.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-042",
+    "detalle": "Supervisor horas normales (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 34186.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-043",
+    "detalle": "Técnico HyS hora normal (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 27419.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-044",
+    "detalle": "Ayudante hora EXTRA SIMPLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 39525.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-045",
+    "detalle": "Medio Oficial hora EXTRA SIMPLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 40011.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-046",
+    "detalle": "Oficial hora EXTRA SIMPLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 41995.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-047",
+    "detalle": "Oficial Especializado hora EXTRA SIMPLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 46504.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-048",
+    "detalle": "Oficial soldador calificado hora EXTRA SIMPLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 47883.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-049",
+    "detalle": "Supervisor horas EXTRA SIMPLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 46504.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-050",
+    "detalle": "Técnico HyS hora EXTRA SIMPLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 37290.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-051",
+    "detalle": "Ayudante hora EXTRA DOBLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 51162.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-052",
+    "detalle": "Medio Oficial hora EXTRA DOBLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 51775.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-053",
+    "detalle": "Oficial hora EXTRA DOBLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 54349.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-054",
+    "detalle": "Oficial Especializado hora EXTRA DOBLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 60180.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-055",
+    "detalle": "Oficial soldador calificado hora EXTRA DOBLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 61969.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-056",
+    "detalle": "Supervisor hora EXTRA DOBLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 60180.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-057",
+    "detalle": "Técnico HyS hora EXTRA DOBLE (Parada de Planta)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra PARADA DE PLANTA",
+    "udm": "horas",
+    "precio": 48806.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-058",
+    "detalle": "Ayudante hora EMERGENCIA",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 145335.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-059",
+    "detalle": "Medio Oficial hora EMERGENCIA",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 147114.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-060",
+    "detalle": "Oficial hora normal (Emergencia)",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 154390.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-061",
+    "detalle": "Oficial Especializado hora EMERGENCIA",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 170957.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-062",
+    "detalle": "Oficial soldador calificado hora EMERGENCIA",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 176052.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-063",
+    "detalle": "Supervisor horas EMERGENCIA",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 170957.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  },
+  {
+    "codigo": "MEC-064",
+    "detalle": "Técnico HyS hora EMERGENCIA",
+    "rubro": "Mecánico",
+    "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
+    "udm": "horas",
+    "precio": 165659.0,
+    "stock": 999.0,
+    "estado": "ACTIVOS"
+  }
+];
+
+
+window.PRESUPUESTO_ELECTRICO_STOCK = PRESUPUESTO_ELECTRICO_STOCK;
+window.PRESUPUESTO_MECANICO_STOCK = PRESUPUESTO_MECANICO_STOCK;
+window.presupuestosCatalogDB = PRESUPUESTO_ELECTRICO_STOCK;
+window.presupuestoMecanicoDB = PRESUPUESTO_MECANICO_STOCK;
 
 function applyCustomPricesToCatalog(catalog) {
     if (!catalog || !Array.isArray(catalog)) return catalog;
@@ -1899,13 +3250,14 @@ function updateTipoPresupuestoBadge() {
     const valInicio = document.getElementById('req-meca-fecha-inicio');
     const valDuracion = document.getElementById('req-meca-duracion');
 
+    const todayStr = getLocalDateStr();
     if (lblDenom) lblDenom.innerHTML = isElec ? '<u>Denominación del Servicio:</u>' : 'i. <u>Denominación del Servicio:</u>';
     if (lblProv) lblProv.innerHTML = isElec ? 'ii. <u>Nombre del Proveedor:</u>' : 'ii. <u>Nombre del Proveedor:</u>';
     if (lblFecha) lblFecha.innerHTML = isElec ? 'iii. <u>Fecha de Oferta:</u>' : 'iii. <u>Fecha de Oferta:</u>';
     if (lblVal) lblVal.innerHTML = isElec ? 'iv. <u>Validez de la Oferta:</u>' : 'iv. <u>Validez de la Oferta:</u>';
-    if (lblPlanta) lblPlanta.innerHTML = isElec ? 'v. <u>Planta de Cargill</u>' : 'v. <u>Planta de Cargill:</u>';
-    if (lblInicio) lblInicio.innerHTML = isElec ? 'vi. <u>Fecha de Inicio:</u>' : 'vi. <u>Fecha estimada de Inicio:</u>';
-    if (lblDuracion) lblDuracion.innerHTML = isElec ? 'vii. <u>Número OT:</u>' : 'vii. <u>Número OT / Duración:</u>';
+    if (lblPlanta) lblPlanta.innerHTML = isElec ? 'v. <u>Planta de Cargill:</u>' : 'v. <u>Planta de Cargill:</u>';
+    if (lblInicio) lblInicio.innerHTML = isElec ? 'vi. <u>Fecha estimada de Inicio:</u>' : 'vi. <u>Fecha estimada de Inicio:</u>';
+    if (lblDuracion) lblDuracion.innerHTML = isElec ? 'vii. <u>Duración estimada:</u>' : 'vii. <u>Duración estimada:</u>';
     if (lblFin) lblFin.innerHTML = isElec ? 'viii. <u>Plazo Máximo de Finalización:</u>' : 'viii. <u>Plazo Máximo de Finalización:</u>';
 
     const reqMecaPropuestaBox = document.getElementById('req-meca-propuesta-box');
@@ -1915,21 +3267,27 @@ function updateTipoPresupuestoBadge() {
 
     if (isElec) {
         if (valProveedor && !valProveedor.value) valProveedor.value = 'SG Montajes S.R.L';
-        if (valValidez && !valValidez.value) valValidez.value = '5 dias';
+        if (typeof window.setValidezOfertaValue === 'function') {
+            if (!valValidez || !valValidez.value) window.setValidezOfertaValue('5 días');
+        } else if (valValidez && !valValidez.value) {
+            valValidez.value = '5 días';
+        }
         if (valPlanta && !valPlanta.value) valPlanta.value = 'Complejo APS- PGSM';
-        if (valInicio && !valInicio.value) valInicio.value = '12-ago-26';
-        if (valDuracion) {
-            valDuracion.placeholder = '';
-            if (valDuracion.value === 'OT-' || valDuracion.value === '25-30días') valDuracion.value = '';
+        if (valInicio && (!valInicio.value || valInicio.value === '12-ago-26')) valInicio.value = todayStr;
+        if (typeof window.setDuracionEstimadaValue === 'function') {
+            if (valDuracion && (valDuracion.value === 'OT-' || valDuracion.value === '25-30días')) window.setDuracionEstimadaValue('');
         }
     } else {
         if (valProveedor && (!valProveedor.value || valProveedor.value === 'SG Montajes S.R.L')) valProveedor.value = 'SG MONTAJES SRL';
-        if (valValidez && (!valValidez.value || valValidez.value === '5 dias')) valValidez.value = '5 días';
+        if (typeof window.setValidezOfertaValue === 'function') {
+            if (!valValidez || !valValidez.value || valValidez.value === '5 dias') window.setValidezOfertaValue('5 días');
+        } else if (valValidez && (!valValidez.value || valValidez.value === '5 dias')) {
+            valValidez.value = '5 días';
+        }
         if (valPlanta && (!valPlanta.value || valPlanta.value === 'Complejo APS- PGSM')) valPlanta.value = 'APS';
-        if (valInicio && !valInicio.value) valInicio.value = '12-ago-26';
-        if (valDuracion) {
-            valDuracion.placeholder = '';
-            if (valDuracion.value === 'OT-' || valDuracion.value === '25-30días') valDuracion.value = '';
+        if (valInicio && (!valInicio.value || valInicio.value === '12-ago-26')) valInicio.value = todayStr;
+        if (typeof window.setDuracionEstimadaValue === 'function') {
+            if (valDuracion && (valDuracion.value === 'OT-' || valDuracion.value === '25-30días')) window.setDuracionEstimadaValue('');
         }
     }
 
@@ -2672,9 +4030,69 @@ function initRequestView() {
     }
 
     // Resetear items cargados
-    pedidoItems = [];
-    productoSeleccionado = null;
-    actualizarTablaItemsRequerimiento();
+    if (!window.pedidoEnEdicionId && !window.pedidoEnReutilizacion) {
+        pedidoItems = [];
+        productoSeleccionado = null;
+        if (typeof actualizarTablaItemsRequerimiento === 'function') {
+            actualizarTablaItemsRequerimiento();
+        }
+        const mecaStep2Container = document.getElementById('req-mecanico-step2-container');
+        if (mecaStep2Container) {
+            mecaStep2Container.innerHTML = '';
+        }
+    }
+
+    // Helper functions para el campo fijo de Validez de la Oferta (días)
+    window.updateValidezOfertaHidden = function() {
+        const numEl = document.getElementById('req-meca-validez-num');
+        const hiddenEl = document.getElementById('req-meca-validez');
+        if (!hiddenEl) return;
+        const val = numEl ? numEl.value.trim() : '';
+        hiddenEl.value = val ? `${val} días` : '';
+    };
+
+    window.setValidezOfertaValue = function(valStr) {
+        const numEl = document.getElementById('req-meca-validez-num');
+        const hiddenEl = document.getElementById('req-meca-validez');
+        let num = '';
+        if (valStr !== undefined && valStr !== null) {
+            const str = String(valStr).trim();
+            const matches = str.match(/\d+/);
+            if (matches) {
+                num = matches[0];
+            } else if (str !== '') {
+                num = str;
+            }
+        }
+        if (numEl) numEl.value = num;
+        if (hiddenEl) hiddenEl.value = num ? `${num} días` : '';
+    };
+
+    // Helper functions para el campo fijo de Duración Estimada (días)
+    window.updateDuracionEstimadaHidden = function() {
+        const numEl = document.getElementById('req-meca-duracion-num');
+        const hiddenEl = document.getElementById('req-meca-duracion');
+        if (!hiddenEl) return;
+        const val = numEl ? numEl.value.trim() : '';
+        hiddenEl.value = val ? `${val} días` : '';
+    };
+
+    window.setDuracionEstimadaValue = function(valStr) {
+        const numEl = document.getElementById('req-meca-duracion-num');
+        const hiddenEl = document.getElementById('req-meca-duracion');
+        let num = '';
+        if (valStr !== undefined && valStr !== null) {
+            const str = String(valStr).trim();
+            const matches = str.match(/\d+/);
+            if (matches) {
+                num = matches[0];
+            } else if (str !== '') {
+                num = str;
+            }
+        }
+        if (numEl) numEl.value = num;
+        if (hiddenEl) hiddenEl.value = num ? `${num} días` : '';
+    };
 
     // Registrar submit y prevenir confirmación involuntaria por tecla Enter
     const form = document.getElementById('form-request-ped');
@@ -2703,8 +4121,11 @@ function initRequestView() {
     if (fiEl && !fiEl.value) fiEl.value = todayStr;
     const ffEl = document.getElementById('req-meca-fecha-fin');
     if (ffEl && !ffEl.value) ffEl.value = futureDateStr;
-    const valEl = document.getElementById('req-meca-validez');
-    if (valEl && !valEl.value) valEl.value = '30 días';
+    
+    if (window.setValidezOfertaValue) {
+        const valEl = document.getElementById('req-meca-validez');
+        if (!valEl || !valEl.value) window.setValidezOfertaValue('5 días');
+    }
     const provEl = document.getElementById('req-meca-proveedor');
     if (provEl && !provEl.value) provEl.value = 'SG MONTAJES SRL';
 
@@ -2797,7 +4218,7 @@ window.goToRequestStep = function(step) {
             }
             if (!validez) {
                 showToast('El campo "v. Validez de la Oferta" es obligatorio.', 'error');
-                document.getElementById('req-meca-validez')?.focus();
+                (document.getElementById('req-meca-validez-num') || document.getElementById('req-meca-validez'))?.focus();
                 return;
             }
             if (!fechaInicio) {
@@ -2816,8 +4237,8 @@ window.goToRequestStep = function(step) {
                 return;
             }
 
-            if (fechaInicio <= fechaOferta) {
-                showToast('La "vii. Fecha estimada de Inicio" debe ser obligatoriamente mayor a la "Fecha de Oferta" (día actual).', 'error');
+            if (fechaInicio < fechaOferta) {
+                showToast('La "Fecha estimada de Inicio" no puede ser anterior a la "Fecha de Oferta".', 'error');
                 document.getElementById('req-meca-fecha-inicio')?.focus();
                 return;
             }
@@ -3717,6 +5138,7 @@ window.crearPresupuestoBasadoEnActual = function(id) {
     if (typeof closeModal === 'function') closeModal();
 
     window.pedidoEnEdicionId = null; // Para que sea un presupuesto NUEVO
+    window.pedidoEnReutilizacion = true;
     reqTipoPresupuesto = p.tipo_presupuesto || 'Eléctrico';
     
     // Cambiar navegación a Gestión de Presupuestos en el sidebar
@@ -3742,11 +5164,13 @@ window.crearPresupuestoBasadoEnActual = function(id) {
     setVal('req-meca-proveedor', p.meca_proveedor || 'SG MONTAJES SRL');
     setVal('req-meca-fecha-oferta', new Date().toISOString().substring(0, 10));
     setVal('req-meca-validez', p.meca_validez || '5 días');
+    if (typeof window.setValidezOfertaValue === 'function') window.setValidezOfertaValue(p.meca_validez || '5 días');
     setVal('req-meca-planta', p.meca_planta || 'APS');
     setVal('req-meca-nro-oc', p.meca_nro_oc || '');
     setVal('req-meca-nro-ot', p.meca_nro_ot || '');
-    setVal('req-meca-fecha-inicio', p.meca_fecha_inicio || '');
+    setVal('req-meca-fecha-inicio', p.meca_fecha_inicio || new Date().toISOString().substring(0, 10));
     setVal('req-meca-duracion', p.meca_duracion || '');
+    if (typeof window.setDuracionEstimadaValue === 'function') window.setDuracionEstimadaValue(p.meca_duracion || '');
     setVal('req-meca-fecha-fin', p.meca_fecha_fin || '');
     setVal('req-meca-propuesta', p.meca_propuesta || '');
     setVal('req-meca-personal', p.meca_personal || '');
@@ -3774,6 +5198,7 @@ window.cargarPresupuestoParaModificacion = function(id) {
     }
 
     window.pedidoEnEdicionId = p.id;
+    window.pedidoEnReutilizacion = false;
     reqTipoPresupuesto = p.tipo_presupuesto || 'Eléctrico';
     
     // Switch to Ingreso de Presupuesto menu & template
@@ -3798,11 +5223,13 @@ window.cargarPresupuestoParaModificacion = function(id) {
     setVal('req-meca-proveedor', p.meca_proveedor || 'SG MONTAJES SRL');
     setVal('req-meca-fecha-oferta', p.meca_fecha_oferta || '');
     setVal('req-meca-validez', p.meca_validez || '5 días');
+    if (typeof window.setValidezOfertaValue === 'function') window.setValidezOfertaValue(p.meca_validez || '5 días');
     setVal('req-meca-planta', p.meca_planta || 'APS');
     setVal('req-meca-nro-oc', p.meca_nro_oc || '');
     setVal('req-meca-nro-ot', p.meca_nro_ot || '');
-    setVal('req-meca-fecha-inicio', p.meca_fecha_inicio || '');
+    setVal('req-meca-fecha-inicio', p.meca_fecha_inicio || new Date().toISOString().substring(0, 10));
     setVal('req-meca-duracion', p.meca_duracion || '');
+    if (typeof window.setDuracionEstimadaValue === 'function') window.setDuracionEstimadaValue(p.meca_duracion || '');
     setVal('req-meca-fecha-fin', p.meca_fecha_fin || '');
     setVal('req-meca-propuesta', p.meca_propuesta || '');
     setVal('req-meca-personal', p.meca_personal || '');
@@ -4096,6 +5523,7 @@ window.onRequiereAuthToggle = function() {
 
 window.resetRequestFormComplete = function() {
     window.pedidoEnEdicionId = null;
+    window.pedidoEnReutilizacion = false;
     const formReq = document.getElementById('form-request-ped');
     if (formReq) formReq.reset();
     
@@ -4104,9 +5532,9 @@ window.resetRequestFormComplete = function() {
         'req-meca-denominacion', 'req-meca-cliente', 'req-meca-proveedor',
         'req-meca-fecha-oferta', 'req-meca-validez', 'req-meca-planta',
         'req-meca-nro-oc', 'req-meca-nro-ot', 'req-meca-fecha-inicio',
-        'req-meca-duracion', 'req-meca-fecha-fin', 'req-meca-propuesta',
+        'req-meca-duracion', 'req-meca-duracion-num', 'req-meca-fecha-fin', 'req-meca-propuesta',
         'req-meca-personal', 'req-meca-exclusiones', 'req-reason',
-        'req-client'
+        'req-client', 'req-product-input', 'req-product-qty', 'req-product-price'
     ];
     idsToClear.forEach(id => {
         const el = document.getElementById(id);
@@ -4118,7 +5546,16 @@ window.resetRequestFormComplete = function() {
     if (document.getElementById('req-meca-fecha-oferta')) document.getElementById('req-meca-fecha-oferta').value = todayStr;
     if (document.getElementById('req-meca-fecha-inicio')) document.getElementById('req-meca-fecha-inicio').value = todayStr;
     if (document.getElementById('req-meca-fecha-fin')) document.getElementById('req-meca-fecha-fin').value = futureDateStr;
-    if (document.getElementById('req-meca-validez')) document.getElementById('req-meca-validez').value = '30 días';
+    if (typeof window.setValidezOfertaValue === 'function') {
+        window.setValidezOfertaValue('5 días');
+    } else if (document.getElementById('req-meca-validez')) {
+        document.getElementById('req-meca-validez').value = '5 días';
+    }
+    if (typeof window.setDuracionEstimadaValue === 'function') {
+        window.setDuracionEstimadaValue('');
+    } else if (document.getElementById('req-meca-duracion')) {
+        document.getElementById('req-meca-duracion').value = '';
+    }
     if (document.getElementById('req-meca-proveedor')) document.getElementById('req-meca-proveedor').value = 'SG MONTAJES SRL';
 
     const chkCom = document.getElementById('req-is-comisionista');
@@ -4134,14 +5571,14 @@ window.resetRequestFormComplete = function() {
     if (typeof actualizarTablaItemsRequerimiento === 'function') {
         actualizarTablaItemsRequerimiento();
     }
+
+    const mecaStep2Container = document.getElementById('req-mecanico-step2-container');
+    if (mecaStep2Container) {
+        mecaStep2Container.innerHTML = '';
+    }
     
     if (typeof window.goToRequestStep === 'function') {
         window.goToRequestStep(1);
-    }
-
-    const excelContainer = document.getElementById('mecanico-excel-container');
-    if (excelContainer && typeof renderMecanicoExcelGridInContainer === 'function') {
-        renderMecanicoExcelGridInContainer(excelContainer, true);
     }
 };
 
@@ -5323,8 +6760,12 @@ window.seleccionarVista = function(viewId) {
     renderAssignmentsTable();
 };
 
+window.showModal = function(templateId) {
+    if (typeof openModal === 'function') openModal(templateId);
+};
+
 window.abrirModalAgregarVista = function() {
-    showModal('tpl-modal-nueva-vista');
+    openModal('tpl-modal-nueva-vista');
     const inputNombre = document.getElementById('nueva-vista-nombre');
     if (inputNombre) {
         inputNombre.value = '';
@@ -5532,6 +6973,31 @@ function renderTableHeaderRow() {
         theadRow.appendChild(th);
     });
 }
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+window.toggleDetalleExpand = function(el) {
+    if (!el) return;
+    const shortEl = el.querySelector('.detalle-short');
+    const fullEl = el.querySelector('.detalle-full');
+    if (shortEl && fullEl) {
+        if (shortEl.style.display === 'none') {
+            shortEl.style.display = 'inline';
+            fullEl.style.display = 'none';
+        } else {
+            shortEl.style.display = 'none';
+            fullEl.style.display = 'inline-block';
+        }
+    }
+};
 
 function renderAssignmentsTable() {
     renderTableViewsTabs();
@@ -5796,12 +7262,39 @@ function renderAssignmentsTable() {
                         `;
                     }
 
+                    const rawDenominacion = (p.meca_denominacion || p.motivo || 'Cotización de Servicio').trim();
+                    let detalleContenidoHtml = '';
+                    if (rawDenominacion.length > 50) {
+                        const shortText = rawDenominacion.substring(0, 50);
+                        detalleContenidoHtml = `
+                            <div class="detalle-expandable-box" onclick="event.stopPropagation(); window.toggleDetalleExpand(this);" style="cursor: pointer; display: inline-block; max-width: 380px;" title="Haga clic para ver el detalle completo">
+                                <span class="detalle-short" style="font-size: 12px; font-weight: 700; color: #ffffff; line-height: 1.35; display: inline;">
+                                    ${(typeof escapeHtml === 'function' ? escapeHtml(shortText) : shortText)}...
+                                    <span style="color: #38bdf8; font-size: 10px; font-weight: 800; margin-left: 4px; white-space: nowrap; background: rgba(56, 189, 248, 0.15); padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                                        <i class="fa-solid fa-chevron-down"></i> más
+                                    </span>
+                                </span>
+                                <span class="detalle-full" style="font-size: 12px; font-weight: 700; color: #ffffff; line-height: 1.35; display: none; word-break: break-word;">
+                                    ${(typeof escapeHtml === 'function' ? escapeHtml(rawDenominacion) : rawDenominacion)}
+                                    <span style="color: #f59e0b; font-size: 10px; font-weight: 800; margin-left: 4px; display: inline-block; background: rgba(245, 158, 11, 0.15); padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(245, 158, 11, 0.3); margin-top: 2px;">
+                                        <i class="fa-solid fa-chevron-up"></i> menos
+                                    </span>
+                                </span>
+                            </div>
+                        `;
+                    } else {
+                        detalleContenidoHtml = `
+                            <span style="font-size: 12px; font-weight: 700; color: #ffffff; line-height: 1.35; word-break: break-word;">
+                                ${(typeof escapeHtml === 'function' ? escapeHtml(rawDenominacion) : rawDenominacion)}
+                            </span>
+                        `;
+                    }
+
                     return `
                         <td style="padding: 6px 12px; min-width: 220px;">
                             <div style="display: flex; flex-direction: column; gap: 2px;">
-                                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                                    <span style="font-size: 12px; font-weight: 700; color: #ffffff;">${p.meca_denominacion || p.motivo || 'Cotización de Servicio'}</span>
-                                    ${tipoPresBadge}
+                                <div>
+                                    ${detalleContenidoHtml}
                                 </div>
                                 ${avanceBadge}
                                 ${alertFaltaFacturar}
@@ -5829,7 +7322,7 @@ function renderAssignmentsTable() {
         tr.innerHTML = cellsHtml;
         
         const handleOpenPedido = (e) => {
-            if (e && e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('select') || e.target.closest('.status-select-container'))) {
+            if (e && e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('select') || e.target.closest('.status-select-container') || e.target.closest('.detalle-expandable-box'))) {
                 return;
             }
             if (viewMode === 'Modificacion') {
@@ -6167,7 +7660,7 @@ window.guardarModificacionesPedido = function() {
             return;
         }
         if (!duracion) {
-            showToast('El campo "viii. Duración estimada de la Ejecución" es obligatorio.', 'error');
+            showToast('El campo "viii. Duración estimada" es obligatorio.', 'error');
             return;
         }
         if (!fechaFin) {
@@ -6175,8 +7668,8 @@ window.guardarModificacionesPedido = function() {
             return;
         }
 
-        if (fechaInicio <= fechaOferta) {
-            showToast('La "vii. Fecha estimada de Inicio" debe ser obligatoriamente mayor a la "Fecha de Oferta" (día actual).', 'error');
+        if (fechaInicio < fechaOferta) {
+            showToast('La "Fecha estimada de Inicio" no puede ser anterior a la "Fecha de Oferta".', 'error');
             return;
         }
 
@@ -6516,7 +8009,9 @@ window.verDetallePedido = function(id, explicitMode) {
     
     const p = pedidoActivo;
     reqTipoPresupuesto = (p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'));
-    pedidoItems = JSON.parse(JSON.stringify(p.items || []));
+    if (isEditingAllowed) {
+        pedidoItems = JSON.parse(JSON.stringify(p.items || []));
+    }
 
     openModal('tpl-modal-auth');
 
@@ -7536,17 +9031,23 @@ window.imprimirPresupuestoModal = function() {
             };
 
             const rawCliName = (pedidoActivo.cliente_nombre || '-').toUpperCase();
+            const rawCliCode = (pedidoActivo.cliente_id || '-');
             const rawCliDom = (pedidoActivo.domicilio || '-').toUpperCase();
             const rawCliLoc = (pedidoActivo.localidad || '-').toUpperCase();
             const rawCliCuit = formatCuitDisplay(pedidoActivo.cuit || '-');
+            const rawCliEnt = (pedidoActivo.fecha_entrega || pedidoActivo.meca_fecha_fin || pedidoActivo.fecha || '-');
             const rawCliCond = (pedidoActivo.condicion_nombre || pedidoActivo.forma_pago || 'CONTADO').toUpperCase();
+            const rawNroPres = (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(pedidoActivo) : (pedidoActivo.id || '-'));
             const rawPlanta = (pedidoActivo.meca_planta || 'VGG').toUpperCase();
 
             setCleanText('auth-meca-cliente-val', rawCliName);
+            setCleanText('auth-meca-cliente-codigo-val', rawCliCode);
             setCleanText('auth-meca-domicilio-val', rawCliDom);
             setCleanText('auth-meca-localidad-val', rawCliLoc);
             setCleanText('auth-meca-cuit-val', rawCliCuit);
+            setCleanText('auth-meca-entrega-val', rawCliEnt);
             setCleanText('auth-meca-condicion-val', rawCliCond);
+            setCleanText('auth-meca-nro-presupuesto-val', rawNroPres);
             setCleanText('auth-meca-planta-val', rawPlanta);
 
             // 3. Renderizar la tabla de comprobante oficial completa con todos los ítems e importes
@@ -9358,18 +10859,16 @@ window.cargarPermisosParaUsuario = function(username) {
 
     const u = (appData.users || []).find(x => x.username === username);
     const nameEl = document.getElementById('summary-perm-username');
-    const roleEl = document.getElementById('summary-perm-role');
     const rubroEl = document.getElementById('summary-perm-rubro');
     const emailEl = document.getElementById('summary-perm-email');
     
     if (nameEl) nameEl.innerText = username || '-';
-    if (roleEl) roleEl.innerText = u ? (u.role || 'Usuario') : (username === 'mel' ? 'Administrador' : 'Usuario');
     if (rubroEl) rubroEl.innerText = (u && u.rubro_defecto === 'Mecánico') ? '⚙️ Mecánico' : '⚡ Eléctrico';
     if (emailEl) emailEl.innerText = u ? (u.email || 'Sin email') : '-';
 
     let perms = appData.userPermissions[username];
     if (!perms) {
-        perms = ((u && u.role === 'Administrador') || username === 'mel') 
+        perms = (username === 'mel') 
             ? allAvailableModules.map(m => m.id).concat(['menu-all-ver', 'menu-all-edit']) 
             : ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit'];
     }
@@ -9542,12 +11041,11 @@ function initAdminView() {
         
         const currentU = getCurrentUser();
         const currentUserId = currentU ? currentU.id : '';
-
         if (appData && Array.isArray(appData.users)) {
             appData.users.forEach(u => {
                 const vendedorStr = u.vendedor_nombre ? ` 🧑‍💼 ${u.vendedor_nombre}` : '';
                 const rubroStr = u.rubro_defecto === 'Mecánico' ? ' [⚙️ Mecánico]' : ' [⚡ Eléctrico]';
-                const optText = `${u.username}${vendedorStr}${rubroStr} (${u.email || 'Sin email'}) - [${u.role}]`;
+                const optText = `${u.username}${vendedorStr}${rubroStr} (${u.email || 'Sin email'})`;
                 if (editSelect) editSelect.innerHTML += `<option value="${u.id}">${optText}</option>`;
                 if (deleteSelect && u.id !== currentUserId) {
                     deleteSelect.innerHTML += `<option value="${u.id}">${optText}</option>`;
@@ -9591,9 +11089,20 @@ function initAdminView() {
                 if (eField) eField.value = user.email || '';
                 if (pField) pField.value = user.password || '';
                 if (rField) rField.value = user.rubro_defecto || 'Eléctrico';
+
+                const perms = (appData.userPermissions && appData.userPermissions[user.username])
+                    ? appData.userPermissions[user.username]
+                    : ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all'];
+
+                document.querySelectorAll('.edit-user-perm-cb').forEach(cb => {
+                    cb.checked = perms.includes(cb.value);
+                });
             } else {
                 const editFormEl = document.getElementById('edit-user-form');
                 if (editFormEl) editFormEl.reset();
+                document.querySelectorAll('.edit-user-perm-cb').forEach(cb => {
+                    cb.checked = false;
+                });
             }
         };
     }
@@ -9637,17 +11146,18 @@ function initAdminView() {
                             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
                             if (client) {
                                 client.from('usuarios').delete().eq('username', uName).then(function(res) {
-                                    console.log("☁️ Supabase: Usuario " + uName + " eliminado de la base de datos.");
+                                    if (res && res.error) console.warn("⚠️ Supabase delete user warning:", res.error);
+                                    else console.log("☁️ Supabase: Usuario " + uName + " eliminado.");
                                 }).catch(function() {});
                             }
-                            showToast(`Usuario ${uName} eliminado.`, 'success');
+                            showToast(`Usuario ${user.username} eliminado.`, 'info');
                             renderUsers();
                             window.fillPermissionsUserSelect();
+                            deleteSelect.value = '';
+                            if (deleteSelect.onchange) deleteSelect.onchange({ target: { value: '' }});
                         } else {
                             showToast('Eliminación cancelada.', 'error');
                         }
-                        deleteSelect.value = '';
-                        if (deleteSelect.onchange) deleteSelect.onchange({ target: { value: '' }});
                     };
                 }
             } else {
@@ -9675,6 +11185,9 @@ function initAdminView() {
             const userIdx = appData.users.findIndex(u => u.id === userId);
             if (userIdx === -1) return;
 
+            const oldUser = appData.users[userIdx];
+            const oldUsername = oldUser.username;
+
             const uField = document.getElementById('edit-username');
             const eField = document.getElementById('edit-email');
             const pField = document.getElementById('edit-password');
@@ -9695,6 +11208,22 @@ function initAdminView() {
             appData.users[userIdx].password = password;
             appData.users[userIdx].rubro_defecto = rubro_defecto;
 
+            // Extraer vistas seleccionadas
+            const selectedPerms = [];
+            document.querySelectorAll('.edit-user-perm-cb').forEach(cb => {
+                if (cb.checked) selectedPerms.push(cb.value);
+            });
+            if (selectedPerms.includes('menu-all')) {
+                if (!selectedPerms.includes('menu-all-ver')) selectedPerms.push('menu-all-ver');
+                if (!selectedPerms.includes('menu-all-edit')) selectedPerms.push('menu-all-edit');
+            }
+
+            if (!appData.userPermissions) appData.userPermissions = {};
+            if (oldUsername && oldUsername !== newUsername && appData.userPermissions[oldUsername]) {
+                delete appData.userPermissions[oldUsername];
+            }
+            appData.userPermissions[newUsername] = selectedPerms;
+
             saveData();
 
             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
@@ -9714,7 +11243,11 @@ function initAdminView() {
                 }).catch(function() {});
             }
 
-            showToast('Credenciales actualizadas exitosamente.', 'success');
+            showToast('Credenciales y vistas actualizadas exitosamente.', 'success');
+            const currentUser = getCurrentUser();
+            if (currentUser && (currentUser.username === oldUsername || currentUser.username === newUsername)) {
+                buildSidebar();
+            }
             renderUsers();
             window.fillPermissionsUserSelect();
             editForm.reset();
@@ -9753,6 +11286,19 @@ function initAdminView() {
 
             appData.users.push(newUser);
             
+            // Extraer vistas seleccionadas para el nuevo usuario
+            const selectedPerms = [];
+            document.querySelectorAll('.new-user-perm-cb').forEach(cb => {
+                if (cb.checked) selectedPerms.push(cb.value);
+            });
+            if (selectedPerms.includes('menu-all')) {
+                if (!selectedPerms.includes('menu-all-ver')) selectedPerms.push('menu-all-ver');
+                if (!selectedPerms.includes('menu-all-edit')) selectedPerms.push('menu-all-edit');
+            }
+
+            if (!appData.userPermissions) appData.userPermissions = {};
+            appData.userPermissions[username] = selectedPerms.length > 0 ? selectedPerms : ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit'];
+
             saveData();
 
             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
@@ -9996,18 +11542,8 @@ window.ejecutarLoginDirecto = function(e) {
     });
 
     if (!found) {
-        // Permitir autoregistro o ingreso si es usuario nuevo
-        found = {
-            id: generateId(),
-            username: userVal,
-            password: passVal,
-            email: userVal + '@sgmontajes.com.ar',
-            role: 'Solicitante',
-            rubro_defecto: 'Eléctrico',
-            vendedor_codigo: '',
-            vendedor_nombre: ''
-        };
-        appData.users.push(found);
+        showToast('Usuario no registrado. Ingrese un usuario válido.', 'error');
+        return;
     }
 
     if (found.role === 'Congelado') {
@@ -10021,7 +11557,6 @@ window.ejecutarLoginDirecto = function(e) {
     }
 
     appData.currentUserId = String(found.id);
-    try { localStorage.setItem('pedidos_current_user_id', String(found.id)); } catch(err) {}
     saveData();
 
     reqTipoPresupuesto = found.rubro_defecto || 'Eléctrico';
@@ -10055,24 +11590,16 @@ function startApp() {
         }
     }
 
-    // Verificar sesión guardada
-    var savedUserId = null;
-    try { savedUserId = localStorage.getItem('pedidos_current_user_id'); } catch(e) {}
-
-    var userFound = savedUserId ? appData.users.find(function(u) { return String(u.id) === String(savedUserId); }) : null;
-
-    if (userFound && !['admin', 'aut', 'sol'].includes(String(userFound.username).trim().toLowerCase()) && userFound.role !== 'Congelado') {
-        appData.currentUserId = String(userFound.id);
-        reqTipoPresupuesto = userFound.rubro_defecto || 'Eléctrico';
-        switchView('main');
-        buildSidebar();
-        renderNotifications();
-        if (window.checkScheduledOcAlerts) window.checkScheduledOcAlerts();
-    } else {
-        appData.currentUserId = null;
-        try { localStorage.removeItem('pedidos_current_user_id'); } catch(e) {}
-        switchView('login');
-    }
+    // SIEMPRE EXIGIR CREDENCIALES AL INGRESAR (Sin Auto-Login)
+    appData.currentUserId = null;
+    try { localStorage.removeItem('pedidos_current_user_id'); } catch(e) {}
+    
+    var userInput = document.getElementById('username');
+    var passInput = document.getElementById('password');
+    if (userInput) userInput.value = '';
+    if (passInput) passInput.value = '';
+    
+    switchView('login');
 
     // Vincular formulario de login
     var loginForm = document.getElementById('login-form');
