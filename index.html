@@ -39,9 +39,7 @@
                     <input type="password" id="password" placeholder="••••••••" onkeydown="if(event.key === 'Enter') { event.preventDefault(); window.ejecutarLoginDirecto(event); }">
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                    <button type="button" class="btn btn-primary" onclick="window.ejecutarLoginDirecto(event)" style="width: 100%; font-weight: bold; cursor: pointer; position: relative; z-index: 10; height: 42px; font-size: 14px;">Ingresar</button>
-                    <button type="button" class="btn btn-secondary" onclick="window.loginAs('mel', '123')" style="width: 100%; font-weight: bold; cursor: pointer; position: relative; z-index: 10; height: 38px; font-size: 13px; background: rgba(37,99,235,0.3); border: 1px solid #2563eb; color: white;">⚡ Acceso Rápido Directo</button>
-                    <button type="button" class="btn btn-secondary" onclick="try{localStorage.clear();}catch(e){}; window.loginAs('mel', '123')" style="width: 100%; font-weight: bold; cursor: pointer; position: relative; z-index: 10; height: 34px; font-size: 12px; background: rgba(234, 179, 8, 0.2); border: 1px solid #eab308; color: #fef08a;">🧹 Resetear Caché y Entrar</button>
+                    <button type="submit" class="btn btn-primary" onclick="window.ejecutarLoginDirecto(event)" style="width: 100%; font-weight: bold; cursor: pointer; position: relative; z-index: 10; height: 42px; font-size: 14px;">Ingresar</button>
                 </div>
             </form>
         </section>
@@ -2993,7 +2991,7 @@
     <script src="supabase_config.js?v=3"></script>
     
     <!-- Script principal de lógica de negocio -->
-    <script src="app.js?v=307"></script>
+    <script src="app.js?v=308"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=2"></script>
