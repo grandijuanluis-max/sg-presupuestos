@@ -45,7 +45,7 @@
         </div>
         <div style="text-align: right;">
             <span class="badge badge-blue">MANUAL DE USUARIO OFICIAL</span><br>
-            <span style="font-size: 11px; color: #64748b;">Versión 2.5 — Actualizada</span>
+            <span style="font-size: 11px; color: #64748b;">Versión 3.5 — Actualizada Oficial (14 Septiembre 2026)</span>
         </div>
     </div>
 
@@ -108,6 +108,16 @@
 
     <div class="step-box">
         <h3>Paso 2: Carga del Tarifario de Ítems / Planilla Técnica</h3>
+    <div class="alert-info">
+        <strong>⚡ Gestión Moderna del Tarifario Eléctrico:</strong><br>
+        <ul>
+            <li><strong>Correlatividad Estricta:</strong> Los códigos de materiales y mano de obra mantienen una numeración perfectamente correlativa (<code>ELE-001</code>, <code>ELE-002</code>, etc.) sin huecos.</li>
+            <li><strong>Solapa Materiales y Equipos:</strong> Permite cotizar cajas de aluminio, cañerías galvanizadas, cables sintenax, condulets y accesorios eléctricos con precios actualizados.</li>
+            <li><strong>Títulos Separadores Claros:</strong> Los encabezados de sección figuran limpiamente sin numeración en la columna de código para no confundirse con ítems cotizables.</li>
+            <li><strong>Mini Cruz de Borrado (<span style="color:#ef4444; font-weight:bold;">✕</span>):</strong> Cada fila del tarifario cuenta con una cruz roja para suprimir rápidamente conceptos erróneos. Al eliminar un ítem, el sistema renumera automáticamente los conceptos restantes garantizando la continuidad numérica.</li>
+            <li><strong>Agregar Ítem al Tarifario:</strong> El botón superior permite dar de alta nuevos conceptos asignando el siguiente código libre correlativo y situando al usuario directamente en la solapa correspondiente.</li>
+        </ul>
+    </div>
         <ul>
             <li>Seleccione el concepto técnico desde el buscador de tarifarios.</li>
             <li>Ingrese la <strong>Cantidad</strong> requerida. La unidad (<code>HS</code>, <code>GLB</code>, <code>UN</code>, <code>MTS</code>) y el precio unitario se cargan automáticamente.</li>
@@ -127,7 +137,7 @@
     <h2>Capítulo 4: Módulo 2 - Estados Comerciales, Avance de Obra y Facturación</h2>
     <p>Control centralizado del ciclo de vida comercial y financiero de las obras.</p>
 
-    <h3>4.1 Matriz Jerárquica de los 6 Estados Comerciales</h3>
+    <h3>4.1 Matriz de los 4 Únicos Estados Comerciales</h3>
     <table>
         <thead>
             <tr>
@@ -140,39 +150,34 @@
             <tr>
                 <td><strong>1. Enviado sin OC</strong></td>
                 <td><span class="badge badge-amber">ENVIADO SIN OC</span></td>
-                <td>Oferta emitida y entregada al cliente, pendiente de resolución.</td>
+                <td>Oferta emitida y entregada al cliente, pendiente de resolución comercial.</td>
             </tr>
             <tr>
                 <td><strong>2. Aprobado sin OC</strong></td>
                 <td><span class="badge badge-blue">APROBADO SIN OC</span></td>
-                <td>Aprobación preliminar verbal o por correo sin orden de compra oficial.</td>
+                <td>Aprobación preliminar verbal o por correo previa a la orden de compra.</td>
             </tr>
             <tr>
                 <td><strong>3. Aprobado con OC</strong></td>
                 <td><span class="badge badge-green">APROBADO CON OC</span></td>
-                <td>Adjudicación formal. <strong>Requisito obligatorio:</strong> ingresar N° de Orden de Compra.</td>
+                <td>Adjudicación formal de la obra. <strong>Requisito obligatorio:</strong> ingresar N° de Orden de Compra (OC).</td>
             </tr>
             <tr>
-                <td><strong>4. Facturado Parcial</strong></td>
-                <td><span class="badge badge-purple">FACTURADO PARCIAL</span></td>
-                <td>Facturas emitidas correspondientes a certificaciones de avance de obra.</td>
-            </tr>
-            <tr>
-                <td><strong>5. Facturado Total</strong></td>
-                <td><span class="badge badge-green">FACTURADO TOTAL</span></td>
-                <td>100% facturado. Obra concluida y proceso administrativo cerrado.</td>
-            </tr>
-            <tr>
-                <td><strong>6. Rechazado</strong></td>
+                <td><strong>4. Rechazado</strong></td>
                 <td><span class="badge badge-red">RECHAZADO</span></td>
-                <td>Oferta no aceptada. <strong>Requisito obligatorio:</strong> ingresar motivo de rechazo.</td>
+                <td>Oferta desestimada. <strong>Requisito obligatorio:</strong> ingresar motivo de rechazo.</td>
             </tr>
         </tbody>
     </table>
 
+    <div class="alert-info">
+        <strong>💼 Derivación a "Registros de Facturación":</strong><br>
+        Las condiciones de facturación (<em>Facturado Parcial</em> y <em>Facturado Total</em>) <strong>no son estados comerciales del presupuesto</strong>. Los presupuestos aprobados con OC van a parar al módulo exclusivo <strong>Registros de Facturación</strong>, donde el área administrativa controla los cobros categorizándolos en: <em>Pendiente de Facturar</em> (0%), <em>Facturación Parcial</em> (>0% y <100%) y <em>Facturación Total</em> (100%).
+    </div>
+
     <div class="alert-important">
         <strong>🚫 Prohibición Estricta de Retroceso de Estados:</strong><br>
-        Los presupuestos siguen un avance estrictamente progresivo. Un presupuesto que ha alcanzado un nivel superior no puede retroceder a estados inferiores (por ejemplo, <em>Facturado Parcial</em> no puede volver a <em>Aprobado sin OC</em>). Las opciones bloqueadas aparecen con el símbolo <code>🚫</code> en el selector.
+        Los presupuestos siguen un avance estrictamente progresivo. Un presupuesto que ha alcanzado un nivel superior no puede retroceder a estados inferiores (por ejemplo, <em>Aprobado con OC</em> no puede volver a <em>Aprobado sin OC</em> ni <em>Enviado sin OC</em>). Las opciones bloqueadas aparecen con el símbolo <code>🚫</code> en el selector.
     </div>
 
     <h3>4.2 Certificación Física de Avance de Obra</h3>
@@ -196,7 +201,17 @@
         Indica el importe exacto pendiente de emisión de factura según las certificaciones reales de obra.
     </div>
 
-    <h2>Capítulo 5: Módulo 3 - Visualización de Comprobantes (Detallado y Resumido)</h2>
+    <h2>Capítulo 5: Módulo 3 - Visualización de Comprobantes y Formato Oficial de Presupuesto (PDF)</h2>
+    <div class="alert-info">
+        <strong>📑 Estructura Oficial del Presupuesto Comercial Impreso:</strong><br>
+        El PDF oficial de cotización comercial cuenta con un diseño de alta calidad técnica:
+        <ul>
+            <li><strong>Encabezado en Recuadro:</strong> Membrete institucional con logotipo de SG Montajes, domicilio fiscal, I.V.A. Responsable Inscripto, comprobante letra <strong>X</strong> y bloque de datos tributarios (CUIT 30-71602466-7, Ingresos Brutos, Inicio de Actividades).</li>
+            <li><strong>Ficha de Cliente en Celdas Individuales:</strong> Todos los datos de obra y cliente (Cliente, Detalle, Domicilio, CUIT, Condición de Venta, Planta, Código, Número de OT, Localidad, Fecha de Entrega y Nro. Presupuesto) enmarcados en recuadros rectangulares independientes con esquinas redondeadas.</li>
+            <li><strong>Marca de Agua a -30°:</strong> Logotipo centrado e inclinado a -30 grados detrás de la grilla de ítems con opacidad calibrada para permitir la lectura nítida de cada renglón.</li>
+            <li><strong>Alcance Técnico y Exclusiones:</strong> Bloques formales para propuesta técnica, personal asignado y cláusulas de exclusión.</li>
+        </ul>
+    </div>
     
     <h3>5.1 Selector Dinámico: Detallado vs Resumido</h3>
     <p>Al visualizar una cotización con el botón <strong>[ 👁️ Ver ]</strong>, el usuario puede conmutar instantáneamente:</p>
@@ -205,14 +220,53 @@
         <li><strong>📋 Comprobante Resumido:</strong> Presenta la cotización condensada en una sola línea ejecutiva con la denominación del trabajo, cantidad global, subtotal neto, I.V.A. (21%) e importe total final.</li>
     </ul>
 
-    <h3>5.2 Opciones de Despacho</h3>
+    <h3>5.2 Opciones de Despacho del Comprobante</h3>
     <ul>
         <li><strong>🖨️ PDF / Impresión Oficial:</strong> Formato A4 profesional con membrete corporativo, condiciones comerciales y casillas de firma.</li>
-        <li><strong>💬 WhatsApp Directo:</strong> Genera el mensaje estructurado con el resumen ejecutivo de la oferta listo para enviar al cliente.</li>
-        <li><strong>📧 Envío por Correo Electrónico:</strong> Despacha la notificación oficial a la casilla del cliente.</li>
+        <li><strong>💬 WhatsApp Directo:</strong> Genera el mensaje estructurado con el resumen ejecutivo de la oferta listo para enviar al cliente por mensajería.</li>
+        <li><strong>📧 Despachar Cotización por Email:</strong> Abre la ventana interactiva especializada de despacho oficial con selección rápida de destinatarios y adjunto de PDF en tiempo real.</li>
     </ul>
 
-    <h2>Capítulo 6: Módulo 4 - Métricas Gerenciales y Business Intelligence (BI)</h2>
+    <h2>Capítulo 6: Despacho Oficial de Cotizaciones por Email (Modal Productivo)</h2>
+    <p>El sistema incorpora un centro de despacho formal de ofertas comerciales diseñado para enviar cotizaciones en segundos con máximo rigor corporativo.</p>
+
+    <h3>6.1 Estructura del Modal "Despachar Cotización por Email"</h3>
+    <p>Al hacer clic en el botón <strong>"Enviar Email"</strong> del presupuesto, se despliega la interfaz con los siguientes componentes:</p>
+    <ul>
+        <li><strong>Botón [+ Agregar Todos los Destinatarios]:</strong> Consolida en un solo clic la casilla del cliente asignado, cotizaciones (<code>cotizaciones@sgmontajes.com.ar</code>), administración (<code>melanidaiana28@gmail.com</code>) y facturación (<code>facturacion@sgmontajes.com.ar</code>).</li>
+        <li><strong>Chips Interactivos TO:</strong> Botones rápidos con etiquetas individuales de cada destinatario para agregar o quitar receptores con un toque.</li>
+        <li><strong>Con Copia (CC):</strong> Chips directos para añadir copias de control o el botón <em>[Sin copia]</em> para limpiar el campo.</li>
+        <li><strong>Asunto Formal Personalizable:</strong> Viene pre-configurado con el número de presupuesto oficial y el nombre del cliente (ej. <code>Presupuesto SG-2026-0004 - CARGILL SACI</code>).</li>
+        <li><strong>Generación de PDF Oficial en Tiempo Real:</strong> El sistema compila instantáneamente el presupuesto formal con su logotipo, ítems y montos como <code>Presupuesto_{NRO}.pdf</code>.</li>
+        <li><strong>Subida de Documentos Adicionales:</strong> Permite adjuntar planos técnicos, especificaciones de obra o memorias de cálculo complementarias.</li>
+        <li><strong>Tarjeta de Resumen del Despacho:</strong> Indica cantidad de destinatarios principales, copias, total y estado del adjunto.</li>
+    </ul>
+
+    <h3>6.2 Doble Modalidad de Envío (Local Directo vs Servidor Silencioso)</h3>
+    <p>El sistema ofrece dos alternativas complementarias para adaptarse al flujo de trabajo diario de cada usuario:</p>
+
+    <div class="step-box">
+        <strong>Opción A: Modo Local Directo (Botón "Abrir en Mail / Outlook") — ¡Sin requerir servidores!</strong><br>
+        Pensado para cuando se utiliza la aplicación abriendo directamente el archivo <code>index.html</code> en la computadora:<br>
+        1. Al hacer clic en <strong>"Abrir en Mail / Outlook"</strong>, el sistema <strong>descarga automáticamente el PDF oficial</strong> en la carpeta de Descargas de su Mac/PC.<br>
+        2. Al mismo tiempo, <strong>abre su programa de correo predeterminado</strong> (Apple Mail, Microsoft Outlook, Thunderbird, etc.) con los destinatarios, copia, asunto y cuerpo formal pre-redactados.<br>
+        3. Solo resta arrastrar el PDF descargado al correo y pulsar Enviar.
+    </div>
+
+    <div class="step-box">
+        <strong>Opción B: Modo Servidor SMTP en Segundo Plano (Botón "Enviar Ahora (SMTP)")</strong><br>
+        Para un envío 100% automático, silencioso e invisible sin abrir el programa de correo local:<br>
+        1. Requiere tener activo el backend Python (iniciado con <code>Iniciar_Servidor.command</code>).<br>
+        2. El correo y su PDF se despachan de forma directa a través del servidor corporativo Ferozo/DonWeb (<code>c2001014.ferozo.com:465</code> SSL).<br>
+        3. <em>Fallback Inteligente:</em> Si se pulsa este botón en modo local y el servidor no está corriendo, el sistema no se bloquea ni muestra errores; descarga el PDF y abre el correo local automáticamente para que el trabajo nunca se detenga.
+    </div>
+
+    <div class="alert-info">
+        <strong>🚀 Lanzador Automático para macOS (<code>Iniciar_Servidor.command</code>):</strong><br>
+        En su carpeta de trabajo <code>ANTY</code> o <code>PRESUPUESTO</code>, dispone del archivo ejecutable <strong>Iniciar_Servidor.command</strong>. Con solo hacerle doble clic, el sistema libera automáticamente el puerto 8000, arranca el servidor Python en segundo plano y abre la aplicación en su navegador web en <code>http://localhost:8000</code>.
+    </div>
+
+    <h2>Capítulo 7: Módulo 4 - Métricas Gerenciales y Business Intelligence (BI)</h2>
     <p>El módulo de analítica ofrece visibilidad total en tiempo real con filtros dinámicos por rango de fechas, rubro y vendedor.</p>
 
     <h3>6.1 Las 8 Métricas KPI en Tiempo Real</h3>
@@ -259,16 +313,16 @@
         </ul>
     </div>
 
-    <h3>6.2 Gráficos de Rendimiento y Tablas Analíticas</h3>
+    <h3>7.2 Gráficos de Rendimiento y Tablas Analíticas</h3>
     <ul>
         <li><strong>Rendimiento por Vendedor:</strong> Muestra cotizaciones emitidas, obras adjudicadas con OC, total cotizado, total facturado y el <strong>% de Efectividad de Cierre</strong>.</li>
         <li><strong>Resumen por Cliente:</strong> Detalla volumen contratado, avance promedio, facturación acumulada y saldo pendiente por cliente.</li>
     </ul>
 
-    <h2>Capítulo 7: Módulo 5 - Reporte Impreso Oficial y Exportación a Excel</h2>
+    <h2>Capítulo 8: Módulo 5 - Reporte Impreso Oficial y Exportación a Excel</h2>
     <p>Herramientas diseñadas para la presentación ejecutiva ante directorio y la auditoría contable externa.</p>
 
-    <h3>7.1 🖨️ Reporte Impreso Gerencial Multi-Tabla</h3>
+    <h3>8.1 🖨️ Reporte Impreso Gerencial Multi-Tabla</h3>
     <p>El reporte impreso oficial ha sido optimizado con los siguientes estándares de alta calidad:</p>
     <ul>
         <li><strong>Comienzo directo en la Página 1:</strong> Se eliminaron los saltos o páginas en blanco iniciales mediante una reestructuración completa del layout de impresión.</li>
@@ -283,7 +337,7 @@
         <li><strong>Paginación Continua y Encabezados Repetibles:</strong> Los títulos de tabla se mantienen legibles a lo largo de todas las páginas del documento.</li>
     </ul>
 
-    <h3>7.2 📑 Exportación a Planilla Excel Oficial (`.xls`)</h3>
+    <h3>8.2 📑 Exportación a Planilla Excel Oficial (`.xls`)</h3>
     <p>Al hacer clic en <strong>[ 📑 Exportar Excel ]</strong>, el sistema genera de forma nativa una hoja de cálculo estructurada con:</p>
     <ul>
         <li>Membrete corporativo oficial y fecha/hora exacta de emisión.</li>
@@ -291,29 +345,29 @@
         <li><strong>Formato Numérico Oficial:</strong> Todos los valores monetarios se exportan con formato de moneda (<code>$ #.##0,00</code>) y porcentajes reales listos para fórmulas y análisis contables.</li>
     </ul>
 
-    <h2>Capítulo 8: Módulo 6 - Consulta de Stock e Inventario PRESEA</h2>
+    <h2>Capítulo 9: Módulo 6 - Consulta de Stock e Inventario PRESEA</h2>
     <ul>
         <li>Búsqueda rápida en tiempo real de insumos, materiales y repuestos por código o descripción.</li>
         <li>Filtro directo por rubros y familias de artículos.</li>
         <li>Visualización inmediata de la disponibilidad física de stock para planificar compras y cotizaciones técnicas.</li>
     </ul>
 
-    <h2>Capítulo 9: Seguridad, Roles y Configuración del Sistema</h2>
+    <h2>Capítulo 10: Seguridad, Roles y Configuración del Sistema</h2>
     
-    <h3>9.1 Matriz de Usuarios y Permisos</h3>
+    <h3>10.1 Matriz de Usuarios y Permisos</h3>
     <ul>
         <li><strong>Usuarios Administradores (`mel`, `melani`):</strong> Control total del sistema, conmutación de rubros, auditoría, configuración de parámetros y gestión de usuarios.</li>
         <li><strong>Usuarios Solicitantes / Técnicos:</strong> Carga de presupuestos, actualización de estados de su rubro y registro de certificaciones de avance de obra.</li>
     </ul>
 
-    <h3>9.2 Parámetros de Seguridad por Usuario</h3>
+    <h3>10.2 Parámetros de Seguridad por Usuario</h3>
     <ul>
         <li><strong>👁️ Visualizar Comprobante / Historial:</strong> Permite consultar comprobantes y auditoría en modo lectura (botón <code>[ 👁️ Ver ]</code>).</li>
         <li><strong>✏️ Editar y Avance de Obra:</strong> Habilita la edición de datos, certificación de hitos de obra y basar presupuestos (botones <code>[ ✏️ Editar ]</code>, <code>[ 🔨 Avance ]</code> y <code>[ 📑 Basar Pres. ]</code>).</li>
     </ul>
 
     <div class="footer-doc">
-        <strong>SG MONTAJES SRL</strong> &copy; 2026 — Manual Técnico Operativo Oficial v2.5
+        <strong>SG MONTAJES SRL</strong> &copy; 2026 — Manual Técnico Operativo Oficial v3.0
     </div>
 
 </body>

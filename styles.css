@@ -1,10 +1,10 @@
 :root {
-    --bg-gradient-start: #1e3a8a;
-    --bg-gradient-end: #0f172a;
+    --bg-gradient-start: #003D78;
+    --bg-gradient-end: #002244;
     
-    /* Company Colors Theme: Blue, Yellow and White */
-    --primary: #2563eb; /* Royal Blue */
-    --primary-hover: #1d4ed8;
+    /* Company Colors Theme: Boca Juniors (Blue and Yellow) */
+    --primary: #00529F; /* Boca Blue */
+    --primary-hover: #003D78;
     --secondary: #64748b;
     --secondary-hover: #475569;
     --success: #10b981; 
@@ -12,15 +12,15 @@
     --danger: #f43f5e;
     --danger-hover: #e11d48;
     
-    --warning: #fbbf24; /* Golden Yellow */
-    --warning-hover: #d97706;
+    --warning: #F3B229; /* Boca Yellow */
+    --warning-hover: #D09315;
     
     --text-main: #ffffff; /* Crisp white text */
-    --text-muted: #cbd5e1;
+    --text-muted: #f1f5f9; /* Lighter for better contrast */
     
-    --glass-bg: rgba(15, 23, 42, 0.85); /* Deep Navy Glass background */
-    --glass-border: rgba(37, 99, 235, 0.4); /* Royal Blue border */
-    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25); /* Strong premium shadow */
+    --glass-bg: rgba(0, 15, 35, 0.92); /* Darker and more opaque for text contrast */
+    --glass-border: rgba(243, 178, 41, 0.6); /* Slightly stronger yellow border */
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4); /* Stronger premium shadow */
     
     --radius: 16px;
     --transition: all 0.3s ease;
@@ -34,11 +34,12 @@
 
 body {
     font-family: 'Inter', sans-serif;
-    background: linear-gradient(135deg, #0f172a 0%, #1e3b8a 50%, #0f172a 100%);
+    font-weight: 500; /* Bolder text for readability */
+    background: url('fondo_presupuesto.png') no-repeat center center fixed;
     background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
+    background-color: var(--warning); /* Fallback */
     color: var(--text-main);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9); /* Hard shadow to make text pop against image */
     min-height: 100vh;
     display: block;
     margin: 0;
@@ -112,9 +113,10 @@ body {
     text-align: center;
     padding: 0 20px;
     font-style: italic;
-    color: var(--primary);
+    color: var(--warning); /* Make it yellow for Boca theme */
     font-weight: 500;
     font-size: 15px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
     letter-spacing: 0.5px;
 }
 
@@ -136,10 +138,10 @@ body {
     flex-direction: row;
     align-items: center;
     gap: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    scrollbar-width: thin;
+    overflow: visible;
+    white-space: normal;
+    flex-wrap: wrap;
+    justify-content: flex-start;
 }
 
 .glass-content {
@@ -184,7 +186,7 @@ body {
 .login-header h2 {
     font-weight: 700;
     font-size: 28px;
-    color: var(--primary);
+    color: var(--warning);
     margin-bottom: 8px;
 }
 
@@ -195,7 +197,7 @@ body {
 
 .login-quote {
     font-style: italic;
-    color: var(--primary);
+    color: var(--warning);
     font-size: 14px;
     margin-bottom: 32px;
     padding: 0 10px;
@@ -219,7 +221,7 @@ body {
 }
 .search-input:focus {
     background: rgba(30, 41, 59, 0.95);
-    border-color: var(--primary);
+    border-color: var(--warning);
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
 }
 
@@ -253,14 +255,16 @@ input, select, textarea {
     background: rgba(30, 41, 59, 0.6);
     font-family: 'Inter', sans-serif;
     font-size: 13px;
+    font-weight: 500;
     color: var(--text-main);
+    text-shadow: none;
     transition: var(--transition);
     outline: none;
 }
 
 input:focus, select:focus, textarea:focus {
     background: rgba(30, 41, 59, 0.95);
-    border-color: var(--primary);
+    border-color: var(--warning);
     box-shadow: 0 0 0 3px rgba(155, 191, 219, 0.2);
 }
 
@@ -324,7 +328,7 @@ input:focus, select:focus, textarea:focus {
 .logo {
     font-weight: 700;
     font-size: 20px;
-    color: var(--primary);
+    color: var(--warning);
 }
 
 .user-info {
@@ -546,8 +550,8 @@ input:focus, select:focus, textarea:focus {
 .mb-3 { margin-bottom: 16px; }
 .mb-4 { margin-bottom: 24px; }
 .view-header { margin-bottom: 32px; }
-.view-header h3 { font-size: 24px; color: var(--primary); margin-bottom: 8px; }
-.view-header p { color: var(--text-muted); }
+.view-header h3 { font-size: 24px; color: var(--warning); margin-bottom: 8px; font-weight: 800; text-shadow: 0 2px 5px rgba(0,0,0,0.9); }
+.view-header p { color: var(--text-muted); text-shadow: 0 1px 4px rgba(0,0,0,0.9); font-weight: 500; }
 
 /* Metrics */
 .metrics-grid {
@@ -565,7 +569,7 @@ input:focus, select:focus, textarea:focus {
 
 .metric-card:hover {
     transform: translateY(-5px);
-    border-color: var(--primary);
+    border-color: var(--warning);
     box-shadow: var(--glass-shadow), 0 8px 30px rgba(0, 0, 0, 0.3);
     background: rgba(255, 255, 255, 0.05);
 }
@@ -683,7 +687,7 @@ input:focus, select:focus, textarea:focus {
     position: fixed;
     top: 16px;
     right: 16px;
-    z-index: 10000;
+    z-index: 99999999;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -699,7 +703,7 @@ input:focus, select:focus, textarea:focus {
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    border-left: 4px solid var(--primary);
+    border-left: 4px solid var(--warning);
     opacity: 0;
     transform: translateY(-8px);
     transition: all 0.25s ease;
@@ -769,7 +773,7 @@ input:focus, select:focus, textarea:focus {
         font-size: 18px;
         padding: 5px 12px;
         background: rgba(255, 255, 255, 0.05);
-        color: var(--primary);
+        color: var(--warning);
         border: 1px solid var(--glass-border);
         border-radius: 6px;
         cursor: pointer;
@@ -778,7 +782,7 @@ input:focus, select:focus, textarea:focus {
     
     #sidebar-toggle:hover {
         background: rgba(6, 182, 212, 0.15);
-        border-color: var(--primary);
+        border-color: var(--warning);
     }
 
     .dashboard-layout {
@@ -1301,6 +1305,14 @@ input:focus, select:focus, textarea:focus {
         background: transparent !important;
     }
 
+    /* Reset total de opacidades, desenfoques y sombras en impresión B/N */
+    body.modal-open .palaversich-sheet * {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+    }
+
     body.modal-open .palaversich-sheet {
         position: relative !important;
         background: #ffffff !important;
@@ -1313,7 +1325,8 @@ input:focus, select:focus, textarea:focus {
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box !important;
-        font-size: 9.5px !important;
+        font-family: Arial, Helvetica, sans-serif !important;
+        font-size: 12px !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         page-break-before: avoid !important;
@@ -1323,17 +1336,31 @@ input:focus, select:focus, textarea:focus {
         print-color-adjust: exact !important;
     }
 
-    /* Logo de fondo en Gris (Marca de Agua Fuerte, Nítida y Bien Visible) */
+    body.modal-open .palaversich-sheet,
+    body.modal-open .palaversich-sheet * {
+        font-family: Arial, Helvetica, sans-serif !important;
+    }
+
+    /* Forzar texto negro nítido para todos los elementos */
+    body.modal-open .palaversich-sheet span,
+    body.modal-open .palaversich-sheet div,
+    body.modal-open .palaversich-sheet p,
+    body.modal-open .palaversich-sheet strong,
+    body.modal-open .palaversich-sheet em,
+    body.modal-open .palaversich-sheet td,
+    body.modal-open .palaversich-sheet th {
+        color: #000000 !important;
+    }
+
+    /* Logo de fondo (Marca de Agua Oficial SG MONTAJES que cubre Artículos y Propuesta Técnica) */
     body.modal-open .sheet-watermark {
         position: absolute !important;
-        top: 62% !important;
+        top: 50% !important;
         left: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        width: 560px !important;
-        max-width: 88% !important;
-        opacity: 0.42 !important;
-        filter: grayscale(100%) contrast(1.6) brightness(0.5) !important;
-        -webkit-filter: grayscale(100%) contrast(1.6) brightness(0.5) !important;
+        transform: translate(-50%, -50%) rotate(-25deg) !important;
+        width: 480px !important;
+        max-width: 80% !important;
+        opacity: 0.60 !important;
         pointer-events: none !important;
         user-select: none !important;
         z-index: 0 !important;
@@ -1348,9 +1375,7 @@ input:focus, select:focus, textarea:focus {
         width: 100% !important;
         height: auto !important;
         object-fit: contain !important;
-        filter: grayscale(100%) contrast(1.6) brightness(0.5) !important;
-        -webkit-filter: grayscale(100%) contrast(1.6) brightness(0.5) !important;
-        opacity: 1 !important;
+        display: block !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
@@ -1360,27 +1385,34 @@ input:focus, select:focus, textarea:focus {
         z-index: 1 !important;
     }
 
-    /* Cabecera Oficial */
+    /* Cabecera Oficial (Solo Subrayada, Sin Recuadro, Todo con Letra Negra) */
     body.modal-open .invoice-header {
         display: flex !important;
         justify-content: space-between !important;
-        border: 1.5px solid #000000 !important;
-        border-radius: 4px !important;
+        align-items: flex-end !important;
+        border: none !important;
+        border-bottom: 2px solid #000000 !important;
+        border-radius: 0 !important;
         background: transparent !important;
         color: #000000 !important;
-        padding-bottom: 4px !important;
-        margin-bottom: 6px !important;
-        overflow: hidden !important;
+        padding-bottom: 6px !important;
+        margin-bottom: 8px !important;
+        overflow: visible !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
     body.modal-open .header-box {
         color: #000000 !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 0 4px !important;
     }
 
     body.modal-open .header-left {
-        border-right: 1.5px solid #000000 !important;
+        border-right: none !important;
         color: #000000 !important;
     }
 
@@ -1391,6 +1423,8 @@ input:focus, select:focus, textarea:focus {
         max-width: 220px !important;
         object-fit: contain !important;
         display: block !important;
+        filter: none !important;
+        -webkit-filter: none !important;
     }
 
     body.modal-open .logo-text,
@@ -1399,58 +1433,75 @@ input:focus, select:focus, textarea:focus {
     }
 
     body.modal-open .company-details {
-        font-size: 9px !important;
+        font-size: 11.5px !important;
         line-height: 1.35 !important;
-        color: #1e293b !important;
+        color: #000000 !important;
     }
 
     body.modal-open .company-details strong {
         color: #000000 !important;
-        font-weight: 800 !important;
+        font-weight: bold !important;
     }
 
-    /* Caja Central: Comprobante X en Impresión */
+    /* Caja Central: Comprobante X en Impresión (Líneas Limpias en Negro) */
     body.modal-open .header-middle {
-        background: #000000 !important;
-        border-left: 1.5px solid #000000 !important;
-        border-right: 1.5px solid #000000 !important;
-        color: #ffffff !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+        background: transparent !important;
+        border: none !important;
+        color: #000000 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 0 10px !important;
+        flex: 1.2 !important;
+    }
+
+    body.modal-open .invoice-title {
+        font-size: 14.5px !important;
+        font-weight: 900 !important;
+        color: #000000 !important;
+        letter-spacing: 0.8px !important;
+        text-align: center !important;
+        width: 100% !important;
+        margin-bottom: 3px !important;
+        text-transform: uppercase !important;
     }
 
     body.modal-open .invoice-letter {
         font-size: 18px !important;
         font-weight: 900 !important;
-        border: 2px solid #ffffff !important;
+        border: 2px solid #000000 !important;
         width: 28px !important;
         height: 28px !important;
-        line-height: 26px !important;
-        color: #ffffff !important;
+        line-height: 25px !important;
+        color: #000000 !important;
         background: transparent !important;
         border-radius: 4px !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+        text-align: center !important;
+        margin: 0 auto 3px auto !important;
     }
 
     body.modal-open .invoice-warning {
-        font-size: 7.5px !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-        line-height: 1.1 !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+        font-size: 8px !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+        line-height: 1.15 !important;
+        text-align: center !important;
+        text-transform: uppercase !important;
     }
 
-    body.modal-open .invoice-title {
-        font-size: 14px !important;
-        font-weight: 900 !important;
+    body.modal-open .header-right {
+        border-left: none !important;
         color: #000000 !important;
-        letter-spacing: 0.5px !important;
+        text-align: right !important;
+    }
+
+    body.modal-open .header-right * {
+        color: #000000 !important;
     }
 
     body.modal-open .invoice-number {
-        font-size: 10.5px !important;
+        font-size: 12px !important;
         color: #000000 !important;
         font-weight: 800 !important;
     }
@@ -1462,8 +1513,8 @@ input:focus, select:focus, textarea:focus {
     }
 
     body.modal-open .invoice-date {
-        font-size: 9px !important;
-        color: #1e293b !important;
+        font-size: 11.5px !important;
+        color: #000000 !important;
         font-weight: 700 !important;
     }
 
@@ -1474,15 +1525,13 @@ input:focus, select:focus, textarea:focus {
     }
 
     body.modal-open #auth-header-oc-container {
-        font-size: 9px !important;
-        background: rgba(241, 245, 249, 0.8) !important;
-        border: 1px dashed #000000 !important;
+        font-size: 11.5px !important;
+        background: transparent !important;
+        border: none !important;
         color: #000000 !important;
-        padding: 2px 6px !important;
-        border-radius: 4px !important;
+        padding: 0 !important;
         font-weight: 800 !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+        display: block !important;
     }
 
     body.modal-open #auth-header-oc-container span,
@@ -1491,14 +1540,43 @@ input:focus, select:focus, textarea:focus {
         font-weight: 900 !important;
     }
 
-    /* FICHA CLIENTE PRESEA Y CONTROL DE VISTA RESUMIDO / DETALLADO */
+    body.modal-open .company-fiscal-details {
+        font-size: 11px !important;
+        line-height: 1.4 !important;
+        margin-top: 4px !important;
+        color: #000000 !important;
+        display: inline-flex !important;
+        flex-direction: column !important;
+        text-align: left !important;
+    }
+
+    body.modal-open .company-fiscal-details > div {
+        display: flex !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+    }
+
+    body.modal-open .company-fiscal-details strong {
+        color: #000000 !important;
+        font-weight: 900 !important;
+    }
+
+    body.modal-open .company-fiscal-details span {
+        color: #000000 !important;
+        font-weight: 900 !important;
+        text-align: right !important;
+    }
+
+    /* FICHA CLIENTE PRESEA (Alineado y en Arial 12) */
     body.modal-open #auth-mecanico-header-box {
         display: block !important;
         background: transparent !important;
         border: 1.5px solid #000000 !important;
         border-radius: 4px !important;
-        margin-bottom: 6px !important;
-        font-size: 9.5px !important;
+        margin-bottom: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        font-size: 11.5px !important;
         color: #000000 !important;
         box-shadow: none !important;
         -webkit-print-color-adjust: exact !important;
@@ -1524,24 +1602,23 @@ input:focus, select:focus, textarea:focus {
     }
 
     body.modal-open #auth-mecanico-header-box > div {
-        border-bottom: 1px solid #cbd5e1 !important;
-        padding: 3.5px 6px !important;
+        border-bottom: 1px solid #000000 !important;
+        padding: 4px 6px !important;
+        background: transparent !important;
     }
 
     body.modal-open #auth-mecanico-header-box > div:last-child {
         border-bottom: none !important;
     }
 
-    body.modal-open #auth-mecanico-header-box span[style*="background: #e0f2fe"],
-    body.modal-open #auth-mecanico-header-box span[style*="background: rgba(56, 189, 248"],
     body.modal-open #auth-mecanico-header-box span[style*="background"] {
-        background: rgba(241, 245, 249, 0.8) !important;
+        background: #e2e8f0 !important;
         color: #000000 !important;
-        border: 1px solid #94a3b8 !important;
+        border: 1px solid #000000 !important;
         padding: 1.5px 5px !important;
         border-radius: 3px !important;
-        font-weight: 800 !important;
-        font-size: 8.5px !important;
+        font-weight: 900 !important;
+        font-size: 10px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
@@ -1555,26 +1632,28 @@ input:focus, select:focus, textarea:focus {
     body.modal-open div[style*="border-color: #ef4444"],
     body.modal-open div[style*="border-color: rgb(239, 68, 68)"],
     body.modal-open div[style*="PRESUPUESTO RECHAZADO"] {
-        background: rgba(254, 242, 242, 0.85) !important;
-        border: 1.5px solid #ef4444 !important;
-        color: #991b1b !important;
+        background: #f8fafc !important;
+        border: 1.5px solid #000000 !important;
+        color: #000000 !important;
         border-radius: 4px !important;
         padding: 4px 8px !important;
         margin: 4px 0 !important;
-        font-size: 9px !important;
+        font-size: 11px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
     body.modal-open div[style*="border-color: #ef4444"] *,
     body.modal-open div[style*="PRESUPUESTO RECHAZADO"] * {
-        color: #991b1b !important;
+        color: #000000 !important;
     }
 
-    /* 2. PROPUESTA COMERCIAL (TABLA DE ÍTEMS / TARIFARIO EN IMPRESIÓN) */
+    /* 2. TABLA DE ÍTEMS / TARIFARIO EN IMPRESIÓN (Código en una línea, Arial 12) */
     body.modal-open #auth-mecanico-excel-container {
-        margin-bottom: 6px !important;
+        margin-bottom: 8px !important;
         background: transparent !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
     }
 
     body.modal-open #auth-mecanico-excel-container > div {
@@ -1583,7 +1662,9 @@ input:focus, select:focus, textarea:focus {
         border-radius: 4px !important;
         box-shadow: none !important;
         color: #000000 !important;
-        margin-bottom: 6px !important;
+        margin-bottom: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
         overflow: hidden !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
@@ -1593,35 +1674,41 @@ input:focus, select:focus, textarea:focus {
         padding: 0 !important;
         overflow: visible !important;
         background: transparent !important;
+        width: 100% !important;
     }
 
     body.modal-open #auth-mecanico-excel-container table {
         width: 100% !important;
         border-collapse: collapse !important;
-        font-size: 9.5px !important;
+        font-size: 11.5px !important;
         color: #000000 !important;
         background: transparent !important;
     }
 
+    body.modal-open #auth-mecanico-excel-container tbody,
+    body.modal-open #auth-mecanico-excel-container tbody tr {
+        background: transparent !important;
+    }
+
     body.modal-open #auth-mecanico-excel-container th {
-        background: rgba(226, 232, 240, 0.75) !important;
+        background: #e2e8f0 !important;
         color: #000000 !important;
-        border: 1px solid #94a3b8 !important;
-        padding: 4px 6px !important;
-        font-size: 9px !important;
+        border: 1px solid #000000 !important;
+        padding: 5px 6px !important;
+        font-size: 11px !important;
         font-weight: 900 !important;
         text-transform: uppercase !important;
+        white-space: nowrap !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
     body.modal-open #auth-mecanico-excel-container th span {
-        background: rgba(203, 213, 225, 0.8) !important;
+        background: transparent !important;
         color: #000000 !important;
-        border: 1px solid #94a3b8 !important;
-        padding: 1.5px 5px !important;
-        border-radius: 3px !important;
-        font-weight: 800 !important;
+        border: none !important;
+        padding: 0 !important;
+        font-weight: 900 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
@@ -1629,80 +1716,126 @@ input:focus, select:focus, textarea:focus {
     body.modal-open #auth-mecanico-excel-container td {
         background: transparent !important;
         color: #000000 !important;
-        border: 1px solid #cbd5e1 !important;
-        padding: 4px 6px !important;
-        font-size: 9px !important;
-        font-weight: 600 !important;
+        border: 1px solid #000000 !important;
+        padding: 5px 6px !important;
+        font-size: 11.5px !important;
+        font-weight: 700 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
+    /* Columna Código en una sola línea */
+    body.modal-open #auth-mecanico-excel-container td:first-child,
+    body.modal-open #auth-mecanico-excel-container th:first-child {
+        white-space: nowrap !important;
+        width: 155px !important;
+        min-width: 140px !important;
+        word-break: keep-all !important;
+    }
+
     body.modal-open #auth-mecanico-excel-container td span {
-        color: #334155 !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
     }
 
     body.modal-open #auth-mecanico-excel-container tbody tr:nth-child(even) td {
-        background: rgba(0, 0, 0, 0.02) !important;
+        background: transparent !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
     body.modal-open #auth-mecanico-excel-container tfoot tr {
-        background: rgba(241, 245, 249, 0.75) !important;
-        font-size: 9.5px !important;
+        background: #f1f5f9 !important;
+        font-size: 12px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
     body.modal-open #auth-mecanico-excel-container tfoot td {
-        border: 1px solid #94a3b8 !important;
-        padding: 4px 8px !important;
+        background: #e2e8f0 !important;
+        border: 1.5px solid #000000 !important;
+        padding: 6px 8px !important;
         color: #000000 !important;
-        font-weight: 800 !important;
+        font-weight: 900 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
+    body.modal-open #auth-mecanico-excel-container tfoot td:first-child,
+    body.modal-open #auth-mecanico-excel-container tfoot td[colspan] {
+        text-align: left !important;
+    }
+
+    body.modal-open #auth-mecanico-excel-container tfoot td:last-child {
+        text-align: right !important;
+    }
+
     body.modal-open #auth-mecanico-excel-container tfoot tr:last-child {
-        background: rgba(226, 232, 240, 0.85) !important;
+        background: #e2e8f0 !important;
         border-top: 2px solid #000000 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
     body.modal-open #auth-mecanico-excel-container tfoot tr:last-child td {
-        border: 1px solid #000000 !important;
+        border: 1.5px solid #000000 !important;
         color: #000000 !important;
-        font-size: 11px !important;
+        font-size: 12px !important;
         font-weight: 900 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
     /* Observaciones dentro del modal */
-    body.modal-open #auth-mecanico-excel-container div[style*="margin-top: 10px"] {
-        background: transparent !important;
-        border: 1px solid #cbd5e1 !important;
-        color: #000000 !important;
-        font-size: 9px !important;
-        padding: 4px 8px !important;
-        margin-top: 4px !important;
+    body.modal-open #auth-mecanico-excel-container div[style*="margin-top: 10px"],
+    body.modal-open .observations-box-v2 {
+        background: #f0f9ff !important;
+        border: 1.5px solid #0284c7 !important;
+        color: #0f172a !important;
+        font-size: 11.5px !important;
+        font-weight: 700 !important;
+        padding: 6px 10px !important;
+        margin-top: 6px !important;
+        margin-bottom: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
         border-radius: 4px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
-    /* Banner informativo en Oscuro con Letras Blancas */
+    body.modal-open #auth-mecanico-excel-container div[style*="margin-top: 10px"] span,
+    body.modal-open .observations-box-v2 span {
+        color: #0f172a !important;
+        font-weight: 700 !important;
+    }
+
+    body.modal-open #auth-mecanico-excel-container div[style*="margin-top: 10px"] span:first-child,
+    body.modal-open #auth-mecanico-excel-container div[style*="margin-top: 10px"] span[style*="background"],
+    body.modal-open .observations-box-v2 span[style*="background"] {
+        background: #0284c7 !important;
+        color: #ffffff !important;
+        border: 1px solid #0284c7 !important;
+        padding: 2px 8px !important;
+        border-radius: 3px !important;
+        font-weight: 900 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Banner informativo de Precios con Color */
     body.modal-open div[style*="PRECIOS DEL PRESUPUESTO"],
     body.modal-open .presupuesto-disclaimer-banner {
-        background: #000000 !important;
-        border: 1.5px solid #000000 !important;
-        color: #ffffff !important;
-        font-size: 9.5px !important;
+        background: #e0f2fe !important;
+        border: 1.5px solid #0284c7 !important;
+        color: #0369a1 !important;
+        font-size: 11.5px !important;
         font-weight: 900 !important;
         letter-spacing: 0.8px !important;
-        padding: 5px 10px !important;
-        margin: 6px 0 !important;
+        padding: 6px 10px !important;
+        margin: 6px 0 8px 0 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
         border-radius: 4px !important;
         text-align: center !important;
         text-transform: uppercase !important;
@@ -1710,16 +1843,19 @@ input:focus, select:focus, textarea:focus {
         print-color-adjust: exact !important;
     }
 
+    /* Aclaraciones & Condiciones con Color */
     body.modal-open #auth-mecanico-acclaraciones,
     body.modal-open #auth-mecanico-aclaraciones {
-        background: transparent !important;
-        border: 1px solid #cbd5e1 !important;
-        color: #000000 !important;
-        font-size: 8.5px !important;
-        padding: 4px 6px !important;
-        margin-top: 4px !important;
-        margin-bottom: 4px !important;
-        line-height: 1.3 !important;
+        background: #fffbeb !important;
+        border: 1.5px solid #f59e0b !important;
+        color: #1e293b !important;
+        font-size: 11px !important;
+        padding: 6px 10px !important;
+        margin-top: 6px !important;
+        margin-bottom: 8px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        line-height: 1.45 !important;
         border-radius: 4px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
@@ -1728,17 +1864,28 @@ input:focus, select:focus, textarea:focus {
     body.modal-open #auth-mecanico-aclaraciones div,
     body.modal-open #auth-mecanico-aclaraciones strong,
     body.modal-open #auth-mecanico-aclaraciones span {
-        color: #000000 !important;
+        color: #1e293b !important;
+    }
+
+    body.modal-open #auth-mecanico-aclaraciones div[style*="color: #f87171"],
+    body.modal-open #auth-mecanico-aclaraciones div:first-child {
+        color: #b45309 !important;
+        font-weight: 900 !important;
+        font-size: 11.5px !important;
+        margin-bottom: 4px !important;
     }
 
     /* Pie de página oficial Presea / CAI */
     body.modal-open .invoice-footer-info {
-        font-size: 8px !important;
-        color: #475569 !important;
-        border: 1px solid #cbd5e1 !important;
-        background: transparent !important;
-        padding: 3px 6px !important;
-        margin-top: 4px !important;
+        font-size: 10.5px !important;
+        color: #0369a1 !important;
+        border: 1.5px solid #0284c7 !important;
+        background: #f0f9ff !important;
+        padding: 4px 8px !important;
+        margin-top: 6px !important;
+        margin-bottom: 6px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
         border-radius: 4px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
@@ -1746,13 +1893,15 @@ input:focus, select:focus, textarea:focus {
 
     body.modal-open .invoice-footer-info span,
     body.modal-open .invoice-footer-info strong {
-        color: #000000 !important;
+        color: #0f172a !important;
+        font-weight: 900 !important;
     }
 
     body.modal-open .system-footer-line,
     body.modal-open .cai-details {
         background: transparent !important;
-        color: #475569 !important;
+        color: #0369a1 !important;
+        font-weight: 600 !important;
     }
 
     /* Estilos de tablas impresas */
@@ -1839,7 +1988,7 @@ body[data-theme="light"] input:focus,
 body[data-theme="light"] select:focus,
 body[data-theme="light"] textarea:focus {
     background: #ffffff;
-    border-color: var(--primary);
+    border-color: var(--warning);
     box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
 }
 
@@ -1855,18 +2004,18 @@ body[data-theme="light"] .menu-item {
 
 body[data-theme="light"] .menu-item:hover {
     background: rgba(2, 132, 199, 0.08);
-    color: var(--primary);
+    color: var(--warning);
 }
 
 body[data-theme="light"] .menu-item.active {
     background: rgba(2, 132, 199, 0.1);
-    color: var(--primary);
-    border-left: 3px solid var(--primary);
+    color: var(--warning);
+    border-left: 3px solid var(--warning);
     box-shadow: none;
 }
 
 body[data-theme="light"] .sidebar-title {
-    color: var(--primary);
+    color: var(--warning);
     border-bottom: 1px solid rgba(2, 132, 199, 0.15);
 }
 
@@ -1942,7 +2091,7 @@ body[data-theme="light"] .theme-btn.active {
 
 .sla-badge.info {
     background: rgba(6, 182, 212, 0.12);
-    color: var(--primary);
+    color: var(--warning);
     border: 1px solid rgba(6, 182, 212, 0.25);
 }
 
@@ -2011,35 +2160,28 @@ body[data-theme="light"] .theme-btn.active {
     box-sizing: border-box !important;
 }
 
-/* Marca de Agua Central SG MONTAJES */
+/* Marca de Agua Central SG MONTAJES (Ajustada y nítida) */
 .sheet-watermark {
     position: absolute !important;
-    top: 62% !important;
+    top: 50% !important;
     left: 50% !important;
-    transform: translate(-50%, -50%) !important;
-    width: 560px !important;
-    max-width: 88% !important;
-    opacity: 0.75 !important;
-    filter: brightness(1.3) contrast(1.3) !important;
-    -webkit-filter: brightness(1.3) contrast(1.3) !important;
+    transform: translate(-50%, -50%) rotate(-25deg) !important;
+    width: 480px !important;
+    max-width: 80% !important;
+    opacity: 0.65 !important;
     pointer-events: none !important;
     user-select: none !important;
     z-index: 0 !important;
     display: flex !important;
     justify-content: center !important;
     align-items: center !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
 }
 
 .sheet-watermark img {
     width: 100% !important;
     height: auto !important;
     object-fit: contain !important;
-    filter: brightness(1.3) contrast(1.3) !important;
-    -webkit-filter: brightness(1.3) contrast(1.3) !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
+    display: block !important;
 }
 
 .palaversich-sheet > *:not(.sheet-watermark) {
@@ -2156,21 +2298,34 @@ body[data-theme="light"] .theme-btn.active {
 }
 
 .header-middle {
-    flex: 1;
+    flex: 1.2;
     border-right: 1px solid rgba(255, 255, 255, 0.14);
+    display: flex;
+    flex-direction: column;
     align-items: center;
     text-align: center;
     justify-content: center;
     color: #f8fafc !important;
     background: #0f172a;
+    padding: 6px 10px;
+}
+
+.invoice-title {
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    color: #ffffff !important;
+    text-align: center;
+    text-transform: uppercase;
 }
 
 .invoice-letter {
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 900;
     border: 2px solid #38bdf8;
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2194,14 +2349,6 @@ body[data-theme="light"] .theme-btn.active {
     padding-left: 20px;
     justify-content: center;
     color: #f8fafc !important;
-}
-
-.invoice-title {
-    font-size: 17px;
-    font-weight: 900;
-    letter-spacing: 1px;
-    margin-bottom: 4px;
-    color: #ffffff !important;
 }
 
 .invoice-number {
@@ -2553,14 +2700,14 @@ body[data-theme="light"] .theme-btn.active {
 
 .date-context-menu-item:hover {
     background: rgba(6, 182, 212, 0.15);
-    color: var(--primary);
+    color: var(--warning);
 }
 
 .date-context-menu-item i {
     width: 16px;
     text-align: center;
     font-size: 12px;
-    color: var(--primary);
+    color: var(--warning);
 }
 
 /* Responsive Grid styling for order entry */
@@ -3114,7 +3261,7 @@ input[type=number] {
     margin: 0;
     font-size: 16px;
     font-weight: 800;
-    color: var(--primary);
+    color: var(--warning);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -3240,6 +3387,12 @@ input[type=number] {
     border: 1px solid #0284c7 !important;
 }
 
+.btn-modal-view-pdf {
+    background: rgba(56, 189, 248, 0.15) !important;
+    color: #38bdf8 !important;
+    border: 1px solid rgba(56, 189, 248, 0.4) !important;
+}
+
 .btn-modal-print {
     background: rgba(255, 255, 255, 0.1) !important;
     color: #ffffff !important;
@@ -3302,3 +3455,446 @@ input[type=number] {
 
 
 
+
+
+/* Fix Propuesta Tecnica / Comercial Print Colors */
+@media print {
+    body.modal-open .print-meca-propuesta,
+    .print-meca-propuesta {
+        background: transparent !important;
+        border: 1.5px solid #000000 !important;
+        border-radius: 4px !important;
+        color: #000000 !important;
+        margin-top: 6px !important;
+        margin-bottom: 6px !important;
+        overflow: hidden !important;
+        box-shadow: none !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    body.modal-open .print-meca-propuesta > div:first-child,
+    .print-meca-propuesta > div:first-child {
+        background: #e2e8f0 !important;
+        color: #000000 !important;
+        border-bottom: 1.5px solid #000000 !important;
+        font-weight: 900 !important;
+        font-size: 9.5px !important;
+        padding: 4px 8px !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    body.modal-open .print-meca-propuesta div,
+    .print-meca-propuesta div {
+        color: #000000 !important;
+        background: transparent !important;
+        border-color: #94a3b8 !important;
+        font-size: 9px !important;
+    }
+
+    body.modal-open .print-meca-propuesta div > div:first-child,
+    .print-meca-propuesta div > div:first-child {
+        color: #000000 !important;
+        font-weight: 800 !important;
+        background: transparent !important;
+        border-right: 1px solid #94a3b8 !important;
+    }
+
+    .print-meca-propuesta * {
+        color: #000000 !important;
+    }
+}
+
+/* ====================================================================
+   SISTEMA DE PRESENCIA (USUARIOS CONECTADOS) Y CHAT INTERNO EN TIEMPO REAL
+   ==================================================================== */
+
+/* Pill de usuarios en línea en el Header */
+.online-users-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #6ee7b7;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.25s ease;
+}
+
+.online-users-pill:hover {
+    background: rgba(16, 185, 129, 0.22);
+    border-color: #10b981;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.online-pulse-dot {
+    width: 8px;
+    height: 8px;
+    background: #10b981;
+    border-radius: 50%;
+    box-shadow: 0 0 0 rgba(16, 185, 129, 0.7);
+    animation: sgPulseGreen 1.8s infinite;
+}
+
+@keyframes sgPulseGreen {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.8);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    }
+}
+
+/* Dropdown de usuarios en línea */
+.online-users-dropdown {
+    position: absolute;
+    top: 50px;
+    right: 170px;
+    width: 320px;
+    max-height: 420px;
+    overflow-y: auto;
+    z-index: 10005;
+    padding: 12px;
+    background: rgba(15, 23, 42, 0.96) !important;
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+    border-radius: 12px;
+}
+
+.online-users-dropdown .user-item-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+/* --- WIDGET FLOTANTE DE CHAT INTERNO --- */
+.sg-chat-widget {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 99990;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Botón flotante para abrir chat */
+.sg-chat-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #0284c7 100%);
+    color: #ffffff;
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
+    border-radius: 30px;
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.45), 0 2px 6px rgba(0,0,0,0.3);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    user-select: none;
+}
+
+.sg-chat-toggle-btn:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.6), 0 4px 10px rgba(0,0,0,0.4);
+    border-color: #38bdf8;
+}
+
+.sg-chat-toggle-btn.chat-open {
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.chat-unread-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ff3b30;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 7px;
+    border-radius: 12px;
+    border: 2px solid #0f172a;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    animation: sgBadgeBounce 0.4s ease;
+}
+
+@keyframes sgBadgeBounce {
+    0% { transform: scale(0.3); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+/* Ventana principal de chat */
+.sg-chat-window {
+    position: fixed;
+    bottom: 82px;
+    right: 24px;
+    width: 390px;
+    height: 540px;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1.5px solid rgba(56, 189, 248, 0.4);
+    border-radius: 16px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 99991;
+    animation: sgChatSlideUp 0.25s ease-out;
+}
+
+@keyframes sgChatSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Cabecera del chat */
+.sg-chat-header {
+    background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+    border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sg-chat-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sg-chat-icon-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    color: #cbd5e1;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.sg-chat-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
+/* Barra de pestañas (Chat / Colegas) */
+.sg-chat-tabs-bar {
+    display: flex;
+    background: rgba(0, 0, 0, 0.35);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sg-chat-tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 9px 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.sg-chat-tab-btn.active {
+    color: #38bdf8;
+    border-bottom-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.06);
+}
+
+.sg-chat-tab-btn:hover:not(.active) {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Área de mensajes */
+.sg-chat-messages-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sg-chat-messages-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 14px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Indicador de escribiendo */
+.sg-chat-typing-indicator {
+    padding: 4px 14px;
+    font-size: 11px;
+    font-style: italic;
+    color: #38bdf8;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Panel de contactos */
+.sg-chat-contacts-pane {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.chat-contact-item:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* Footer con input de chat */
+.sg-chat-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.95);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sg-chat-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sg-chat-input {
+    flex: 1;
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.sg-chat-input:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+.sg-chat-input::placeholder {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.sg-chat-send-btn {
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.sg-chat-send-btn:hover {
+    background: #1d4ed8;
+    transform: scale(1.05);
+}
+
+.sg-chat-emojis-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sg-emoji-btn {
+    background: none;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.15s;
+    user-select: none;
+}
+
+.sg-emoji-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.2);
+}
+
+.chat-conv-item:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(56, 189, 248, 0.5) !important;
+    transform: translateX(2px);
+}
+
+.sg-chat-create-group-pane label:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Modo Responsive para celulares */
+@media (max-width: 600px) {
+    .sg-chat-window {
+        bottom: 0;
+        right: 0;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: 0;
+        border: none;
+    }
+    .online-users-dropdown {
+        right: 10px;
+        width: 90vw;
+    }
+}
+
+/* Ocultar en impresión */
+@media print {
+    .sg-chat-widget,
+    .online-users-pill,
+    .online-users-dropdown {
+        display: none !important;
+    }
+}
+
+
+/* Evitar que los IDs y códigos se dividan en varias líneas */
+td[style*="monospace"], th[style*="monospace"], 
+td:first-child:not(.auth-edit-col):not([colspan]), 
+th:first-child:not(.auth-edit-col):not([colspan]) {
+    white-space: nowrap !important;
+}
