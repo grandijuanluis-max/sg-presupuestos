@@ -13308,14 +13308,11 @@ window.enviarEmailPedido = function(id) {
 
             <!-- Botones de Acción Inferiores -->
             <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 14px; flex-wrap: wrap; gap: 10px;">
-                <button type="button" id="btn-dispatch-cancel" style="background: #334155; color: #ffffff; font-weight: 700; font-size: 12px; padding: 8px 16px; border-radius: 7px; border: none; cursor: pointer;">
+                <button type="button" id="btn-dispatch-cancel" style="background: #334155; color: #ffffff; font-weight: 700; font-size: 13px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;">
                     Cancelar
                 </button>
-                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                    <button type="button" id="btn-dispatch-mailto-now" title="Descarga el PDF oficial y abre automáticamente tu aplicación de correo (Outlook, Gmail, etc.) con asunto y cuerpo listos" style="background: #0d9488; color: #ffffff; font-weight: 700; font-size: 13px; padding: 9px 18px; border-radius: 7px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4);">
-                        <i class="fas fa-envelope-open-text"></i> Abrir en mi Correo (mailto)
-                    </button>
-                    <button type="button" id="btn-dispatch-send-now" title="Enviar automáticamente en segundo plano por el servidor oficial SMTP de SG Montajes" style="background: #0284c7; color: #ffffff; font-weight: 700; font-size: 13px; padding: 9px 22px; border-radius: 7px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);">
+                <div>
+                    <button type="button" id="btn-dispatch-send-now" title="Enviar automáticamente en segundo plano desde cotizaciones@sgmontajes.com.ar" style="background: #0284c7; color: #ffffff; font-weight: 800; font-size: 14px; padding: 10px 26px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45); transition: all 0.2s;">
                         <i class="fas fa-paper-plane"></i> Enviar por Servidor SMTP
                     </button>
                 </div>
@@ -13706,30 +13703,32 @@ window.enviarEmailPedido = function(id) {
                     showToast(`✅ Presupuesto ${nro} despachado exitosamente por correo oficial (${attachments.length} adjunto/s)`, 'success');
                 }
             } else {
-                const errMsg = (res && res.error) ? res.error : 'No se pudo conectar con el servidor backend';
+                const errMsg = (res && res.error) ? res.error : 'No se pudo conectar con el servidor backend local';
                 if (typeof showToast === 'function') {
-                    showToast(`⚠️ Servidor no disponible. Puedes usar "Abrir en mi Correo (mailto)"`, 'warning');
+                    showToast(`⚠️ Inicie el servidor ejecutando "python3 server.py" en su Mac para enviar correos por SMTP.`, 'error');
                 }
                 const errBox = document.getElementById('dispatch-email-error-box');
                 if (errBox) {
                     errBox.style.display = 'block';
                     errBox.innerHTML = `
-                        <div style="background: rgba(15, 23, 42, 0.9); border: 1.5px solid #0d9488; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #f8fafc; line-height: 1.5;">
-                            <strong style="color: #2dd4bf;">💡 Entorno GitHub Pages / Sin Servidor Local:</strong><br>
-                            ${errMsg}<br><br>
-                            <button type="button" id="btn-fallback-trigger-mailto" style="background: #0d9488; color: white; border: none; padding: 7px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 12px;">
-                                <i class="fas fa-envelope-open-text"></i> Abrir en mi aplicación de correo (mailto) con PDF descargado
-                            </button>
+                        <div style="background: rgba(220, 38, 38, 0.15); border: 1.5px solid #ef4444; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #f8fafc; line-height: 1.5;">
+                            <strong style="color: #f87171;"><i class="fas fa-exclamation-triangle"></i> Servidor Python no detectado:</strong><br>
+                            Para despachar correos automáticamente desde <strong>cotizaciones@sgmontajes.com.ar</strong>, debe tener el servidor activo en su computadora.<br><br>
+                            <span style="color: #cbd5e1;">📌 Ejecute en su terminal:</span> <code style="background: #0f172a; padding: 3px 8px; border-radius: 4px; color: #38bdf8; font-family: monospace;">python3 server.py</code><br>
+                            <span style="font-size: 11px; color: #94a3b8; margin-top: 4px; display: block;">(o haga doble clic en el archivo <strong>Iniciar_Servidor.command</strong>).</span>
                         </div>
                     `;
-                    const fallbackBtn = document.getElementById('btn-fallback-trigger-mailto');
-                    if (fallbackBtn) {
-                        fallbackBtn.onclick = () => {
-                            if (btnMailtoNow) btnMailtoNow.click();
-                        };
-                    }
                 }
             }
+        };
+    }
+
+    // Acción de envío vía Gmail Web
+    const btnGmailNow = document.getElementById('btn-dispatch-gmail-now');
+    if (btnGmailNow) {
+        btnGmailNow.onclick = async () => {
+            await ejecutarDespachoGmailWeb();
+            closeEmailModal();
         };
     }
 
