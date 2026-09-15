@@ -5998,7 +5998,7 @@ window.renderEditableStatusDropdown = function(p) {
 
     // Los únicos 4 estados del presupuesto: Enviado sin OC, Aprobado sin OC, Aprobado con OC, Rechazado
     const options = [
-        { val: 'Enviado sin OC', label: '📤 Enviado sin OC', color: '#fde68a', bg: 'rgba(245,158,11,0.25)', border: 'rgba(245,158,11,0.6)' },
+        { val: 'Enviado sin OC', label: '📤 Enviado sin OC', color: '#38bdf8', bg: 'rgba(56,189,248,0.25)', border: 'rgba(56,189,248,0.6)' },
         { val: 'Aprobado sin OC', label: '⏳ Aprobado sin OC', color: '#fef08a', bg: 'rgba(234,179,8,0.25)', border: 'rgba(234,179,8,0.6)' },
         { val: 'Aprobado con OC', label: '✅ Aprobado con OC', color: '#6ee7b7', bg: 'rgba(16,185,129,0.25)', border: 'rgba(16,185,129,0.6)' },
         { val: 'Rechazado', label: '❌ Rechazado', color: '#fda4af', bg: 'rgba(244,63,94,0.25)', border: 'rgba(244,63,94,0.6)' }
@@ -7416,7 +7416,7 @@ function renderAssignmentsTable() {
         if (p.estado === 'Aprobado con OC' || p.estado === 'Cargado con orden de compra' || p.estado === 'Autorizado' || p.estado === 'Aprobado') {
             statusBadge = `<span class="badge badge-success" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">Aprobado con OC</span>`;
         } else if (p.estado === 'Enviado sin OC' || p.estado === 'Cargado sin orden de compra' || p.estado === 'Pendiente de Autorización' || p.estado === 'Pendiente') {
-            statusBadge = `<span class="badge badge-warning" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">Enviado sin OC</span>`;
+            statusBadge = `<span class="badge" style="font-size: 11px; padding: 3px 8px; font-weight: 700; background: rgba(56,189,248,0.25); color: #38bdf8; border: 1px solid rgba(56,189,248,0.6);">Enviado sin OC</span>`;
         } else if (p.estado === 'Facturado Total') {
             statusBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; font-size: 11px; padding: 3px 8px; font-weight: 800;">100% Facturado</span>`;
         } else if (p.estado === 'Facturado Parcial') {
