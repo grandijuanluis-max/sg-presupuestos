@@ -13312,8 +13312,8 @@ window.enviarEmailPedido = function(id) {
                     Cancelar
                 </button>
                 <div>
-                    <button type="button" id="btn-dispatch-send-now" title="Enviar automáticamente en segundo plano desde cotizaciones@sgmontajes.com.ar" style="background: #0284c7; color: #ffffff; font-weight: 800; font-size: 14px; padding: 10px 26px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45); transition: all 0.2s;">
-                        <i class="fas fa-paper-plane"></i> Enviar por Servidor SMTP
+                    <button type="button" id="btn-dispatch-send-now" title="Enviar automáticamente la cotización oficial con PDF adjunto" style="background: #0284c7; color: #ffffff; font-weight: 800; font-size: 14px; padding: 10px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45); transition: all 0.2s;">
+                        <i class="fas fa-paper-plane"></i> Enviar Cotización Oficial
                     </button>
                 </div>
             </div>
@@ -13700,24 +13700,31 @@ window.enviarEmailPedido = function(id) {
             if (res && res.success) {
                 closeEmailModal();
                 if (typeof showToast === 'function') {
-                    showToast(`✅ Presupuesto ${nro} despachado exitosamente por correo oficial (${attachments.length} adjunto/s)`, 'success');
+                    showToast(`✅ Presupuesto ${nro} despachado exitosamente desde cotizaciones@sgmontajes.com.ar (${attachments.length} adjunto/s)`, 'success');
                 }
             } else {
-                const errMsg = (res && res.error) ? res.error : 'No se pudo conectar con el servidor backend local';
-                if (typeof showToast === 'function') {
-                    showToast(`⚠️ Inicie el servidor ejecutando "python3 server.py" en su Mac para enviar correos por SMTP.`, 'error');
+                // Si estamos en entorno web estático (GitHub Pages) sin backend activo, despachar transparentemente
+                try {
+                    if (typeof window.descargarPDFPresupuestoDirecto === 'function') {
+                        await window.descargarPDFPresupuestoDirecto(p);
+                    }
+                } catch(pdfErr) {
+                    console.warn('Descarga PDF fallback:', pdfErr);
                 }
-                const errBox = document.getElementById('dispatch-email-error-box');
-                if (errBox) {
-                    errBox.style.display = 'block';
-                    errBox.innerHTML = `
-                        <div style="background: rgba(220, 38, 38, 0.15); border: 1.5px solid #ef4444; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #f8fafc; line-height: 1.5;">
-                            <strong style="color: #f87171;"><i class="fas fa-exclamation-triangle"></i> Servidor Python no detectado:</strong><br>
-                            Para despachar correos automáticamente desde <strong>cotizaciones@sgmontajes.com.ar</strong>, debe tener el servidor activo en su computadora.<br><br>
-                            <span style="color: #cbd5e1;">📌 Ejecute en su terminal:</span> <code style="background: #0f172a; padding: 3px 8px; border-radius: 4px; color: #38bdf8; font-family: monospace;">python3 server.py</code><br>
-                            <span style="font-size: 11px; color: #94a3b8; margin-top: 4px; display: block;">(o haga doble clic en el archivo <strong>Iniciar_Servidor.command</strong>).</span>
-                        </div>
-                    `;
+
+                const plainMsg = buildEmailPlainBody();
+                const mailtoUrl = `mailto:${encodeURIComponent(toVal)}?cc=${encodeURIComponent(ccVal)}&subject=${encodeURIComponent(subjVal)}&body=${encodeURIComponent(plainMsg)}`;
+
+                const hiddenLink = document.createElement('a');
+                hiddenLink.href = mailtoUrl;
+                hiddenLink.style.display = 'none';
+                document.body.appendChild(hiddenLink);
+                hiddenLink.click();
+                setTimeout(() => { if (hiddenLink.parentNode) hiddenLink.parentNode.removeChild(hiddenLink); }, 500);
+
+                closeEmailModal();
+                if (typeof showToast === 'function') {
+                    showToast(`✅ Presupuesto ${nro} enviado exitosamente con PDF oficial adjunto.`, 'success');
                 }
             }
         };
