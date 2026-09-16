@@ -2,18 +2,20 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Manual de Usuario Oficial - Sistema de Gestión de Presupuestos</title>
+    <title>Manual de Usuario Oficial — Sistema de Presupuestos SG Montajes SRL</title>
     <style>
         @page { 
             size: A4; 
-            margin: 15mm 15mm 15mm 15mm; 
+            margin: 15mm; 
         }
         body { 
             font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif; 
             color: #0f172a; 
             line-height: 1.6; 
-            padding: 20px 30px; 
+            padding: 25px 40px; 
             background-color: #ffffff; 
+            max-width: 900px;
+            margin: 0 auto;
         }
         .header-brand { 
             display: flex; 
@@ -25,176 +27,85 @@
         }
         .logo-text { 
             font-weight: 900; 
-            font-size: 24px; 
+            font-size: 26px; 
             color: #0f172a; 
             letter-spacing: -0.5px;
         }
         .logo-text span { color: #f59e0b; }
         .badge-brand {
-            background: #f1f5f9;
-            border: 1px solid #cbd5e1;
-            padding: 4px 10px;
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            padding: 6px 14px;
             border-radius: 6px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #0284c7;
+        }
+        h1 { font-size: 22px; color: #0f172a; margin-top: 0; }
+        h2 { font-size: 17px; color: #0369a1; border-left: 4px solid #0284c7; padding-left: 10px; margin-top: 30px; margin-bottom: 12px; }
+        h3 { font-size: 14.5px; color: #334155; margin-top: 18px; margin-bottom: 8px; }
+        p, li { font-size: 13px; color: #334155; }
+        ul, ol { padding-left: 20px; }
+        .feature-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-bottom: 18px;
+        }
+        .feature-box strong { color: #0284c7; }
+        .tag-special {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 2px 8px;
+            border-radius: 4px;
             font-size: 11px;
             font-weight: 700;
-            color: #334155;
+            margin-right: 6px;
         }
-        h1 { 
-            color: #0f172a; 
-            font-size: 22px; 
-            margin-top: 10px; 
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 8px;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin: 15px 0;
         }
-        h2 { 
-            color: #0369a1; 
-            border-bottom: 2px solid #cbd5e1; 
-            padding-bottom: 6px; 
-            margin-top: 32px; 
-            font-size: 15.5px; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px; 
+        table, th, td {
+            border: 1px solid #cbd5e1;
         }
-        h3 { 
-            color: #0f172a; 
-            font-size: 13.5px; 
-            margin-top: 18px; 
-            font-weight: 700; 
+        th {
+            background: #0284c7;
+            color: #ffffff;
+            padding: 8px 10px;
+            text-align: left;
         }
-        p, li { 
-            font-size: 12px; 
-            color: #334155; 
-            text-align: justify; 
-        }
-        ul, ol { 
-            margin-top: 6px; 
-            margin-bottom: 10px; 
-            padding-left: 22px; 
-        }
-        li { margin-bottom: 4px; }
-        .step-box { 
-            background: #f8fafc; 
-            border-left: 4px solid #0284c7; 
-            padding: 12px 18px; 
-            margin: 14px 0; 
-            border-radius: 0 8px 8px 0; 
-        }
-        .alert-important { 
-            background: #fffbeb; 
-            border: 1px solid #fde68a; 
-            border-left: 4px solid #f59e0b; 
-            padding: 12px 16px; 
-            margin: 14px 0; 
-            border-radius: 6px; 
-            font-size: 11.5px; 
-        }
-        .alert-danger { 
-            background: #fef2f2; 
-            border: 1px solid #fecaca; 
-            border-left: 4px solid #ef4444; 
-            padding: 12px 16px; 
-            margin: 14px 0; 
-            border-radius: 6px; 
-            font-size: 11.5px; 
-            color: #991b1b; 
-        }
-        .alert-info { 
-            background: #f0f9ff; 
-            border: 1px solid #bae6fd; 
-            border-left: 4px solid #0284c7; 
-            padding: 12px 16px; 
-            margin: 14px 0; 
-            border-radius: 6px; 
-            font-size: 11.5px; 
-        }
-        .alert-success { 
-            background: #f0fdf4; 
-            border: 1px solid #bbf7d0; 
-            border-left: 4px solid #16a34a; 
-            padding: 12px 16px; 
-            margin: 14px 0; 
-            border-radius: 6px; 
-            font-size: 11.5px; 
-            color: #14532d;
-        }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin: 16px 0; 
-            font-size: 11px; 
-        }
-        th { 
-            background: #0f172a; 
-            color: #ffffff; 
-            padding: 7px 10px; 
-            text-align: left; 
-            font-weight: 700; 
-            text-transform: uppercase; 
-            font-size: 10px; 
-        }
-        td { 
-            border-bottom: 1px solid #e2e8f0; 
-            padding: 7px 10px; 
-            vertical-align: top; 
+        td {
+            padding: 7px 10px;
         }
         tr:nth-child(even) { background-color: #f8fafc; }
-        .badge { 
-            display: inline-block; 
-            padding: 2.5px 7px; 
-            border-radius: 10px; 
-            font-size: 9.5px; 
-            font-weight: 700; 
-            text-transform: uppercase; 
+        .alert-info {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 12px 16px;
+            border-radius: 0 6px 6px 0;
+            font-size: 12.5px;
+            margin: 15px 0;
         }
-        .badge-green { background: #d1fae5; color: #047857; border: 1px solid #6ee7b7; }
-        .badge-amber { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-        .badge-blue { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
-        .badge-red { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-        .footer-doc { 
-            margin-top: 40px; 
-            text-align: center; 
-            font-size: 11px; 
-            color: #94a3b8; 
-            border-top: 1px solid #e2e8f0; 
-            padding-top: 15px; 
+        .alert-success {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            padding: 12px 16px;
+            border-radius: 0 6px 6px 0;
+            font-size: 12.5px;
+            margin: 15px 0;
         }
-        .screen-mock { 
-            background: #0f172a; 
-            color: #f8fafc; 
-            padding: 10px 14px; 
-            border-radius: 6px; 
-            font-family: monospace; 
-            font-size: 10.5px; 
-            margin: 12px 0; 
-            line-height: 1.4;
-        }
-        code {
-            background: #e2e8f0;
-            color: #0f172a;
-            padding: 1px 4px;
-            border-radius: 3px;
-            font-family: monospace;
-            font-size: 10.5px;
-            font-weight: 600;
-        }
-        .card-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin: 14px 0;
-        }
-        .card-box {
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
-            padding: 10px 14px;
-            background: #ffffff;
-        }
-        .card-box-title {
-            font-size: 11.5px;
-            font-weight: 800;
-            color: #0369a1;
-            margin-bottom: 6px;
-            text-transform: uppercase;
+        .footer {
+            margin-top: 40px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+            font-size: 11px;
+            color: #94a3b8;
         }
     </style>
 </head>
@@ -202,367 +113,123 @@
 
     <div class="header-brand">
         <div>
-            <div class="logo-text">SG <span>MONTAJES</span> SRL &nbsp;|&nbsp; ACOSTA <span>SERVICIOS</span> SRL</div>
-            <div style="color: #0284c7; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; margin-top: 3px;">
-                SISTEMA INTEGRAL DE GESTIÓN DE PRESUPUESTOS, AVANCES DE OBRA Y FACTURACIÓN
-            </div>
+            <div class="logo-text">SG <span>MONTAJES</span> SRL</div>
+            <div style="font-size: 11px; color: #64748b; font-weight: 600;">Montajes Industriales &amp; Servicios Electromecánicos</div>
         </div>
-        <div style="text-align: right;">
-            <span class="badge-brand">MANUAL DE USUARIO OFICIAL</span><br>
-            <span style="font-size: 10.5px; color: #64748b; font-weight: 600;">Versión 4.0 — Actualizada Oficial (Septiembre 2026)</span>
+        <div class="badge-brand">
+            MANUAL DE USUARIO v342 (2026)
         </div>
     </div>
 
-    <h1>📘 Manual Operativo de Usuario</h1>
-    <p>Este documento constituye la <strong>guía oficial y exhaustiva</strong> para la operación diaria del sistema web de <strong>Gestión de Presupuestos, Cotizaciones Comerciales, Certificación de Avances de Obra, Control de Facturación y Sincronización en la Nube con Supabase</strong>. Su propósito es brindar al equipo comercial, técnico y administrativo todas las instrucciones paso a paso para el uso profesional y eficiente de la plataforma.</p>
+    <h1>📘 Manual Maestro de Operaciones y Funcionalidades del Sistema</h1>
+    <p>Esta plataforma es una solución integral de ingeniería comercial diseñada exclusivamente para la emisión, seguimiento, certificación y despacho de cotizaciones industriales de alta complejidad.</p>
 
-    <!-- ==================================================================== -->
-    <h2>Capítulo 1: Configuración Multi-Empresa y Datos Oficiales de Emisión</h2>
-    <p>El sistema cuenta con soporte multi-empresa nativo, permitiendo emitir presupuestos oficiales con membretes, firmas, datos impositivos y marcas de agua personalizadas para cada razón social:</p>
-
-    <div class="card-grid">
-        <div class="card-box" style="border-top: 3px solid #f59e0b;">
-            <div class="card-box-title">🏢 SG MONTAJES SRL</div>
+    <h2>🌟 ¿Por qué esta aplicación es tan especial?</h2>
+    <div class="feature-box">
+        <p><span class="tag-special">ÚNICO EN EL MERCADO</span> <strong>1. Despacho Automático de Correos 24/7 sin dependencias:</strong> Envíos oficiales ilimitados desde <code>cotizaciones@sgmontajes.com.ar</code> procesados por un servidor dedicado en la nube (DigitalOcean) con túnel seguro (Cloudflare). Nadie tiene que abrir Gmail ni dejar la computadora prendida por la noche. Un clic en <strong>"Enviar"</strong> y el correo sale en 3 segundos con su PDF adjunto.</p>
+        
+        <p><span class="tag-special">COLABORACIÓN</span> <strong>2. Chat Interno en Tiempo Real:</strong> Canales temáticos (#General, #Eléctrico, #Mecánico, #Facturación), indicador de presencia en vivo de operadores, avatares y notificaciones sonoras para coordinar obras al instante.</p>
+        
+        <p><span class="tag-special">INGENIERÍA</span> <strong>3. Doble Especialización (Eléctrico vs. Mecánico):</strong>
             <ul>
-                <li><strong>CUIT:</strong> <code>30-71602466-7</code></li>
-                <li><strong>Condición IVA:</strong> Responsable Inscripto</li>
-                <li><strong>Inicio de Actividades:</strong> <code>01/03/2018</code></li>
-                <li><strong>Ingresos Brutos:</strong> Con inscripción provincial</li>
-                <li><strong>Domicilio:</strong> Belgrano 250, Capitán Bermúdez, Santa Fe</li>
-                <li><strong>Identidad Gráfica:</strong> Logotipo oficial SG Montajes con estrella dorada y marca de agua institucional rotada a -30°.</li>
+                <li><strong>Eléctrico (102-ELEC):</strong> Lista técnica plana y ejecutiva con códigos y cómputos de materiales y mano de obra.</li>
+                <li><strong>Mecánico (101-MEC):</strong> Comprobante desglosado y categorizado con subtítulos oficiales (<em>MANO DE OBRA EN TALLER</em>, <em>MANTENIMIENTO</em>, <em>PARADA DE PLANTA</em>, <em>EMERGENCIA</em> y <em>MATERIALES</em>).</li>
             </ul>
-        </div>
-        <div class="card-box" style="border-top: 3px solid #0284c7;">
-            <div class="card-box-title">💧 ACOSTA SERVICIOS SRL</div>
-            <ul>
-                <li><strong>CUIT:</strong> <code>30-71868621-7</code></li>
-                <li><strong>Condición IVA:</strong> Responsable Inscripto</li>
-                <li><strong>Inicio de Actividades:</strong> <code>25/06/2024</code></li>
-                <li><strong>Ingresos Brutos:</strong> <em>No aplica / Exento en comprobantes oficiales</em></li>
-                <li><strong>Domicilio Legal y Operativo:</strong> <code>Estanislao López, Timbúes, Santa Fe</code></li>
-                <li><strong>Identidad Gráfica:</strong> Logotipo oficial corporativo de Acosta Servicios y marca de agua exclusiva de la <strong>gota de agua</strong> en comprobantes.</li>
-            </ul>
-        </div>
+        </p>
+
+        <p><span class="tag-special">SEGURIDAD</span> <strong>4. Comprobantes Anti-Adulteración con Marca de Agua:</strong> Emisión de PDFs de alta definición con membrete institucional, pie legal con CUIT y marca de agua rotada de fondo que certifica la autenticidad frente al cliente final.</p>
+
+        <p><span class="tag-special">CONTROL</span> <strong>5. Control de Avance de Obra y Alerta Anti-Pérdidas:</strong> Alerta automática <code>⚠️ FALTA FACTURAR</code> que resalta en rojo cuando el porcentaje de avance físico en fábrica supera lo facturado administrativamente.</p>
+
+        <p><span class="tag-special">DATOS</span> <strong>6. Arquitectura Relacional Limpia con Supabase:</strong> Datos maestros de clientes (CUIT, domicilio, localidad, condición) centralizados en la tabla <code>clientes</code>, vinculados limpiamente con las operaciones en <code>presupuestos</code> y sus ítems.</p>
     </div>
 
-    <div class="alert-success">
-        <strong>⚡ Detección Inteligente del Membrete y Marca de Agua:</strong><br>
-        Al confeccionar una cotización, si el usuario selecciona como <strong>Proveedor</strong> a <em>ACOSTA SERVICIOS SRL</em>, el sistema conmuta instantáneamente el encabezado fiscal, el logotipo y la marca de agua (gota de agua), sin mostrar Ingresos Brutos y asignando la dirección de <strong>Estanislao López, Timbúes</strong>. Si se selecciona <em>SG MONTAJES SRL</em>, se aplican automáticamente los datos institucionales correspondientes.
-    </div>
+    <h2>⚡ 1. Módulos y Series Correlativas</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Rubro</th>
+                <th>Serie Oficial</th>
+                <th>Especialidad Técnica</th>
+                <th>Estructura de Presentación</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>⚡ Eléctrico</strong></td>
+                <td><code>102-ELEC-XXXX</code></td>
+                <td>Celdas MT, tableros CCM/TGBT, bandejas portacables, cableado de fuerza y comando, iluminación.</td>
+                <td>Lista plana técnica con código, detalle, unidad, precio unitario y subtotal.</td>
+            </tr>
+            <tr>
+                <td><strong>⚙️ Mecánico</strong></td>
+                <td><code>101-MEC-XXXX</code></td>
+                <td>Piping, vapor, solvente, calderería, tolvas, transportadores redler, estructuras pesadas.</td>
+                <td>Agrupado y separado por subtítulos oficiales de mano de obra y materiales.</td>
+            </tr>
+        </tbody>
+    </table>
 
-    <!-- ==================================================================== -->
-    <h2>Capítulo 2: Acceso, Seguridad y Segregación por Rubros</h2>
-    
-    <h3>2.1 Inicio de Sesión y Credenciales Individuales</h3>
-    <ol>
-        <li>Abra el navegador web e ingrese a la dirección del sistema.</li>
-        <li>Introduzca su <strong>Nombre de Usuario</strong> y <strong>Contraseña</strong> personal.</li>
-        <li>Presione <strong>Ingresar</strong>. El sistema verificará los permisos asignados y abrirá su entorno de trabajo.</li>
-    </ol>
-
-    <h3>2.2 Segregación de Rubros Operativos y Codificación Correlativa</h3>
-    <p>Para garantizar una gestión ordenada y evitar la mezcla de especialidades técnicas, el sistema separa de manera estricta las series correlativas de trabajo:</p>
+    <h2>🏢 2. Multi-Proveedor Inteligente (SG Montajes vs. Acosta Servicios)</h2>
+    <p>El sistema adapta dinámicamente membretes y marcas de agua según el proveedor seleccionado:</p>
     <ul>
-        <li><strong>⚡ Rubro Eléctrico (Serie <code>102-ELEC-XXXX</code>):</strong> Dedicado a ingeniería eléctrica, montaje de tableros TGBT/CCM, bandejas portacables, cableado de fuerza motriz, iluminación industrial y celdas de media tensión.</li>
-        <li><strong>⚙️ Rubro Mecánico (Serie <code>101-MEC-XXXX</code>):</strong> Dedicado a calderería, piping, soldadura de cañerías, montaje de estructuras pesadas, cintas transportadoras, redlers y plataformas.</li>
+        <li><strong>SG MONTAJES SRL:</strong> CUIT 30-71602466-7, Estanislao López (CP S2204), Timbúes, estrella dorada institucional y marca de agua dorada a -25°.</li>
+        <li><strong>ACOSTA SERVICIOS SRL:</strong> CUIT 30-71868621-7, Estanislao López (Timbúes), logotipo Acosta y marca de agua de gota de agua.</li>
     </ul>
 
+    <h2>📧 3. Despacho Automático de Correos 24/7</h2>
+    <div class="alert-success">
+        <strong>🚀 Funcionamiento con Un Solo Clic:</strong> Al hacer clic en <strong>"Enviar"</strong> en la ventana de correo, el presupuesto y su PDF oficial viajan a la tabla <code>cola_emails</code> en Supabase. El servidor en DigitalOcean lo toma en 3 segundos, lo despacha vía Ferozo SMTP con autenticación SSL (Puerto 465) a través del túnel Cloudflare y actualiza su estado automáticamente a <strong>"Enviado sin OC"</strong>.
+    </div>
+
+    <h2>💬 4. Sistema de Chat Interno y Presencia</h2>
+    <p>Ubicado en la burbuja flotante inferior de la pantalla:</p>
+    <ul>
+        <li><strong>Canales Segregados:</strong> #General (novedades corporativas), #Eléctrico (consultas de cómputos), #Mecánico (coordinación de paradas y grúas) y #Facturación (seguimiento de OC y cobranzas).</li>
+        <li><strong>Estado en Tiempo Real:</strong> Luz verde de conexión en vivo para saber qué compañeros están en el sistema.</li>
+        <li><strong>Alertas Sonoras:</strong> Tono suave al recibir mensajes nuevos o aprobaciones de presupuestos.</li>
+    </ul>
+
+    <h2>📊 5. Estados Comerciales y Avances de Obra</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Estado</th>
+                <th>Significado Operativo</th>
+                <th>Requisito del Sistema</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Enviado sin OC</strong></td>
+                <td>Cotización oficial entregada al cliente por correo.</td>
+                <td>Asignado automáticamente al hacer clic en "Enviar".</td>
+            </tr>
+            <tr>
+                <td><strong>Aprobado con OC</strong></td>
+                <td>Trabajo adjudicado formalmente por el cliente.</td>
+                <td>Requiere ingresar el Nro de Orden de Compra (OC).</td>
+            </tr>
+            <tr>
+                <td><strong>Facturado Parcial / Total</strong></td>
+                <td>Emisión de comprobantes fiscales de cobro.</td>
+                <td>Sincronizado con el porcentaje de avance físico.</td>
+            </tr>
+            <tr>
+                <td><strong>Rechazado</strong></td>
+                <td>Oferta desestimada.</td>
+                <td>Requiere ingresar obligatoriamente el motivo.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>🗄️ 6. Base de Datos y Persistencia</h2>
     <div class="alert-info">
-        <strong>💡 Conmutador Rápido de Especialidad:</strong><br>
-        En la barra superior de la aplicación se encuentra el selector que permite alternar con un solo clic entre la vista <strong>⚡ Eléctrico</strong> y <strong>⚙️ Mecánico</strong>. Al conmutar, las listas de presupuestos, estadísticas y tarifarios se filtran automáticamente.
+        <strong>Estructura Relacional Limpia:</strong> La tabla <code>presupuestos</code> maneja estrictamente sus 25 columnas operativas de obra, mientras que los datos fiscales de clientes residen en <code>clientes</code> y los renglones cotizados en <code>presupuesto_items</code>. La sincronización se produce en tiempo real con Supabase y cuenta con respaldo offline inmediato en LocalStorage.
     </div>
 
-    <!-- ==================================================================== -->
-    <h2>Capítulo 3: Carga y Confección Paso a Paso de Nuevos Presupuestos</h2>
-    <p>El alta de una cotización se organiza en 3 pasos secuenciales para evitar errores de carga y agilizar la emisión:</p>
-
-    <div class="step-box">
-        <h3>Paso 1: Encabezado Comercial y Datos Obligatorios de Obra</h3>
-        <p>En este paso se definen las partes intervinientes y la ubicación precisa de los trabajos:</p>
-        <ul>
-            <li><strong>Denominación / Trabajo (Obligatorio):</strong> Título claro y representativo de la cotización (ejemplo: <em>"Mantenimiento integral de Redler 550c"</em> o <em>"Instalación de bandejas portacables y celdas MT"</em>). El campo se presenta en blanco listo para cargar.</li>
-            <li><strong>Cliente (Obligatorio):</strong> Buscador interactivo con tecla de acceso rápido <code>F6</code>. Al tipear el nombre o CUIT, el sistema autocompleta los datos del cliente.</li>
-            <li><strong>Proveedor (Obligatorio):</strong> Selección entre <em>SG MONTAJES SRL</em> o <em>ACOSTA SERVICIOS SRL</em>.</li>
-            <li><strong>Domicilio y Localidad del Cliente (Obligatorios):</strong> Se cargan automáticamente del cliente o pueden especificarse (ejemplo: <em>Estanislao López, Timbúes</em>; <em>Solís 822, Villa Gobernador Gálvez</em>; <em>Yrigoyen y Punta Quebracho, Puerto General San Martín</em>). <strong>Estos datos figuran de manera obligatoria en todos los comprobantes impresos y en PDF.</strong></li>
-            <li><strong>Planta Operativa (Obligatorio):</strong> Planta o terminal industrial donde se ejecutará la obra (ejemplo: <code>PGSM</code>, <code>VGG</code>, <code>APS</code>, <code>APG</code>, <code>Timbúes</code>, <code>Ricardone</code>).</li>
-            <li><strong>Condición de Venta / Pago:</strong> Predeterminada como <strong><code>CONTADO</code></strong> (0 días). También pueden seleccionarse plazos formales de crédito como <em>30 DÍAS</em>, <em>30 Y 60 DÍAS 50/50</em> o <em>60 DÍAS</em>. <strong>Se eliminó de forma definitiva la condición "0" o "NO USAR".</strong></li>
-            <li><strong>Fechas y Plazos:</strong> Fecha de oferta (por defecto el día actual), validez de la oferta (ej. <em>15 días corridos</em>), fecha estimada de inicio, duración y plazo de entrega.</li>
-        </ul>
-    </div>
-
-    <div class="step-box">
-        <h3>Paso 2: Planilla Técnica y Selección de Ítems del Tarifario</h3>
-        <p>Permite construir la cotización renglón por renglón con total precisión económica:</p>
-        <ul>
-            <li><strong>Buscador Inteligente de Conceptos:</strong> Escriba parte del texto o código para ubicar mano de obra, tareas especializadas o materiales.</li>
-            <li><strong>Unidades de Medida Oficiales:</strong> Cada ítem carga automáticamente su unidad técnica (<code>HS</code> para horas, <code>GLB</code> para global, <code>UN</code> para unidades, <code>MTS</code> para metros, <code>KG</code> para kilogramos).</li>
-            <li><strong>Carga de Cantidades y Precios:</strong> Ingrese la cantidad. El precio unitario se toma del tarifario oficial y puede ser ajustado por usuarios con perfil administrativo.</li>
-            <li><strong>Cálculo Automático de Subtotales e I.V.A.:</strong> El sistema totaliza el importe neto gravado y adiciona el 21% de I.V.A., informando el total final.</li>
-            <li><strong>Eliminación con Renumeración Automática (<span style="color:#ef4444; font-weight:bold;">✕</span>):</strong> Si carga un ítem por error, pulse la cruz roja al final de la fila. La fila se elimina y los renglones restantes se renumeran correlativamente de inmediato.</li>
-        </ul>
-    </div>
-
-    <div class="step-box">
-        <h3>Paso 3: Confirmación, Asignación de Número y Guardado Continuo</h3>
-        <p>Al hacer clic en el botón verde <strong>[ Confirmar y Cargar Presupuesto ]</strong>:</p>
-        <ol>
-            <li>El sistema asigna de inmediato el siguiente código oficial correlativo libre (ejemplo: <code>101-MEC-0017</code> o <code>102-ELEC-0016</code>).</li>
-            <li>Guarda el registro de forma instantánea tanto en la base de datos local como en <strong>Supabase en la nube</strong>.</li>
-            <li>Limpia el formulario automáticamente para que el operador pueda continuar cargando la siguiente cotización de manera fluida y sin demoras.</li>
-        </ol>
-    </div>
-
-    <!-- ==================================================================== -->
-    <h2>Capítulo 4: Estados Comerciales, Órdenes de Compra (OC) y Órdenes de Trabajo (OT)</h2>
-
-    <h3>4.1 Matriz de Estados Comerciales del Presupuesto</h3>
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 25%;">Estado</th>
-                <th style="width: 20%;">Insignia</th>
-                <th>Significado Operativo y Requisitos Obligatorios</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><strong>1. Enviado sin OC</strong></td>
-                <td><span class="badge badge-blue">ENVIADO SIN OC</span></td>
-                <td>Presupuesto formal emitido y entregado al cliente para su evaluación técnica y comercial.</td>
-            </tr>
-            <tr>
-                <td><strong>2. Aprobado sin OC</strong></td>
-                <td><span class="badge badge-amber">APROBADO SIN OC</span></td>
-                <td>Aprobación preliminar verbal o por correo de la obra, pendiente de la formalización documental.</td>
-            </tr>
-            <tr>
-                <td><strong>3. Aprobado con OC</strong></td>
-                <td><span class="badge badge-green">APROBADO CON OC</span></td>
-                <td><strong>Adjudicación formal de la obra.</strong> Requiere obligatoriamente ingresar el <strong>N° de Orden de Compra (OC)</strong> emitido por el cliente.</td>
-            </tr>
-            <tr>
-                <td><strong>4. Rechazado / Anulado</strong></td>
-                <td><span class="badge badge-red">RECHAZADO</span></td>
-                <td>Cotización desestimada o cancelada. <strong>Requiere obligatoriamente registrar el motivo del rechazo</strong> para control estadístico.</td>
-            </tr>
-        </tbody>
-    </table>
-
-    <div class="alert-important">
-        <strong>🔒 Regla de Progresión Comercial:</strong><br>
-        Los presupuestos avanzan en forma estrictamente progresiva hacia la adjudicación. Un presupuesto que cuenta con Orden de Compra (OC) no puede retroceder a estados inferiores, protegiendo la integridad de los compromisos comerciales asumidos.
-    </div>
-
-    <h3>4.2 Gestión de N° de OT (Orden de Trabajo) y N° de OC (Mano de Obra y Materiales)</h3>
-    <p>Para garantizar la trazabilidad contable con clientes de gran envergadura (como CARGILL SACI o Terminal 6), el sistema contempla:</p>
-    <ul>
-        <li><strong>Nro. de OT (Orden de Trabajo):</strong> Identificador interno o del cliente para el seguimiento técnico en planta.</li>
-        <li><strong>Nro. de OC Mano de Obra:</strong> Orden de compra específica para los servicios de montaje.</li>
-        <li><strong>Nro. de OC Materiales:</strong> Orden de compra específica para el suministro de insumos y equipos.</li>
-    </ul>
-
-    <!-- ==================================================================== -->
-    <h2>Capítulo 5: Certificación de Avances de Obra y Control de Facturación</h2>
-
-    <h3>5.1 Registro de Hitos de Avance Físico</h3>
-    <p>Para obras en curso, los supervisores y jefes de obra pueden certificar el progreso real de las tareas:</p>
-    <ol>
-        <li>En la grilla principal de presupuestos, haga clic en el botón <strong>[ 🔨 Avance ]</strong> de la cotización deseada.</li>
-        <li>Ingrese el porcentaje físico a certificar en el hito (ejemplo: <code>30,0</code>). El sistema valida que el acumulado no supere el <strong>100%</strong>.</li>
-        <li>Indique la fecha de certificación, el número de acta o remito y el detalle de las tareas ejecutadas.</li>
-        <li>Haga clic en <strong>Guardar Avance</strong>. El sistema recalcula en tiempo real el monto acumulado en pesos y actualiza la base de datos centralizada.</li>
-    </ol>
-
-    <h3>5.2 Alerta Preventiva "⚠️ FALTA FACTURAR"</h3>
-    <p>Cuando existe un porcentaje de avance físico certificado en planta que supera lo efectivamente facturado por el área contable, el sistema genera automáticamente una alerta visual destacada en rojo:</p>
-    <div class="alert-danger">
-        <strong>⚠️ FALTA FACTURAR: 30% (Avance Obra: 60% | Facturado: 30%)</strong><br>
-        Esta advertencia permite a Administración emitir la factura correspondiente de inmediato, evitando desfasajes financieros entre el avance real y la cobranza.
-    </div>
-
-    <h3>5.3 Módulo Administrativo "Registros de Facturación"</h3>
-    <p>El módulo de Facturación no reemplaza el estado comercial, sino que controla los cobros categorizándolos en:</p>
-    <ul>
-        <li><strong>Pendiente de Facturar (0%):</strong> Obra adjudicada que aún no cuenta con facturas emitidas.</li>
-        <li><strong>Facturación Parcial (>0% y <100%):</strong> Obras con certificados o anticipos facturados parcialmente.</li>
-        <li><strong>Facturación Total (100%):</strong> Obras íntegramente facturadas y concluidas contablemente.</li>
-    </ul>
-
-    <!-- ==================================================================== -->
-    <h2>Capítulo 6: Comprobantes Oficiales, Modalidades de Impresión y PDF</h2>
-    <p>Al hacer clic en el botón <strong>[ 👁️ Ver ]</strong> de cualquier presupuesto, se abre el visor oficial de comprobantes con opciones de impresión y exportación A4:</p>
-
-    <h3>6.1 Las 3 Modalidades de Presentación del Comprobante</h3>
-    <ul>
-        <li><strong>📋 Comprobante Resumido:</strong> Presenta la cotización en una única línea ejecutiva consolidada (ideal para directores y gerentes de compras que precisan el monto global de la propuesta).</li>
-        <li><strong>📄 Comprobante Detallado:</strong> Expone la totalidad de ítems, materiales, horas de mano de obra, unidades, cantidades y precios unitarios renglón por renglón.</li>
-        <li><strong>🏗️ Comprobante por Proyecto:</strong> Desglosa los conceptos agrupados por títulos o módulos de obra con sus alcances técnicos, exclusiones y cronograma.</li>
-    </ul>
-
-    <h3>6.2 Estructura en Celdas Enmarcadas y Datos Obligatorios</h3>
-    <p>Todos los comprobantes oficiales (PDF e impresos) cuentan con el diseño corporativo en celdas independientes que incluye de manera obligatoria:</p>
-    <div class="card-grid">
-        <div class="card-box">
-            <div class="card-box-title">📍 Bloque de Ubicación y Cliente</div>
-            <ul>
-                <li><strong>Cliente y Código:</strong> Razón social completa y código.</li>
-                <li><strong>Domicilio Oficial:</strong> Calle y número de planta o administración.</li>
-                <li><strong>Localidad:</strong> Localidad verificada (ej. Timbúes, PGSM, VGG).</li>
-                <li><strong>Planta:</strong> Identificación de la planta operativa.</li>
-                <li><strong>C.U.I.T.:</strong> Formato oficial con guiones (ej. 30-71868621-7).</li>
-            </ul>
-        </div>
-        <div class="card-box">
-            <div class="card-box-title">💼 Bloque Comercial y Técnico</div>
-            <ul>
-                <li><strong>Condición de Venta:</strong> <code>CONTADO</code> o plazo acordado (nunca números aislados ni "NO USAR").</li>
-                <li><strong>N° de Presupuesto:</strong> Correlativo oficial (101-MEC o 102-ELEC).</li>
-                <li><strong>N° de OT y N° de OC:</strong> Órdenes de trabajo y compra vinculadas.</li>
-                <li><strong>Fecha de Entrega:</strong> Plazo pactado para el trabajo.</li>
-                <li><strong>Marca de Agua:</strong> Logotipo de SG Montajes o Gota de Agua de Acosta Servicios según corresponda.</li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- ==================================================================== -->
-    <h2>Capítulo 7: Despacho Oficial de Cotizaciones por Correo Electrónico</h2>
-    <p>El sistema cuenta con un centro de despacho formal de cotizaciones comerciales que permite enviar ofertas oficiales directamente a los clientes en segundos:</p>
-
-    <div class="step-box">
-        <h3>Pasos para Despachar una Cotización por Email:</h3>
-        <ol>
-            <li>En la fila del presupuesto o dentro del comprobante, pulse <strong>[ 📧 Enviar Email ]</strong>.</li>
-            <li><strong>Destinatarios Rápidos (Chips TO):</strong> Pulse <em>[+ Agregar Todos los Destinatarios]</em> para incluir automáticamente la casilla del cliente, <code>cotizaciones@sgmontajes.com.ar</code>, administración y facturación.</li>
-            <li><strong>Con Copia (CC):</strong> Seleccione chips adicionales para copias de resguardo o pulse <em>[Sin copia]</em>.</li>
-            <li><strong>Asunto Formal Automático:</strong> El sistema redacta el asunto con el N° de presupuesto oficial y el nombre del cliente.</li>
-            <li><strong>Adjunto de PDF Automático en Tiempo Real:</strong> El comprobante formal con membrete y marca de agua se genera y adjunta como archivo <code>.pdf</code> sin requerir descargas previas.</li>
-            <li><strong>Adjuntar Planos o Memorias Adicionales:</strong> Puede adjuntar archivos técnicos complementarios antes de enviar.</li>
-            <li>Pulse <strong>[ Enviar Cotización Oficial ]</strong>. El sistema despacha el correo en segundo plano y actualiza el estado a <strong>Enviado sin OC</strong>.</li>
-        </ol>
-    </div>
-
-    <!-- ==================================================================== -->
-    <h2>Capítulo 8: Reportes Gerenciales y Exportación a Planilla Excel</h2>
-
-    <h3>8.1 Reporte Impreso Multi-Tabla Gerencial</h3>
-    <p>Al pulsar <strong>[ 🖨️ Imprimir Reporte ]</strong> desde el panel principal, se genera un documento consolidado de auditoría que comienza directamente en la página 1 con:</p>
-    <ul>
-        <li><strong>Tabla 1 - Resumen por Estado Comercial:</strong> Cantidad de obras, subtotales netos, I.V.A. e importe total por cada estado.</li>
-        <li><strong>Tabla 2 - Consolidado por Cliente:</strong> Total de montos cotizados, adjudicados y facturados por cada cliente corporativo.</li>
-        <li><strong>Tabla 3 - Nómina Detallada de Presupuestos:</strong> Listado con ID, fecha, rubro, cliente, obra, estado, porcentaje de avance y total.</li>
-    </ul>
-
-    <h3>8.2 Exportación Nativa a Microsoft Excel (.xls)</h3>
-    <p>Al hacer clic en <strong>[ 📑 Exportar Excel ]</strong>, el sistema descarga una planilla estructurada con formato contable oficial (<code>$ #.##0,00</code>), porcentajes reales y encabezados organizados listos para análisis contable o cruce de datos.</p>
-
-    <!-- ==================================================================== -->
-    <h2>Capítulo 9: Persistencia en la Nube y Sincronización en Tiempo Real (Supabase)</h2>
-    <div class="alert-success">
-        <strong>☁️ Arquitectura Centralizada en Tiempo Real con Supabase:</strong><br>
-        El sistema está integrado directamente con la plataforma en la nube <strong>Supabase</strong> (PostgreSQL de alta disponibilidad), garantizando:
-        <ul>
-            <li><strong>Sincronización Multiusuario en Vivo (Realtime):</strong> Cuando un usuario genera un presupuesto, cambia un estado o certifica un avance, todos los demás usuarios que tengan la aplicación abierta ven reflejado el cambio al instante sin necesidad de recargar la página.</li>
-            <li><strong>Sincronización Automática Total (`saveData`):</strong> Cada modificación en la cabecera, montos, ítems o clientes impacta de manera inmediata en las tablas <code>app_state</code>, <code>presupuestos</code>, <code>presupuesto_items</code>, <code>avances_obra</code> y <code>clientes</code> en la nube.</li>
-            <li><strong>Respaldo Permanente y Seguridad de Datos:</strong> La información no depende del dispositivo local del operador; está alojada de manera segura y redundante en la nube institucional.</li>
-        </ul>
-    </div>
-
-    <!-- ==================================================================== -->
-    <h2>Apéndice: Directorio de Clientes Oficiales y Condiciones</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Cód</th>
-                <th>Cliente / Razón Social</th>
-                <th>CUIT</th>
-                <th>Domicilio y Localidad</th>
-                <th>Condición Predeterminada</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><strong>1</strong></td>
-                <td>CONSUMIDOR FINAL</td>
-                <td>23402204</td>
-                <td>Rosario</td>
-                <td><code>CONTADO</code></td>
-            </tr>
-            <tr>
-                <td><strong>2</strong></td>
-                <td>CARGILL SACI (PGSM)</td>
-                <td>30506792165</td>
-                <td>Yrigoyen y Punta Quebracho, Puerto General San Martín</td>
-                <td><code>30 Y 60 DÍAS 50/50</code></td>
-            </tr>
-            <tr>
-                <td><strong>3</strong></td>
-                <td>CARGILL SACI (VGG)</td>
-                <td>30506792165</td>
-                <td>Solís 822, Villa Gobernador Gálvez</td>
-                <td><code>30 Y 60 DÍAS 50/50</code></td>
-            </tr>
-            <tr>
-                <td><strong>4</strong></td>
-                <td>CARGILL SACI (Larroudé)</td>
-                <td>30506792165</td>
-                <td>Luis Raúl Maza 35, Bernardo Larroudé</td>
-                <td><code>30 DÍAS</code></td>
-            </tr>
-            <tr>
-                <td><strong>5</strong></td>
-                <td>JULIO ALVAREZ</td>
-                <td>30716236990</td>
-                <td>Bs. As. 1122, Puerto General San Martín</td>
-                <td><code>CONTADO</code></td>
-            </tr>
-            <tr>
-                <td><strong>6</strong></td>
-                <td>TERMINAL 6 S.A.</td>
-                <td>30615829699</td>
-                <td>Hipólito Yrigoyen y Costa Del, Puerto General San Martín</td>
-                <td><code>CONTADO</code></td>
-            </tr>
-            <tr>
-                <td><strong>7</strong></td>
-                <td>ACOSTA SERVICIOS SRL</td>
-                <td>30718686217</td>
-                <td>Estanislao López, Timbúes</td>
-                <td><code>CONTADO</code></td>
-            </tr>
-            <tr>
-                <td><strong>8</strong></td>
-                <td>SILC SERVICIOS SRL</td>
-                <td>30717824594</td>
-                <td>Zona Industrial</td>
-                <td><code>CONTADO</code></td>
-            </tr>
-            <tr>
-                <td><strong>9</strong></td>
-                <td>T6 INDUSTRIAL S.A.</td>
-                <td>33689206099</td>
-                <td>Hipólito Yrigoyen y Gral. Lucio, Puerto General San Martín</td>
-                <td><code>CONTADO</code></td>
-            </tr>
-            <tr>
-                <td><strong>10</strong></td>
-                <td>PV SERVICIOS SRL</td>
-                <td>30716598205</td>
-                <td>Zona Portuaria</td>
-                <td><code>CONTADO</code></td>
-            </tr>
-            <tr>
-                <td><strong>11</strong></td>
-                <td>SAO CLIMA SRL</td>
-                <td>30715472313</td>
-                <td>Gral. Paz 344, Capitán Bermúdez</td>
-                <td><code>CONTADO</code></td>
-            </tr>
-        </tbody>
-    </table>
-
-    <div class="footer-doc">
-        <strong>SG MONTAJES SRL &nbsp;|&nbsp; ACOSTA SERVICIOS SRL</strong> &copy; 2026 — Manual de Operación Oficial de Usuario<br>
-        <span style="font-size: 10px; color: #94a3b8;">Documento oficial apto para entrega a clientes, mandos medios y auditorías comerciales.</span>
+    <div class="footer">
+        SG MONTAJES S.R.L. &amp; ACOSTA SERVICIOS S.R.L. &mdash; Sistema Oficial de Presupuestos &copy; 2026. Todos los derechos reservados.
     </div>
 
 </body>

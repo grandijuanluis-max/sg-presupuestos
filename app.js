@@ -658,11 +658,13 @@ function initSupabaseSync(callback) {
                         if (!itemsMap[pid]) itemsMap[pid] = [];
                         const cant = parseFloat(it.cantidad) || 1;
                         const pu = parseFloat(it.precio_unitario || it.precio) || 0;
+                        const rawSubr = (it.subrubro && it.subrubro !== 'None' && it.subrubro !== 'null') ? String(it.subrubro).trim() : '';
+                        const resolvedSubr = rawSubr || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(it, it.rubro) : 'Materiales y Equipos');
                         itemsMap[pid].push({
                             codigo: String(it.codigo || ''),
                             detalle: String(it.detalle || ''),
                             rubro: it.rubro || 'Eléctrico',
-                            subrubro: it.subrubro || '',
+                            subrubro: resolvedSubr,
                             cantidad: cant,
                             unidad: it.unidad || 'UN',
                             udm: it.unidad || 'UN',
@@ -1022,6 +1024,82 @@ window.buildPresupuestoSupabaseRow = function(p) {
     };
 };
 
+window.resolveItemSubrubro = function(it, tipoPresupuesto = '') {
+    if (!it) return 'Materiales y Equipos';
+    let subr = String(it.subrubro || '').trim();
+    if (subr && subr !== 'None' && subr !== 'null' && subr !== 'undefined') {
+        return subr;
+    }
+    const code = String(it.codigo || '').trim();
+    const det = String(it.detalle || it.descripcion || '').trim();
+    const detLow = det.toLowerCase();
+
+    // 1. Buscar en catálogo Mecánico
+    const catM = (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) 
+        ? PRESUPUESTO_MECANICO_STOCK 
+        : (window.presupuestoMecanicoDB || []);
+    if (code) {
+        const foundM = catM.find(c => c && (c.codigo === code || c.id === code));
+        if (foundM && foundM.subrubro && String(foundM.subrubro).trim()) {
+            return String(foundM.subrubro).trim();
+        }
+    }
+
+    // 2. Buscar en catálogo Eléctrico
+    const catE = (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) 
+        ? PRESUPUESTO_ELECTRICO_STOCK 
+        : (window.presupuestosCatalogDB || []);
+    if (code) {
+        const foundE = catE.find(c => c && (c.codigo === code || c.id === code));
+        if (foundE && foundE.subrubro && String(foundE.subrubro).trim()) {
+            return String(foundE.subrubro).trim();
+        }
+    }
+
+    // 3. Buscar en stockDB general
+    if (typeof stockDB !== 'undefined' && Array.isArray(stockDB) && code) {
+        const foundS = stockDB.find(s => s && (s.codigo === code || s.id === code));
+        if (foundS && foundS.subrubro && String(foundS.subrubro).trim()) {
+            return String(foundS.subrubro).trim();
+        }
+    }
+
+    // 4. Inferencia por texto del detalle
+    if (detLow.includes('emergencia')) {
+        return 'Mano de Obra EMERGENCIA MANTENIMIENTO';
+    }
+    if (detLow.includes('parada')) {
+        return 'Mano de Obra PARADA DE PLANTA';
+    }
+    if (detLow.includes('taller')) {
+        return 'Mano de Obra EN TALLER';
+    }
+    if (detLow.includes('mantenimiento') || detLow.includes('supervisor') || detLow.includes('oficial') || detLow.includes('ayudante') || detLow.includes('seguridad')) {
+        return 'Mano de Obra MANTENIMIENTO';
+    }
+
+    // 5. Inferencia por prefijo de código
+    if (code.startsWith('ELE-')) {
+        const num = parseInt(code.replace(/\D/g, ''), 10);
+        if (!isNaN(num) && num <= 27) {
+            return 'Materiales y Equipos';
+        }
+        return 'Mano de Obra MANTENIMIENTO';
+    }
+    if (code.startsWith('MEC-')) {
+        const num = parseInt(code.replace(/\D/g, ''), 10);
+        if (!isNaN(num) && num <= 27) {
+            return 'Materiales y Equipos';
+        }
+        return 'Mano de Obra MANTENIMIENTO';
+    }
+
+    if (tipoPresupuesto === 'Mecánico') {
+        return 'Materiales y Equipos';
+    }
+    return 'Materiales y Equipos';
+};
+
 window.guardarPresupuestoEnSupabase = async function(p) {
     if (!p || !p.id) return { success: false, error: 'No presupuesto data' };
     const client = (typeof getDbClient === 'function') ? getDbClient() : null;
@@ -1049,23 +1127,33 @@ window.guardarPresupuestoEnSupabase = async function(p) {
         try {
             await client.from('presupuesto_items').delete().eq('presupuesto_id', String(p.id));
             const itemRows = p.items.map((it, idx) => {
-                const cant = parseFloat(it.cantidad) || 0;
-                const pu = parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0;
+                const cant = (it.cantidad === '-' || it.cantidad === undefined || it.cantidad === null) ? 1 : (parseFloat(it.cantidad) || 0);
+                const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
+                const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
+                const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
+                const finalSubrubro = window.resolveItemSubrubro(it, p.tipo_presupuesto);
+                it.subrubro = finalSubrubro;
+
                 return {
-                    id: `${String(p.id)}-ITM-${String(idx + 1).padStart(2, '0')}`,
-                    presupuesto_id: String(p.id),
+                    id: itemId,
+                    presupuesto_id: String(p.id).trim(),
                     codigo: String(it.codigo || ''),
                     detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
                     rubro: p.tipo_presupuesto || 'Eléctrico',
-                    subrubro: String(it.subrubro || ''),
+                    subrubro: finalSubrubro,
                     cantidad: cant,
-                    unidad: it.unidad || it.udm || 'UN',
+                    unidad: String(it.unidad || it.udm || 'UN'),
                     precio_unitario: pu,
-                    subtotal: parseFloat(it.subtotal) || (cant * pu),
+                    subtotal: sub,
                     orden: idx + 1
                 };
             });
-            await client.from('presupuesto_items').insert(itemRows);
+            const { error: itErr } = await client.from('presupuesto_items').upsert(itemRows, { onConflict: 'id' });
+            if (itErr) {
+                console.error("❌ Error guardando presupuesto_items:", itErr);
+            } else {
+                console.log("☁️ Supabase: " + itemRows.length + " items guardados en 'presupuesto_items' para " + p.id);
+            }
         } catch(itErr) {
             console.warn("Aviso guardando presupuesto_items:", itErr);
         }
@@ -4906,13 +4994,18 @@ window.agregarArticuloDetalle = function() {
         existing.precio = price;
         existing.subtotal = existing.cantidad * existing.precio;
     } else {
+        const itemSubr = (productoSeleccionado && productoSeleccionado.subrubro) 
+            ? productoSeleccionado.subrubro 
+            : (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(productoSeleccionado, reqTipoPresupuesto) : 'Materiales y Equipos');
+
         pedidoItems.push({
             codigo: productoSeleccionado.codigo,
             detalle: productoSeleccionado.detalle,
             precio: price,
             cantidad: qty,
             subtotal: qty * price,
-            udm: productoSeleccionado.udm || 'u'
+            udm: productoSeleccionado.udm || 'u',
+            subrubro: itemSubr
         });
     }
 
@@ -13266,6 +13359,17 @@ window.recalcMecaExcelAll = function() {
 
             // Find item original name and details from stock database
             const itemObj = catalog.find(i => i.codigo === code);
+            const secNames = [
+                "Materiales y Equipos",
+                "Mano de Obra EN TALLER",
+                "Mano de Obra MANTENIMIENTO",
+                "Mano de Obra PARADA DE PLANTA",
+                "Mano de Obra EMERGENCIA MANTENIMIENTO"
+            ];
+            const resolvedSubr = (itemObj && itemObj.subrubro) 
+                ? itemObj.subrubro 
+                : (secNames[secIdx] || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro({ codigo: code, detalle: itemObj ? itemObj.detalle : '' }, reqTipoPresupuesto) : 'Materiales y Equipos'));
+
             pedidoItems.push({
                 codigo: code,
                 detalle: itemObj ? itemObj.detalle : 'Artículo',
@@ -13274,6 +13378,7 @@ window.recalcMecaExcelAll = function() {
                 cantidad_original: qty,
                 subtotal: subtotal,
                 udm: (itemObj && itemObj.udm) ? itemObj.udm : 'horas',
+                subrubro: resolvedSubr,
                 estado: 'Pendiente'
             });
         }
