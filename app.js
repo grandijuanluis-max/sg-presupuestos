@@ -345,6 +345,9 @@ function normalizePresupuestosRubro(pedidos) {
             }
         }
 
+        p.importe = parseFloat(p.importe !== undefined && p.importe !== null ? p.importe : (p.importe_neto || 0));
+        p.importe_neto = p.importe;
+
         const denomVal = (p.meca_denominacion || p.denominacion || p.motivo || '').trim();
         if (denomVal) {
             p.meca_denominacion = denomVal;
@@ -988,51 +991,34 @@ function generateId() {
 
 window.buildPresupuestoSupabaseRow = function(p) {
     if (!p) return null;
-    const amt = parseFloat(p.importe !== undefined ? p.importe : (p.importe_total || 0)) || 0;
-    const condCode = String(p.condicion_id || '1');
-    const condNom = String(p.condicion_nombre || p.condicion_venta || 'CONTADO');
+    const amt = parseFloat(p.importe !== undefined && p.importe !== null ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
     
     return {
         id: String(p.id).trim(),
         fecha: p.fecha || (typeof getLocalCurrentDateTimeStr === 'function' ? getLocalCurrentDateTimeStr() : new Date().toISOString()),
         tipo_presupuesto: p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'),
-        cliente_id: String(p.cliente_id || '3'),
+        cliente_id: String(p.cliente_id || '3').trim(),
         cliente_nombre: String(p.cliente_nombre || 'CARGILL SACI').trim(),
-        cuit: String(p.cuit || '30-50679216-5').trim(),
-        telefono: String(p.telefono || '').trim(),
-        email: String(p.email || '').trim(),
-        importe: amt,
         importe_neto: amt,
         estado: p.estado || 'Enviado sin OC',
         nro_oc: String(p.nro_oc || p.meca_nro_oc || '').trim(),
-        nro_ot: String(p.nro_ot || p.meca_nro_ot || '').trim(),
         motivo_rechazo: p.motivo_rechazo || '',
         operador: p.operador || 'admin',
-        condicion_id: condCode,
-        condicion_nombre: condNom,
-        condicion_venta: condNom,
-        motivo: p.motivo || p.observaciones || '',
+        avance_porcentaje_acumulado: parseFloat(p.avance_porcentaje_acumulado) || 0,
+        facturado_porcentaje: parseFloat(p.facturado_porcentaje || p.avance_porcentaje_acumulado) || 0,
+        monto_facturado: parseFloat(p.monto_facturado || p.monto_facturado_total) || 0,
+        nro_ot: String(p.nro_ot || p.meca_nro_ot || '').trim(),
         denominacion: String(p.meca_denominacion || p.denominacion || p.motivo || '').trim(),
+        planta: String(p.planta || p.meca_planta || 'VGG').trim().toUpperCase(),
         proveedor: String(p.proveedor || p.meca_proveedor || 'SG MONTAJES SRL').trim(),
         fecha_oferta: p.fecha_oferta || p.meca_fecha_oferta || '',
         validez: p.validez || p.meca_validez || '',
-        planta: String(p.planta || p.meca_planta || 'VGG').trim().toUpperCase(),
         fecha_inicio: p.fecha_inicio || p.meca_fecha_inicio || '',
         duracion: p.duracion || p.meca_duracion || '',
         fecha_fin: p.fecha_fin || p.meca_fecha_fin || '',
         propuesta: p.propuesta || p.meca_propuesta || '',
         personal: p.personal || p.meca_personal || '',
-        exclusiones: p.exclusiones || p.meca_exclusiones || '',
-        observaciones: p.observaciones || '',
-        domicilio: String(p.domicilio || '').trim(),
-        localidad: String(p.localidad || '').trim(),
-        vendedor_nombre: String(p.vendedor_nombre || '').trim(),
-        avance_porcentaje_acumulado: parseFloat(p.avance_porcentaje_acumulado) || 0,
-        facturado_porcentaje: parseFloat(p.facturado_porcentaje || p.avance_porcentaje_acumulado) || 0,
-        monto_facturado: parseFloat(p.monto_facturado || p.monto_facturado_total) || 0,
-        tipo_reporte: p.tipo_reporte || 'detallado',
-        items: Array.isArray(p.items) ? p.items : [],
-        avances: Array.isArray(p.avances) ? p.avances : []
+        exclusiones: p.exclusiones || p.meca_exclusiones || ''
     };
 };
 
@@ -13427,6 +13413,55 @@ window.abrirClienteCorreoMailto = function({ to, cc, subject, body, pdfBlob, fil
 
 // --- SISTEMA DE CORREO SMTP CORPORATIVO BACKEND / CLOUD ---
 window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, attachments, cc, bcc }) {
+    let lastError = null;
+
+    // 1. INTENTO PRIORITARIO: Cola de envíos en Supabase (Procesada 24/7 por el worker en DigitalOcean)
+    try {
+        const client = (typeof getDbClient === 'function') ? getDbClient() : (window.supabaseDb || null);
+        if (client) {
+            const mailId = 'MAIL-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+            const toArr = Array.isArray(to) ? to : (to ? [to] : []);
+            const ccArr = Array.isArray(cc) ? cc : (cc ? [cc] : []);
+            const bccArr = Array.isArray(bcc) ? bcc : (bcc ? [bcc] : []);
+
+            const { error: qErr } = await client.from('cola_emails').insert([{
+                id: mailId,
+                destinatarios: toArr,
+                cc: ccArr,
+                bcc: bccArr,
+                asunto: subject || 'Cotización SG Montajes',
+                cuerpo_html: html || '',
+                cuerpo_texto: text || '',
+                adjuntos: attachments || [],
+                estado: 'pendiente',
+                creado_en: new Date().toISOString()
+            }]);
+
+            if (!qErr) {
+                console.log("✅ Email encolado exitosamente en Supabase (cola_emails):", mailId);
+                try {
+                    client.from('notificaciones').insert({
+                        id: String(Date.now()),
+                        tipo: 'email_despachado',
+                        titulo: `Cotización enviada a ${toArr.join(', ')}`,
+                        mensaje: subject,
+                        leida: false,
+                        fecha: new Date().toISOString()
+                    }).then(() => {});
+                } catch(nErr) {}
+                return { success: true, via: 'queue', id: mailId };
+            } else {
+                console.error("Error al insertar en cola_emails de Supabase:", qErr);
+                lastError = qErr.message || (typeof qErr === 'object' ? JSON.stringify(qErr) : String(qErr));
+            }
+        } else {
+            lastError = "Cliente Supabase no disponible";
+        }
+    } catch(queueErr) {
+        console.error("Excepción al intentar encolar email:", queueErr);
+        lastError = queueErr.message || String(queueErr);
+    }
+
     const customBackend = localStorage.getItem('sg_backend_url') || window.SG_BACKEND_URL;
     
     const endpoints = [];
@@ -13478,9 +13513,10 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
     }
 
     // Si ningún endpoint respondió
+    const finalErr = lastError ? `Fallo en cola Supabase: ${lastError}` : 'No se pudo despachar el correo. Verificá que la tabla cola_emails en Supabase o el servidor estén activos.';
     return { 
         success: false, 
-        error: 'El servidor de correo local no está iniciado o no se pudo conectar. Por favor ejecutá "Iniciar_Servidor.command" en tu Mac.' 
+        error: finalErr
     };
 };
 
@@ -13695,14 +13731,8 @@ window.enviarEmailPedido = function(id) {
                     Cancelar
                 </button>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button type="button" id="btn-dispatch-mailto-now" title="Descargar PDF y abrir en Outlook o cliente de correo predeterminado" style="background: #0078d4; color: #ffffff; font-weight: 700; font-size: 13px; padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0, 120, 212, 0.35);">
-                        <i class="fas fa-envelope-open-text"></i> Abrir en Outlook
-                    </button>
-                    <button type="button" id="btn-dispatch-gmail-now" title="Descargar PDF oficial y abrir Gmail Web listo para enviar con 1 clic" style="background: #ea4335; color: #ffffff; font-weight: 800; font-size: 13px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 14px rgba(234, 67, 53, 0.4);">
-                        <i class="fab fa-google"></i> Enviar con Gmail Web
-                    </button>
-                    <button type="button" id="btn-dispatch-send-now" title="Enviar automáticamente desde cotizaciones@sgmontajes.com.ar" style="background: #0284c7; color: #ffffff; font-weight: 800; font-size: 13px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45);">
-                        <i class="fas fa-paper-plane"></i> Enviar Automático
+                    <button type="button" id="btn-dispatch-send-now" title="Enviar automáticamente desde cotizaciones@sgmontajes.com.ar" style="background: #0284c7; color: #ffffff; font-weight: 800; font-size: 13.5px; padding: 10px 26px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45);">
+                        <i class="fas fa-paper-plane"></i> Enviar
                     </button>
                 </div>
             </div>
@@ -13926,7 +13956,7 @@ window.enviarEmailPedido = function(id) {
             }
 
             btnSendNow.disabled = true;
-            btnSendNow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando por servidor...';
+            btnSendNow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
 
             const fmtSel = document.getElementById('dispatch-report-format');
             const chosenFmt = (fmtSel ? fmtSel.value : (p.tipo_reporte || 'detallado')).toLowerCase().trim();
@@ -14114,25 +14144,25 @@ window.enviarEmailPedido = function(id) {
             }
 
             btnSendNow.disabled = false;
-            btnSendNow.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Cotización Oficial';
+            btnSendNow.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
 
             if (!res || !res.success) {
-                // Servidor local no levantado: Despacho automático directo por Gmail Web
+                const detailedError = (res && res.error) ? res.error : 'No se pudo comunicar con la cola de envíos.';
+                console.error("Fallo al enviar correo automáticamente:", detailedError);
                 if (typeof showToast === 'function') {
-                    showToast('📄 Descargando PDF oficial y abriendo Gmail con la cotización lista...', 'info');
+                    showToast(`❌ ${detailedError}`, 'error');
                 }
-                await ejecutarDespachoGmailWeb();
-                if (p) {
-                    p.email_enviado = true;
-                    p.fecha_envio_email = new Date().toLocaleString('es-AR');
-                    if (p.estado === 'Cargado sin orden de compra' || !p.estado) {
-                        p.estado = 'Enviado sin OC';
-                    }
-                    if (typeof saveData === 'function') {
-                        try { saveData(); } catch(saveErr) {}
-                    }
+                const errBox = document.getElementById('dispatch-email-error-box');
+                if (errBox) {
+                    errBox.style.display = 'block';
+                    errBox.innerHTML = `
+                        <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 6px; padding: 10px; color: #fca5a5; font-size: 12px; line-height: 1.5;">
+                            <strong>❌ No se pudo enviar automáticamente:</strong><br>
+                            ${detailedError}<br><br>
+                            <span style="color: #cbd5e1;">Si aún no creaste la tabla <code>cola_emails</code> en Supabase, ejecutá el script SQL. Para enviarlo por Gmail manualmente mientras tanto, podés usar el botón rojo "Enviar con Gmail Web".</span>
+                        </div>
+                    `;
                 }
-                closeEmailModal();
                 return;
             }
 
