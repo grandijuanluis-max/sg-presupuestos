@@ -10,7 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="html2pdf.bundle.min.js"></script>
     <script src="logo_base64.js?v=1"></script>
-    <link rel="stylesheet" href="styles.css?v=315">
+    <link rel="stylesheet" href="styles.css?v=321">
 </head>
 <body>
     <div id="app">
@@ -259,6 +259,13 @@
                                         <select id="edit-rubro" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.05); padding: 12px; height: 42px; width: 100%; color: white; border-radius: 6px; cursor: pointer;">
                                             <option value="Eléctrico">⚡ Presupuesto Eléctrico</option>
                                             <option value="Mecánico">⚙️ Presupuesto Mecánico</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="flex: 1;">
+                                        <label style="color: var(--text-muted); font-size: 12px; margin-bottom: 8px;">🏢 Empresa / Proveedor</label>
+                                        <select id="edit-empresa" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.05); padding: 12px; height: 42px; width: 100%; color: white; border-radius: 6px; cursor: pointer;">
+                                            <option value="SG MONTAJES SRL">⚙️ SG Montajes SRL</option>
+                                            <option value="ACOSTA SERVICIO">🔵 Acosta Servicios</option>
                                         </select>
                                     </div>
                                 </div>
@@ -756,7 +763,7 @@
                         <div style="padding: 15px; display: flex; flex-direction: column; gap: 12px; background: transparent;">
                             <!-- i. Denominación del Servicio -->
                             <div style="display: grid; grid-template-columns: 240px 1fr; gap: 10px; align-items: center;">
-                                <label id="lbl-meca-denominacion" style="font-size: 12px; font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">i. <u>Detalle:</u></label>
+                                <label id="lbl-meca-denominacion" style="font-size: 12px; font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">i. <u>Título:</u></label>
                                 <input type="text" id="req-meca-denominacion" value="" placeholder="Completar denominación del servicio..." style="background: rgba(234, 179, 8, 0.08); color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 700;" onkeydown="if(event.key==='Enter'){event.preventDefault();abrirRobotF6();}">
                             </div>
 
@@ -846,12 +853,12 @@
                                 </div>
                                 
                                 <div style="display: grid; grid-template-columns: 240px 1fr; gap: 10px;">
-                                    <label style="font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.75);">DETALLAR PROPUESTA:</label>
+                                    <label style="font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.75);">DETALLE DE LA PROPUESTA:</label>
                                     <textarea id="req-meca-propuesta" rows="2" placeholder="Detallar la propuesta técnica..." style="background: rgba(234, 179, 8, 0.08); color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px; font-size: 12px; resize: vertical;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();const pEl=document.getElementById('req-meca-personal');if(pEl){pEl.focus();pEl.select();}}"></textarea>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 270px 1fr; gap: 10px; align-items: center;">
-                                    <label style="font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.75);">CANT DE PERSONAL DESTINADO A CUBRIR LA TAREA:</label>
-                                    <input type="text" id="req-meca-personal" placeholder="Completar cantidad..." style="background: rgba(234, 179, 8, 0.08); color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 12px;" onkeydown="if(event.key==='Enter'){event.preventDefault();const exEl=document.getElementById('req-meca-exclusiones');if(exEl){exEl.focus();exEl.select();}}">
+                                    <label style="font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.75);">SOLICITUD DE SUPERVISOR:</label>
+                                    <input type="text" id="req-meca-personal" placeholder="Completar detalle de supervisor..." style="background: rgba(234, 179, 8, 0.08); color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 12px;" onkeydown="if(event.key==='Enter'){event.preventDefault();const exEl=document.getElementById('req-meca-exclusiones');if(exEl){exEl.focus();exEl.select();}}">
                                 </div>
                                 <div style="display: grid; grid-template-columns: 240px 1fr; gap: 10px; align-items: center;">
                                     <label style="font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.75);">INDICAR EXCLUSIONES:</label>
@@ -1043,7 +1050,7 @@
                                 <strong id="summary-meca-propuesta" style="color: white; white-space: pre-wrap;">-</strong>
                             </div>
                             <div>
-                                <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 2px;">CANT DE PERSONAL</span>
+                                <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 2px;">SOLICITUD DE SUPERVISOR</span>
                                 <strong id="summary-meca-personal" style="color: white;">-</strong>
                             </div>
                             <div>
@@ -1469,7 +1476,7 @@
                 <div class="palaversich-sheet" style="position: relative;">
                 <!-- Marca de Agua Central SG MONTAJES (Marca personal oficial PRESEA en Amarillo Dorado Intenso) -->
                 <div class="sheet-watermark" aria-hidden="true">
-                    <img src="logo_sg_watermark_gold.png" alt="Marca de agua SG MONTAJES">
+                    <img id="modal-header-watermark" src="logo_sg_watermark_gold.png" alt="Marca de agua SG MONTAJES">
                 </div>
 
                 <!-- Cabecera Oficial -->
@@ -1477,9 +1484,9 @@
                     <!-- Caja Izquierda: Logo y Empresa -->
                     <div class="header-box header-left">
                         <div class="logo-container" style="display: flex; align-items: center; margin-bottom: 6px;">
-                            <img src="logo_sg_montajes.png" alt="SG MONTAJES" style="height: 48px; max-height: 48px; width: auto; max-width: 220px; object-fit: contain; display: block;">
+                            <img id="modal-header-logo" src="logo_sg_montajes.png" alt="SG MONTAJES" style="height: 48px; max-height: 48px; width: auto; max-width: 220px; object-fit: contain; display: block;">
                         </div>
-                        <div class="company-details" style="font-size: 10px; line-height: 1.3; color: #94a3b8;">
+                        <div id="modal-header-company-details" class="company-details" style="font-size: 10px; line-height: 1.3; color: #94a3b8;">
                             <strong style="color: #f8fafc;">I.V.A. Responsable Inscripto</strong><br>
                             Estanislao López (CP S2204)<br>
                             Timbues - Pcia. Santa Fe
@@ -1500,7 +1507,7 @@
                         <div id="auth-header-oc-container" style="font-size: 10px; font-weight: 800; margin-top: 3px; color: #38bdf8; text-align: right; width: 100%;">
                             Orden de Compra: <span id="auth-header-nro-oc-val" style="color: #38bdf8; font-weight: 800;">-</span>
                         </div>
-                        <div class="company-fiscal-details" style="font-size: 10.5px; margin-top: 4px; color: #f8fafc; line-height: 1.4; display: inline-flex; flex-direction: column; text-align: left;">
+                        <div id="modal-header-fiscal-details" class="company-fiscal-details" style="font-size: 10.5px; margin-top: 4px; color: #f8fafc; line-height: 1.4; display: inline-flex; flex-direction: column; text-align: left;">
                             <div style="display: flex; justify-content: space-between; gap: 8px;">
                                 <strong style="color: #ffffff; font-weight: 800;">C.U.I.T.:</strong>
                                 <span style="font-weight: 800; color: #ffffff;">30-71602466-7</span>
@@ -1534,7 +1541,7 @@
                     <!-- Fila 2: Detalle | Número de OT -->
                     <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Detalle:</span>
+                            <span id="lbl-modal-titulo" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Título:</span>
                             <span id="auth-meca-denominacion-val" style="font-weight: 800; color: #ffffff; text-transform: uppercase;">-</span>
                         </div>
                         <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
@@ -1542,8 +1549,19 @@
                             <span id="auth-meca-nro-ot-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                     </div>
+                    <!-- Fila 3: Detalle | Planta -->
+                    <div id="modal-row-detalle-planta" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: flex-start; justify-content: space-between;">
+                        <div id="modal-col-detalle-prop" style="flex: 1.5; display: flex; align-items: flex-start; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Detalle:</span>
+                            <span id="auth-meca-detalle-prop-val" style="font-weight: 700; color: #f8fafc; font-size: 11px; margin-top: 1px; white-space: pre-wrap;">-</span>
+                        </div>
+                        <div style="flex: 1; display: flex; align-items: flex-start; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Planta:</span>
+                            <span id="auth-meca-planta-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase; margin-top: 1px;">-</span>
+                        </div>
+                    </div>
 
-                    <!-- Fila 3: Domicilio | Localidad -->
+                    <!-- Fila 4: Domicilio | Localidad -->
                     <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Domicilio:</span>
@@ -1555,7 +1573,7 @@
                         </div>
                     </div>
 
-                    <!-- Fila 4: C.U.I.T. | Fecha de Entrega -->
+                    <!-- Fila 5: C.U.I.T. | Fecha de Entrega -->
                     <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">C.U.I.T.:</span>
@@ -1567,7 +1585,7 @@
                         </div>
                     </div>
 
-                    <!-- Fila 5: Condición de venta | Nro Presupuesto -->
+                    <!-- Fila 6: Condición | Nro Presupuesto -->
                     <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Condición:</span>
@@ -1579,12 +1597,13 @@
                         </div>
                     </div>
 
-                    <!-- Fila 6: Fabricado en Planta -->
-                    <div style="display: flex; padding: 6px 12px; align-items: center; justify-content: space-between;">
+                    <!-- Fila 7: Planta Original (Solo Eléctrico) -->
+                    <div id="modal-row-planta-original" style="display: none; padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Planta:</span>
-                            <span id="auth-meca-planta-val" style="font-weight: 700; color: #f8fafc;">PPA</span>
+                            <span id="auth-meca-planta-val-orig" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
                         </div>
+                        <div style="flex: 1;"></div>
                     </div>
                 </div>
 
@@ -2629,6 +2648,14 @@
                             <span style="color: #64748b; font-weight: 600;">Orden de Compra (OC):</span> 
                             <strong id="comp-avance-nro-oc" style="color: #0f172a;">-</strong>
                         </div>
+                        <div>
+                            <span style="color: #64748b; font-weight: 600;">Domicilio:</span> 
+                            <strong id="comp-avance-domicilio" style="color: #0f172a;">-</strong>
+                        </div>
+                        <div>
+                            <span style="color: #64748b; font-weight: 600;">Localidad:</span> 
+                            <strong id="comp-avance-localidad" style="color: #0f172a;">-</strong>
+                        </div>
                         <div style="grid-column: 1 / -1;">
                             <span style="color: #64748b; font-weight: 600;">Denominación del Servicio:</span> 
                             <strong id="comp-avance-denominacion" style="color: #0f172a;">-</strong>
@@ -2991,9 +3018,9 @@
     <script src="supabase_config.js?v=3"></script>
     
     <!-- Script principal de lógica de negocio -->
-    <script src="app.js?v=315"></script>
+    <script src="app.js?v=327"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
-    <script src="chat_system.js?v=2"></script>
+    <script src="chat_system.js?v=7"></script>
 </body>
 </html>

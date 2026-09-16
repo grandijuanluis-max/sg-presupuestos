@@ -66,6 +66,17 @@ var vendedoresDB = window.vendedoresDB;
 var stockDB = window.stockDB;
 var presupuestosCatalogDB = window.presupuestosCatalogDB;
 
+// Sanitizar nombres de condición para asegurar que nunca aparezca 'CONDICIÓN 0' o 'NO USAR'
+function cleanConditionName(val) {
+    if (!val) return 'CONTADO';
+    const s = String(val).trim();
+    if (!s || s === '0' || s === '-' || /^(condici[oó]n\s*0|no\s*usar)$/i.test(s) || /condici[oó]n\s*0/i.test(s) || /no\s*usar/i.test(s)) {
+        return 'CONTADO';
+    }
+    return s;
+}
+window.cleanConditionName = cleanConditionName;
+
 // Obtener fecha y hora local exacta en formato YYYY-MM-DD HH:mm:ss (Hora local real de carga)
 function getLocalCurrentDateTimeStr(d = new Date()) {
     const yyyy = d.getFullYear();
@@ -284,14 +295,14 @@ const defaultUserPermissions = {
 // Usuarios por defecto si la base de datos está vacía
 const defaultData = {
     users: [
-        { id: '1', username: 'mel', password: '123', email: 'mel@empresa.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '' },
-        { id: '2', username: 'juanluis', password: '123', email: 'grandijuanluis@gmail.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '103', vendedor_nombre: 'Juan Luis' },
-        { id: '3', username: 'luciano', password: '123', email: 'luciano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '102', vendedor_nombre: 'Luciano' },
-        { id: '4', username: 'roberto', password: '123', email: 'Roberto@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '104', vendedor_nombre: 'Roberto' },
-        { id: '5', username: 'melani', password: '123', email: 'melanidaiana28@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '' },
-        { id: '6', username: 'nicole', password: '123', email: 'nicole@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '105', vendedor_nombre: 'Nicole' },
-        { id: '7', username: 'alexis', password: '123', email: 'alexis@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '106', vendedor_nombre: 'Alexis' },
-        { id: '8', username: 'emiliano', password: '123', email: 'emiliano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '107', vendedor_nombre: 'Emiliano' }
+        { id: '1', username: 'mel', password: '123', email: 'mel@empresa.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL' },
+        { id: '2', username: 'juanluis', password: '123', email: 'grandijuanluis@gmail.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '103', vendedor_nombre: 'Juan Luis', empresa: 'SG MONTAJES SRL' },
+        { id: '3', username: 'luciano', password: '123', email: 'luciano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '102', vendedor_nombre: 'Luciano', empresa: 'SG MONTAJES SRL' },
+        { id: '4', username: 'roberto', password: '123', email: 'Roberto@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '104', vendedor_nombre: 'Roberto', empresa: 'SG MONTAJES SRL' },
+        { id: '5', username: 'melani', password: '123', email: 'melanidaiana28@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL' },
+        { id: '6', username: 'nicole', password: '123', email: 'nicole@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '105', vendedor_nombre: 'Nicole', empresa: 'SG MONTAJES SRL' },
+        { id: '7', username: 'alexis', password: '123', email: 'alexis@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '106', vendedor_nombre: 'Alexis', empresa: 'SG MONTAJES SRL' },
+        { id: '8', username: 'emiliano', password: '123', email: 'emiliano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '107', vendedor_nombre: 'Emiliano', empresa: 'SG MONTAJES SRL' }
     ],
     pedidos: [],
     notifications: [],
@@ -338,6 +349,65 @@ function normalizePresupuestosRubro(pedidos) {
         if (denomVal) {
             p.meca_denominacion = denomVal;
             p.denominacion = denomVal;
+        }
+
+        const provRaw = String(p.proveedor || p.meca_proveedor || '').trim().toUpperCase();
+        if (provRaw.includes('ACOSTA')) {
+            p.proveedor = 'ACOSTA SERVICIOS SRL';
+            p.meca_proveedor = 'ACOSTA SERVICIOS SRL';
+        } else {
+            p.proveedor = 'SG MONTAJES SRL';
+            p.meca_proveedor = 'SG MONTAJES SRL';
+        }
+
+        // Normalizar y enriquecer Domicilio, Localidad, CUIT y Planta desde clientesDB
+        const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
+            ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && p.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
+            : null;
+
+        if (rawClient) {
+            if (!p.domicilio || p.domicilio === '-' || p.domicilio.trim() === '') {
+                p.domicilio = rawClient.domicilio || '';
+            }
+            if (!p.localidad || p.localidad === '-' || p.localidad.trim() === '') {
+                p.localidad = rawClient.localidad || '';
+            }
+            if (!p.cuit || p.cuit === '-' || p.cuit.trim() === '') {
+                p.cuit = rawClient.cuit || '';
+            }
+            if (!p.cliente_id || p.cliente_id === '-' || p.cliente_id === '') {
+                p.cliente_id = rawClient.codigo || '';
+            }
+        }
+
+        const plantaVal = (p.planta || p.meca_planta || '').trim();
+        if (plantaVal && plantaVal !== '-') {
+            p.planta = plantaVal;
+            p.meca_planta = plantaVal;
+        } else {
+            let defaultPlanta = 'VGG';
+            if (p.localidad && p.localidad.toUpperCase().includes('SAN MARTIN')) {
+                defaultPlanta = 'PGSM';
+            } else if (rawClient && rawClient.localidad && rawClient.localidad.toUpperCase().includes('SAN MARTIN')) {
+                defaultPlanta = 'PGSM';
+            }
+            p.planta = defaultPlanta;
+            p.meca_planta = defaultPlanta;
+        }
+
+        const otVal = (p.nro_ot || p.meca_nro_ot || '').trim();
+        if (otVal) {
+            p.nro_ot = otVal;
+            p.meca_nro_ot = otVal;
+        }
+
+        p.condicion_venta = cleanConditionName(p.condicion_venta || p.condicion_nombre || 'CONTADO');
+        p.condicion_nombre = cleanConditionName(p.condicion_nombre || p.condicion_venta || 'CONTADO');
+        if (!p.condicion_id || String(p.condicion_id) === '0') {
+            p.condicion_id = '1';
+        }
+        if (!p.tipo_reporte) {
+            p.tipo_reporte = 'detallado';
         }
 
         const ocVal = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
@@ -438,6 +508,8 @@ function initSupabaseSync(callback) {
             if (typeof clientesDB !== 'undefined') {
                 clientesDB.length = 0;
                 cRes.data.forEach(function(sc) {
+                    sc.condicion_nombre = cleanConditionName(sc.condicion_nombre);
+                    if (!sc.condicion_id || String(sc.condicion_id) === '0') sc.condicion_id = '1';
                     clientesDB.push(sc);
                 });
                 window.clientesDB = clientesDB;
@@ -523,7 +595,24 @@ function initSupabaseSync(callback) {
         console.warn("Aviso al consultar tabla 'tarifario' en Supabase:", tarErr);
     });
 
-    // 3. LECTURA DE ESTADO GLOBAL Y PRESUPUESTOS (tabla 'app_state')
+    // 3. LECTURA DIRECTA Y EXCLUSIVA DE LA TABLA 'presupuestos' (Fuente Única de Verdad)
+    client
+        .from('presupuestos')
+        .select('*')
+        .order('id', { ascending: true })
+        .then(function(pRes) {
+            if (pRes.data) {
+                appData.pedidos = normalizePresupuestosRubro(pRes.data);
+                console.log("✅ " + pRes.data.length + " presupuestos leídos DIRECTAMENTE de la tabla 'presupuestos' en Supabase.");
+                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+            }
+        })
+        .catch(function(pErr) {
+            console.warn("Aviso al leer tabla presupuestos en Supabase:", pErr);
+        });
+
+    // 3.1. LECTURA DE ESTADO GLOBAL DE USUARIOS, NOTIFICACIONES Y PERMISOS ('app_state')
     client
         .from('app_state')
         .select('*')
@@ -532,9 +621,6 @@ function initSupabaseSync(callback) {
         .then(function(res) {
             if (res.data) {
                 const data = res.data;
-                if (Array.isArray(data.pedidos)) {
-                    appData.pedidos = normalizePresupuestosRubro(data.pedidos);
-                }
                 if (data.users) {
                     appData.users = mergeUsersList(appData.users, data.users);
                 }
@@ -556,15 +642,6 @@ function initSupabaseSync(callback) {
                         if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') applyCustomPricesToCatalog(PRESUPUESTO_MECANICO_STOCK);
                     } catch (e) {}
                 }
-            } else {
-                // Fallback directo a tabla 'presupuestos' de Supabase
-                client.from('presupuestos').select('*').then(function(pRes) {
-                    if (pRes.data && pRes.data.length > 0) {
-                        appData.pedidos = normalizePresupuestosRubro(pRes.data);
-                        saveData();
-                        console.log("✅ " + pRes.data.length + " presupuestos leídos directamente de la tabla 'presupuestos' en Supabase.");
-                    }
-                }).catch(function(pErr) { console.warn("Aviso tabla presupuestos:", pErr); });
             }
 
             // Sincronizar items desde tabla presupuesto_items de Supabase
@@ -597,36 +674,15 @@ function initSupabaseSync(callback) {
                             p.items = itemsMap[pid];
                             changed = true;
                         }
-                        if (Array.isArray(p.items) && p.items.length > 0) {
-                            const tot = p.items.reduce(function(s, it) {
-                                const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-                                const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
-                                const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
-                                return s + sub;
-                            }, 0);
-                            if (tot > 0 && (!p.importe || parseFloat(p.importe) === 0)) {
-                                p.importe = tot;
-                                p.importe_original = tot;
-                                changed = true;
-                            }
-                        }
                     });
                     if (changed) {
-                        saveData();
+                        try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                         if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-                        if (pedidoActivo && typeof renderModalReportTable === 'function') {
-                            const refreshed = appData.pedidos.find(function(x) { return x.id === pedidoActivo.id; });
-                            if (refreshed) {
-                                pedidoActivo = refreshed;
-                                renderModalReportTable(pedidoActivo, pedidoActivo.tipo_reporte || 'detallado');
-                            }
-                        }
                     }
                 }
             }).catch(function(err) { console.warn("Aviso presupuesto_items:", err); });
 
             console.log("⚡ Supabase conectado y sincronizado en tiempo real.");
-            saveData();
 
             // 4. SUSCRIPCIÓN EN TIEMPO REAL A TODAS LAS TABLAS DE SUPABASE
             try {
@@ -634,7 +690,44 @@ function initSupabaseSync(callback) {
                     client.removeChannel(supabaseRealtimeChannel);
                 }
                 
-                // Suscripción Realtime a app_state
+                // Suscripción Realtime DIRECTA a la tabla 'presupuestos'
+                client
+                    .channel('public:presupuestos')
+                    .on('postgres_changes', {
+                        event: '*',
+                        schema: 'public',
+                        table: 'presupuestos'
+                    }, function(payload) {
+                        console.log("⚡ Supabase Realtime evento en 'presupuestos':", payload.eventType, payload);
+                        if (payload.eventType === 'DELETE' && payload.old) {
+                            const delId = String(payload.old.id || '');
+                            appData.pedidos = (appData.pedidos || []).filter(function(p) { return String(p.id) !== delId; });
+                            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                            if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                            console.log("🗑️ Presupuesto " + delId + " eliminado automáticamente en tiempo real.");
+                        } else if (payload.eventType === 'INSERT' && payload.new) {
+                            const newP = payload.new;
+                            const exists = (appData.pedidos || []).find(function(p) { return String(p.id) === String(newP.id); });
+                            if (!exists) {
+                                appData.pedidos.push(newP);
+                                normalizePresupuestosRubro(appData.pedidos);
+                                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                            }
+                        } else if (payload.eventType === 'UPDATE' && payload.new) {
+                            const updatedP = payload.new;
+                            const idx = (appData.pedidos || []).findIndex(function(p) { return String(p.id) === String(updatedP.id); });
+                            if (idx !== -1) {
+                                appData.pedidos[idx] = Object.assign({}, appData.pedidos[idx], updatedP);
+                                normalizePresupuestosRubro(appData.pedidos);
+                                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                            }
+                        }
+                    })
+                    .subscribe();
+
+                // Suscripción Realtime a app_state (para permisos y notificaciones)
                 supabaseRealtimeChannel = client
                     .channel('public:app_state:globalData')
                     .on('postgres_changes', {
@@ -645,7 +738,6 @@ function initSupabaseSync(callback) {
                     }, function(payload) {
                         if (payload.new) {
                             const data = payload.new;
-                            appData.pedidos = data.pedidos || [];
                             appData.users = mergeUsersList(appData.users, data.users);
                             appData.notifications = data.notifications || [];
                             if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
@@ -683,8 +775,20 @@ function initSupabaseSync(callback) {
                         schema: 'public',
                         table: 'clientes'
                     }, function(payload) {
+                        if (payload.eventType === 'DELETE' && payload.old && typeof clientesDB !== 'undefined') {
+                            const oldCode = String(payload.old.codigo || payload.old.id || '');
+                            const delIdx = clientesDB.findIndex(function(lc) { return String(lc.codigo) === oldCode || String(lc.id) === oldCode; });
+                            if (delIdx !== -1) {
+                                clientesDB.splice(delIdx, 1);
+                                window.clientesDB = clientesDB;
+                                console.log("🗑️ Cliente " + oldCode + " eliminado automáticamente en tiempo real.");
+                            }
+                            return;
+                        }
                         if (payload.new && typeof clientesDB !== 'undefined') {
                             const sc = payload.new;
+                            sc.condicion_nombre = cleanConditionName(sc.condicion_nombre);
+                            if (!sc.condicion_id || String(sc.condicion_id) === '0') sc.condicion_id = '1';
                             const idx = clientesDB.findIndex(function(lc) { return String(lc.codigo) === String(sc.codigo); });
                             if (idx !== -1) {
                                 clientesDB[idx] = sc;
@@ -868,7 +972,7 @@ function saveData() {
             user_permissions: (appData.userPermissions && typeof appData.userPermissions === 'object' && Object.keys(appData.userPermissions).length > 0)
                 ? Object.assign({}, defaultUserPermissions, appData.userPermissions)
                 : Object.assign({}, defaultUserPermissions),
-            // custom_prices: (typeof appData !== 'undefined' && appData && appData.customPrices) ? appData.customPrices : (typeof getCustomItemPrices === 'function' ? getCustomItemPrices() : {}),
+            custom_prices: (typeof appData !== 'undefined' && appData && appData.customPrices) ? appData.customPrices : (typeof getCustomItemPrices === 'function' ? getCustomItemPrices() : {}),
             updated_at: new Date().toISOString()
         }, { onConflict: 'id' }).then(function(res) {
             if (res && res.error) {
@@ -886,7 +990,7 @@ function saveData() {
                 return {
                     id: String(u.id),
                     username: String(u.username || '').trim(),
-                    password: String(u.password || ''),
+                    password: String(u.password || '123'),
                     email: u.email || '',
                     role: u.role || 'Solicitante',
                     rubro_defecto: u.rubro_defecto || 'Eléctrico'
@@ -900,20 +1004,21 @@ function saveData() {
 
         // 3. Sincronizar presupuestos individuales en la tabla presupuestos de Supabase
         if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
-            const presupuestosRows = appData.pedidos.map(function(p) {
+            const presupuestosRowsCore = appData.pedidos.map(function(p) {
+                const totalAmt = parseFloat(p.importe !== undefined ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
                 return {
                     id: String(p.id),
                     fecha: p.fecha || getLocalCurrentDateTimeStr(),
                     tipo_presupuesto: p.tipo_presupuesto || 'Eléctrico',
                     cliente_id: String(p.cliente_id || '3'),
                     cliente_nombre: String(p.cliente_nombre || 'CARGILL SACI'),
-                    importe_neto: parseFloat(p.importe !== undefined ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0,
+                    importe_neto: totalAmt,
                     estado: p.estado || 'Enviado sin OC',
                     nro_oc: p.nro_oc || p.meca_nro_oc || '',
                     nro_ot: p.nro_ot || p.meca_nro_ot || '',
                     denominacion: p.denominacion || p.meca_denominacion || '',
                     planta: p.planta || p.meca_planta || '',
-                    proveedor: p.proveedor || p.meca_proveedor || '',
+                    proveedor: p.proveedor || p.meca_proveedor || 'SG MONTAJES SRL',
                     fecha_oferta: p.fecha_oferta || p.meca_fecha_oferta || '',
                     validez: p.validez || p.meca_validez || '',
                     fecha_inicio: p.fecha_inicio || p.meca_fecha_inicio || '',
@@ -929,11 +1034,41 @@ function saveData() {
                     monto_facturado: parseFloat(p.monto_facturado || p.monto_facturado_total) || 0
                 };
             });
-            client.from('presupuestos').upsert(presupuestosRows, { onConflict: 'id' }).then(function(res) {
+
+            const presupuestosRowsFull = appData.pedidos.map(function(p, i) {
+                const totalAmt = parseFloat(p.importe !== undefined ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
+                return Object.assign({}, presupuestosRowsCore[i], {
+                    importe: totalAmt,
+                    observaciones: p.observaciones || p.meca_observaciones || '',
+                    tipo_reporte: p.tipo_reporte || 'detallado',
+                    condicion_venta: cleanConditionName(p.condicion_venta || p.condicion_nombre || 'CONTADO'),
+                    domicilio: p.domicilio || '',
+                    localidad: p.localidad || '',
+                    cuit: p.cuit || '',
+                    vendedor_nombre: p.vendedor_nombre || p.operador_vendedor_nombre || '',
+                    items: Array.isArray(p.items) ? p.items : [],
+                    avances: Array.isArray(p.avances) ? p.avances : []
+                });
+            });
+
+            client.from('presupuestos').upsert(presupuestosRowsFull, { onConflict: 'id' }).then(function(res) {
                 if (res && res.error) {
-                    console.warn("⚠️ Supabase presupuestos warning:", res.error);
+                    if (res.error.code === 'PGRST204' || String(res.error.message).includes('column')) {
+                        // Reintento resiliente con columnas core si la tabla no tiene todas las columnas añadidas
+                        client.from('presupuestos').upsert(presupuestosRowsCore, { onConflict: 'id' }).then(function(coreRes) {
+                            if (coreRes && coreRes.error) {
+                                console.warn("⚠️ Supabase presupuestos core warning:", coreRes.error);
+                            } else {
+                                console.log("☁️ Supabase: " + presupuestosRowsCore.length + " presupuestos sincronizados con éxito (modo estándar).");
+                            }
+                        }).catch(function(coreErr) {
+                            console.error("Error sincronizando presupuestos core:", coreErr);
+                        });
+                    } else {
+                        console.warn("⚠️ Supabase presupuestos warning:", res.error);
+                    }
                 } else {
-                    console.log("☁️ Supabase: " + presupuestosRows.length + " presupuestos sincronizados con éxito.");
+                    console.log("☁️ Supabase: " + presupuestosRowsFull.length + " presupuestos sincronizados con éxito (modo completo).");
                 }
             }).catch(function(err) {
                 console.error("Error sincronizando presupuestos:", err);
@@ -1700,14 +1835,18 @@ let productoSeleccionado = null;
 let condicionSeleccionada = null;
 
 function seleccionarCondicion(cond) {
+    if (!cond || String(cond.codigo) === '0' || (cond.nombre && (/no\s*usar/i.test(cond.nombre) || /condici[oó]n\s*0/i.test(cond.nombre)))) {
+        cond = (typeof condicionesDB !== 'undefined' && Array.isArray(condicionesDB) && condicionesDB.length > 0) ? condicionesDB[0] : { codigo: "1", nombre: "CONTADO", dias: 0 };
+    }
     condicionSeleccionada = cond;
     const input = document.getElementById('req-condition-input');
     const hidden = document.getElementById('req-condition');
     if (input) {
-        input.value = cond ? (cond.nombre ? `${cond.nombre} (${cond.dias} días) (Cód: ${cond.codigo})` : `Condición ${cond.codigo}`) : '';
+        const cName = cleanConditionName(cond ? cond.nombre : 'CONTADO');
+        input.value = cond ? `${cName}${cond.dias ? ` (${cond.dias} días)` : ''} (Cód: ${cond.codigo || '1'})` : 'CONTADO (0 días) (Cód: 1)';
     }
     if (hidden) {
-        hidden.value = cond ? cond.codigo : '';
+        hidden.value = cond ? (String(cond.codigo) === '0' ? '1' : cond.codigo) : '1';
     }
     const dropdown = document.getElementById('req-condition-dropdown');
     if (dropdown) dropdown.style.display = 'none';
@@ -3301,6 +3440,18 @@ function updateTipoPresupuestoBadge() {
     const mecaFields = document.getElementById('req-mecanico-fields');
     const standardFields = document.getElementById('req-standard-fields');
     const isElec = reqTipoPresupuesto === 'Eléctrico';
+    
+    // Cambiar la etiqueta del detalle en el formulario de creacion
+    const lblMecaDenom = document.getElementById('lbl-meca-denominacion');
+    if (lblMecaDenom) {
+        lblMecaDenom.innerHTML = isElec ? 'i. <u>Detalle:</u>' : 'i. <u>Título:</u>';
+    }
+    
+    // Ocultar sección entera de propuesta comercial para Eléctrico
+    const reqMecaPropuestaBox = document.getElementById('req-meca-propuesta-box');
+    if (reqMecaPropuestaBox) {
+        reqMecaPropuestaBox.style.display = isElec ? 'none' : 'flex';
+    }
     const icon = isElec ? '⚡' : '⚙️';
     const bgColor = isElec ? 'rgba(234, 179, 8, 0.2)' : 'rgba(6, 182, 212, 0.2)';
     const textColor = isElec ? '#fde047' : '#22d3ee';
@@ -3383,7 +3534,7 @@ function updateTipoPresupuestoBadge() {
     if (lblDuracion) lblDuracion.innerHTML = isElec ? 'vii. <u>Duración estimada:</u>' : 'vii. <u>Duración estimada:</u>';
     if (lblFin) lblFin.innerHTML = isElec ? 'viii. <u>Plazo Máximo de Finalización:</u>' : 'viii. <u>Plazo Máximo de Finalización:</u>';
 
-    const reqMecaPropuestaBox = document.getElementById('req-meca-propuesta-box');
+    // Ya ocultado arriba
     if (reqMecaPropuestaBox) {
         reqMecaPropuestaBox.style.display = isElec ? 'none' : 'flex';
     }
@@ -3502,10 +3653,13 @@ function initRequestView() {
             condDropdown.scrollTop = 0;
             currentSelectedIndex = -1;
             
+            const validConds = (typeof condicionesDB !== 'undefined' && Array.isArray(condicionesDB)) 
+                ? condicionesDB.filter(c => c && String(c.codigo) !== '0' && (!c.nombre || !/no\s*usar/i.test(c.nombre)))
+                : [];
             if (cleanQuery === '') {
-                currentMatches = condicionesDB;
+                currentMatches = validConds;
             } else {
-                currentMatches = condicionesDB.filter(c => 
+                currentMatches = validConds.filter(c => 
                     (c.nombre || '').toLowerCase().includes(cleanQuery) || 
                     String(c.codigo).includes(cleanQuery) ||
                     String(c.dias).includes(cleanQuery)
@@ -4250,7 +4404,10 @@ function initRequestView() {
         if (!valEl || !valEl.value) window.setValidezOfertaValue('5 días');
     }
     const provEl = document.getElementById('req-meca-proveedor');
-    if (provEl && !provEl.value) provEl.value = 'SG MONTAJES SRL';
+    if (provEl && !provEl.value) {
+        const _cu = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+        provEl.value = (_cu && _cu.empresa) ? _cu.empresa : 'SG MONTAJES SRL';
+    }
 
     // Inicializar el stepper en el paso 1
     if (window.goToRequestStep) {
@@ -5012,12 +5169,34 @@ function seleccionarCliente(cliente) {
     if (pedidoActivo) {
         pedidoActivo.cliente_id = cliente.codigo;
         pedidoActivo.cliente_nombre = cliente.nombre;
+        if (cliente.domicilio) pedidoActivo.domicilio = cliente.domicilio;
+        if (cliente.localidad) pedidoActivo.localidad = cliente.localidad;
+        if (cliente.cuit) pedidoActivo.cuit = cliente.cuit;
+
+        // Actualizar inputs en el DOM si el modal está abierto
+        const authEditDom = document.getElementById('auth-edit-meca-domicilio');
+        if (authEditDom && cliente.domicilio) authEditDom.value = cliente.domicilio.toUpperCase();
+        const authEditLoc = document.getElementById('auth-edit-meca-localidad');
+        if (authEditLoc && cliente.localidad) authEditLoc.value = cliente.localidad.toUpperCase();
+        const authEditCuit = document.getElementById('auth-edit-meca-cuit');
+        if (authEditCuit && cliente.cuit) authEditCuit.value = cliente.cuit;
+
+        const authMecaDom = document.getElementById('auth-meca-domicilio-val');
+        if (authMecaDom && cliente.domicilio) authMecaDom.innerText = cliente.domicilio.toUpperCase();
+        const authMecaLoc = document.getElementById('auth-meca-localidad-val');
+        if (authMecaLoc && cliente.localidad) authMecaLoc.innerText = cliente.localidad.toUpperCase();
+        const authMecaCuit = document.getElementById('auth-meca-cuit-val');
+        if (authMecaCuit && cliente.cuit) authMecaCuit.innerText = cliente.cuit;
+
         if (typeof saveTempEdits === 'function') saveTempEdits();
     }
     
     // Cargar condición del cliente por defecto
-    const foundCond = typeof condicionesDB !== 'undefined' ? condicionesDB.find(c => String(c.codigo) === String(cliente.condicion_id)) : null;
-    seleccionarCondicion(foundCond || (cliente.condicion_id ? { codigo: cliente.condicion_id, nombre: cliente.condicion_nombre } : null));
+    const rawCondId = (cliente.condicion_id && String(cliente.condicion_id) !== '0') ? String(cliente.condicion_id) : '1';
+    const foundCond = typeof condicionesDB !== 'undefined' ? condicionesDB.find(c => String(c.codigo) === rawCondId) : null;
+    const condNameRaw = cleanConditionName(cliente.condicion_nombre);
+    const fallbackCond = foundCond || { codigo: rawCondId, nombre: condNameRaw, dias: 0 };
+    seleccionarCondicion(fallbackCond);
 
     // Cargar depósito del cliente por defecto
     const foundDep = typeof depositosDB !== 'undefined' ? depositosDB.find(d => d.codigo === cliente.deposito_id) : null;
@@ -5417,13 +5596,15 @@ window.confirmarConTipoReporte = function(tipoReporte) {
             ? pedidoItems.reduce((sum, item) => sum + (parseFloat(item.subtotal) || ((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)) || 0), 0)
             : 0;
 
-        const condCode = document.getElementById('req-condition') ? document.getElementById('req-condition').value : '';
+        const rawCondCode = document.getElementById('req-condition') ? document.getElementById('req-condition').value : '';
+        const condCode = (rawCondCode && String(rawCondCode) !== '0') ? rawCondCode : '1';
         const motivo = document.getElementById('req-reason') ? document.getElementById('req-reason').value : '';
 
         const depCode = depositoSeleccionado ? depositoSeleccionado.codigo : '';
         const transCode = transporteSeleccionado ? transporteSeleccionado.codigo : '';
 
-        const conditionObj = (typeof condicionesDB !== 'undefined' && Array.isArray(condicionesDB)) ? condicionesDB.find(c => c.codigo === condCode) : null;
+        const conditionObj = (typeof condicionesDB !== 'undefined' && Array.isArray(condicionesDB)) ? condicionesDB.find(c => String(c.codigo) === String(condCode)) : null;
+        const finalCondNombre = cleanConditionName(conditionObj ? conditionObj.nombre : (condCode && condCode !== '0' ? `Condición ${condCode}` : 'CONTADO'));
         const depositoObj = depositoSeleccionado;
         const transporteObj = transporteSeleccionado;
         
@@ -5431,10 +5612,15 @@ window.confirmarConTipoReporte = function(tipoReporte) {
             const clientVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) || 
                               (document.getElementById('req-client') && document.getElementById('req-client').value) || 
                               'CARGILL SACI';
-            clienteSeleccionado = {
+            const matchedCli = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
+                ? window.clientesDB.find(c => c.nombre.toUpperCase().includes(clientVal.trim().toUpperCase()) || clientVal.trim().toUpperCase().includes(c.nombre.toUpperCase()) || c.codigo === clientVal.trim())
+                : null;
+            clienteSeleccionado = matchedCli || {
                 codigo: '3',
                 nombre: clientVal,
-                cuit: '30-50679316-5',
+                cuit: '30-50679216-5',
+                domicilio: 'SOLIS 822',
+                localidad: 'VILLA GOBERNADOR GALVEZ',
                 telefono: '',
                 email: '',
                 vendedor_id: '',
@@ -5465,7 +5651,8 @@ window.confirmarConTipoReporte = function(tipoReporte) {
             targetPedido.importe = amount;
             targetPedido.importe_original = amount;
             targetPedido.condicion_id = condCode;
-            targetPedido.condicion_nombre = conditionObj ? (conditionObj.nombre || `Condición ${condCode}`) : `Condición ${condCode}`;
+            targetPedido.condicion_nombre = finalCondNombre;
+            targetPedido.condicion_venta = finalCondNombre;
             targetPedido.deposito_id = depCode;
             targetPedido.deposito_nombre = depositoObj ? (depositoObj.nombre || `Depósito ${depCode}`) : (depCode ? `Depósito ${depCode}` : '');
             targetPedido.transporte_id = transCode;
@@ -5475,10 +5662,20 @@ window.confirmarConTipoReporte = function(tipoReporte) {
             targetPedido.tipo_presupuesto = reqTipoPresupuesto || 'Eléctrico';
             targetPedido.meca_denominacion = document.getElementById('req-meca-denominacion') ? document.getElementById('req-meca-denominacion').value : '';
             if (document.getElementById('req-meca-cliente')) targetPedido.cliente_nombre = document.getElementById('req-meca-cliente').value;
+            if (clienteSeleccionado) {
+                targetPedido.cliente_id = clienteSeleccionado.codigo || targetPedido.cliente_id;
+                targetPedido.cuit = clienteSeleccionado.cuit || targetPedido.cuit;
+                if (clienteSeleccionado.domicilio) targetPedido.domicilio = clienteSeleccionado.domicilio;
+                if (clienteSeleccionado.localidad) targetPedido.localidad = clienteSeleccionado.localidad;
+            }
             targetPedido.meca_proveedor = document.getElementById('req-meca-proveedor') ? document.getElementById('req-meca-proveedor').value : '';
             targetPedido.meca_fecha_oferta = document.getElementById('req-meca-fecha-oferta') ? document.getElementById('req-meca-fecha-oferta').value : '';
             targetPedido.meca_validez = document.getElementById('req-meca-validez') ? document.getElementById('req-meca-validez').value : '';
-            targetPedido.meca_planta = document.getElementById('req-meca-planta') ? document.getElementById('req-meca-planta').value : '';
+            const editPlantaVal = document.getElementById('req-meca-planta') ? document.getElementById('req-meca-planta').value : '';
+            if (editPlantaVal) {
+                targetPedido.meca_planta = editPlantaVal;
+                targetPedido.planta = editPlantaVal;
+            }
             targetPedido.meca_nro_oc = finalNroOc;
             targetPedido.nro_oc = finalNroOc;
             targetPedido.meca_nro_ot = document.getElementById('req-meca-nro-ot') ? document.getElementById('req-meca-nro-ot').value : '';
@@ -5501,11 +5698,14 @@ window.confirmarConTipoReporte = function(tipoReporte) {
         } else {
             const isMec = (reqTipoPresupuesto === 'Mecánico');
             const rubroPrefix = isMec ? '101-MEC' : '102-ELEC';
-            let counter = 1;
-            while (appData.pedidos.some(p => p.id === `${rubroPrefix}-${String(counter).padStart(4, '0')}`)) {
-                counter++;
-            }
-            targetId = `${rubroPrefix}-${String(counter).padStart(4, '0')}`;
+            const existingNums = (appData.pedidos || [])
+                .map(p => {
+                    const m = String(p.id || '').match(new RegExp(`^${rubroPrefix}-(\\d+)`));
+                    return m ? parseInt(m[1], 10) : 0;
+                })
+                .filter(n => n > 0);
+            const nextCounter = existingNums.length > 0 ? Math.max(...existingNums) + 1 : 1;
+            targetId = `${rubroPrefix}-${String(nextCounter).padStart(4, '0')}`;
 
             const isComisionista = document.getElementById('req-is-comisionista') ? document.getElementById('req-is-comisionista').checked : false;
             const tipoNvLabel = document.getElementById('req-tipo-nv-val') ? document.getElementById('req-tipo-nv-val').value : 'Presupuesto Consignacion';
@@ -5526,12 +5726,20 @@ window.confirmarConTipoReporte = function(tipoReporte) {
                 finalItemState = 'Autorizado';
             }
 
+            const plantaSeleccionada = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value) 
+                ? document.getElementById('req-meca-planta').value 
+                : ((clienteSeleccionado && clienteSeleccionado.localidad && clienteSeleccionado.localidad.toUpperCase().includes('SAN MARTIN')) ? 'PGSM' : 'VGG');
+
             const newPedido = {
                 id: targetId,
                 fecha: getLocalCurrentDateTimeStr(),
                 cliente_id: clienteSeleccionado ? clienteSeleccionado.codigo : '3',
                 cliente_nombre: (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) ? document.getElementById('req-meca-cliente').value : (clienteSeleccionado ? clienteSeleccionado.nombre : 'CARGILL SACI'),
-                cuit: clienteSeleccionado ? clienteSeleccionado.cuit : '30-50679316-5',
+                cuit: clienteSeleccionado ? clienteSeleccionado.cuit : '30-50679216-5',
+                domicilio: clienteSeleccionado ? (clienteSeleccionado.domicilio || '') : '',
+                localidad: clienteSeleccionado ? (clienteSeleccionado.localidad || '') : '',
+                planta: plantaSeleccionada,
+                meca_planta: plantaSeleccionada,
                 telefono: clienteSeleccionado ? clienteSeleccionado.telefono : '',
                 email: clienteSeleccionado ? clienteSeleccionado.email : '',
                 vendedor_id: userVendedorId,
@@ -5542,7 +5750,8 @@ window.confirmarConTipoReporte = function(tipoReporte) {
                 importe: amount,
                 importe_original: amount,
                 condicion_id: condCode,
-                condicion_nombre: conditionObj ? (conditionObj.nombre || `Condición ${condCode}`) : `Condición ${condCode}`,
+                condicion_nombre: finalCondNombre,
+                condicion_venta: finalCondNombre,
                 deposito_id: depCode,
                 deposito_nombre: depositoObj ? (depositoObj.nombre || `Depósito ${depCode}`) : (depCode ? `Depósito ${depCode}` : ''),
                 transporte_id: transCode,
@@ -6634,12 +6843,24 @@ window.abrirComprobanteAvance = function(pedidoId, avanceId) {
 
     const setT = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 
+    let rawDom = p.domicilio || '';
+    let rawLoc = p.localidad || '';
+    if ((!rawDom || !rawLoc) && window.clientesDB) {
+        const rawCli = window.clientesDB.find(c => (c.nombre && cliente && c.nombre.trim().toUpperCase() === cliente.trim().toUpperCase()) || (c.codigo && p.cliente_id && String(c.codigo) === String(p.cliente_id)));
+        if (rawCli) {
+            if (!rawDom) rawDom = rawCli.domicilio || '';
+            if (!rawLoc) rawLoc = rawCli.localidad || '';
+        }
+    }
+
     setT('comp-avance-empresa', proveedor);
     setT('comp-avance-fecha', avance.fecha || new Date().toLocaleDateString('es-AR'));
     setT('comp-avance-presupuesto-id', nroPres);
     setT('comp-avance-planta', planta);
     setT('comp-avance-cliente', cliente);
     setT('comp-avance-nro-oc', nroOc);
+    setT('comp-avance-domicilio', rawDom || '-');
+    setT('comp-avance-localidad', rawLoc || '-');
     setT('comp-avance-denominacion', denominacion);
     setT('comp-avance-doc-label', avance.nro_doc ? `Certificado: ${avance.nro_doc}` : 'Certificado de Avance');
     setT('comp-avance-pct', `+${pct}%`);
@@ -6977,14 +7198,15 @@ function formatFechaCorta(fechaStr) {
 window.formatFechaCorta = formatFechaCorta;
 
 // --- CONFIGURACIÓN DE COLUMNAS REORDENABLES Y AGRUPACIÓN ---
-let tableColumnOrder = ['id', 'fecha', 'planta', 'cliente', 'denominacion', 'observacion', 'estado', 'importe', 'accion'];
-const defaultTableColumnOrder = ['id', 'fecha', 'planta', 'cliente', 'denominacion', 'observacion', 'estado', 'importe', 'accion'];
+let tableColumnOrder = ['id', 'fecha', 'planta', 'cliente', 'denominacion', 'proveedor', 'estado', 'importe', 'accion'];
+const defaultTableColumnOrder = ['id', 'fecha', 'planta', 'cliente', 'denominacion', 'proveedor', 'estado', 'importe', 'accion'];
 
 const tableColumnDefs = {
     id: { key: 'id', label: 'N° ID', width: '120px', align: 'left', sortable: true },
     fecha: { key: 'fecha', label: 'Fecha', width: '90px', align: 'left', sortable: true },
     planta: { key: 'planta', label: 'Planta', width: '135px', align: 'center', sortable: true },
     denominacion: { key: 'denominacion', label: 'Detalle', width: 'auto', align: 'left', sortable: true },
+    proveedor: { key: 'proveedor', label: 'Proveedor', width: '120px', align: 'center', sortable: true },
     observacion: { key: 'observacion', label: 'Observación', width: '180px', align: 'left', sortable: true },
     cliente: { key: 'cliente', label: 'Cliente', width: '160px', align: 'left', sortable: true },
     estado: { key: 'estado', label: 'Estado', width: '135px', align: 'center', sortable: true },
@@ -7373,6 +7595,9 @@ function renderAssignmentsTable() {
             if (tableSortColumn === 'denominacion') {
                 valA = a.meca_denominacion || a.motivo || a.denominacion || '';
                 valB = b.meca_denominacion || b.motivo || b.denominacion || '';
+            } else if (tableSortColumn === 'proveedor') {
+                aVal = (a.proveedor || a.meca_proveedor || '').toLowerCase();
+                bVal = (b.proveedor || b.meca_proveedor || '').toLowerCase();
             } else if (tableSortColumn === 'observacion') {
                 valA = a.observaciones || a.motivo || a.meca_observaciones || '';
                 valB = b.observaciones || b.motivo || b.meca_observaciones || '';
@@ -7397,6 +7622,12 @@ function renderAssignmentsTable() {
             if (valA < valB) return tableSortAsc ? -1 : 1;
             if (valA > valB) return tableSortAsc ? 1 : -1;
             return 0;
+        });
+    } else {
+        filtered.sort((a, b) => {
+            const numA = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 0;
+            const numB = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 0;
+            return numA - numB;
         });
     }
 
@@ -7613,6 +7844,17 @@ function renderAssignmentsTable() {
                                 ${alertFaltaFacturar}
                             </div>
                         </td>`;
+                case 'proveedor':
+                    const _pv = (p.proveedor || p.meca_proveedor || '').trim().toUpperCase();
+                    const _isAcostaPv = _pv.includes('ACOSTA');
+                    const _pvLabel = _isAcostaPv ? 'Acosta' : 'SG';
+                    const _pvColor = _isAcostaPv ? '#f5c400' : '#22d3ee';
+                    const _pvBg = _isAcostaPv ? 'rgba(245,196,0,0.15)' : 'rgba(34,211,238,0.15)';
+                    const _pvBorder = _isAcostaPv ? 'rgba(245,196,0,0.4)' : 'rgba(34,211,238,0.4)';
+                    const _pvIcon = _isAcostaPv ? '🔵' : '⚙️';
+                    return `<td style="padding: 6px 8px; text-align: center; width: 120px; min-width: 100px;">
+                        <span style="background: ${_pvBg}; color: ${_pvColor}; border: 1px solid ${_pvBorder}; padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; display: inline-block; white-space: nowrap;">${_pvIcon} ${_pvLabel}</span>
+                    </td>`;
                 case 'observacion':
                     const rawObs = (p.observaciones || p.motivo || p.meca_observaciones || '-').trim();
                     let obsHtml = '';
@@ -7683,7 +7925,7 @@ function renderAssignmentsTable() {
             } else if (tableGroupBy === 'planta') {
                 grpName = (p.meca_planta || p.planta || 'VGG').toUpperCase();
             } else if (tableGroupBy === 'condicion') {
-                grpName = p.condicion_nombre || 'Sin Condición';
+                grpName = cleanConditionName(p.condicion_nombre || p.condicion_venta || 'CONTADO').toUpperCase();
             }
             if (!groups[grpName]) groups[grpName] = [];
             groups[grpName].push(p);
@@ -7737,6 +7979,7 @@ window.saveTempEdits = function() {
         return el ? el.value : null;
     };
     if (getEditVal('auth-edit-meca-denominacion') !== null) pedidoActivo.meca_denominacion = getEditVal('auth-edit-meca-denominacion');
+    if (getEditVal('auth-edit-meca-propuesta') !== null) pedidoActivo.meca_propuesta = getEditVal('auth-edit-meca-propuesta');
     if (getEditVal('auth-edit-meca-cliente') !== null) pedidoActivo.cliente_nombre = getEditVal('auth-edit-meca-cliente');
     if (getEditVal('auth-edit-meca-domicilio') !== null) pedidoActivo.domicilio = getEditVal('auth-edit-meca-domicilio');
     if (getEditVal('auth-edit-meca-localidad') !== null) pedidoActivo.localidad = getEditVal('auth-edit-meca-localidad');
@@ -7753,7 +7996,11 @@ window.saveTempEdits = function() {
     if (getEditVal('auth-edit-meca-proveedor') !== null) pedidoActivo.meca_proveedor = getEditVal('auth-edit-meca-proveedor');
     if (getEditVal('auth-edit-meca-oferta') !== null) pedidoActivo.meca_fecha_oferta = getEditVal('auth-edit-meca-oferta');
     if (getEditVal('auth-edit-meca-validez') !== null) pedidoActivo.meca_validez = getEditVal('auth-edit-meca-validez');
-    if (getEditVal('auth-edit-meca-planta') !== null) pedidoActivo.meca_planta = getEditVal('auth-edit-meca-planta');
+    const editedPlanta = getEditVal('auth-edit-meca-planta') || getEditVal('auth-edit-meca-planta-orig');
+    if (editedPlanta !== null) {
+        pedidoActivo.meca_planta = editedPlanta;
+        pedidoActivo.planta = editedPlanta;
+    }
     if (getEditVal('auth-edit-meca-nro-oc') !== null) {
         const valOc = getEditVal('auth-edit-meca-nro-oc');
         pedidoActivo.meca_nro_oc = valOc;
@@ -7778,9 +8025,18 @@ window.saveTempEdits = function() {
     // Save condition
     const condSelect = document.getElementById('auth-condition-select');
     if (condSelect) {
-        pedidoActivo.condicion_id = condSelect.value;
-        const condObj = condicionesDB.find(c => c.codigo === condSelect.value);
-        pedidoActivo.condicion_nombre = condObj ? condObj.nombre || `Condición ${condObj.codigo}` : `Condición ${condSelect.value}`;
+        const rawCondVal = (condSelect.value && String(condSelect.value) !== '0') ? condSelect.value : '1';
+        pedidoActivo.condicion_id = rawCondVal;
+        const condObj = (typeof condicionesDB !== 'undefined' && Array.isArray(condicionesDB)) ? condicionesDB.find(c => String(c.codigo) === String(rawCondVal)) : null;
+        const cleanName = cleanConditionName(condObj ? (condObj.nombre || `Condición ${condObj.codigo}`) : `Condición ${rawCondVal}`);
+        pedidoActivo.condicion_nombre = cleanName;
+        pedidoActivo.condicion_venta = cleanName;
+    }
+    const editMecaCond = document.getElementById('auth-edit-meca-condicion');
+    if (editMecaCond) {
+        const cleanName = cleanConditionName(editMecaCond.value);
+        pedidoActivo.condicion_nombre = cleanName;
+        pedidoActivo.condicion_venta = cleanName;
     }
     
     // Save currency and exchange rate
@@ -8057,7 +8313,8 @@ window.guardarModificacionesPedido = function() {
     realOrder.meca_proveedor = pedidoActivo.meca_proveedor || '';
     realOrder.meca_fecha_oferta = pedidoActivo.meca_fecha_oferta || '';
     realOrder.meca_validez = pedidoActivo.meca_validez || '';
-    realOrder.meca_planta = pedidoActivo.meca_planta || '';
+    realOrder.meca_planta = pedidoActivo.meca_planta || pedidoActivo.planta || '';
+    realOrder.planta = realOrder.meca_planta;
     realOrder.meca_fecha_inicio = pedidoActivo.meca_fecha_inicio || '';
     realOrder.meca_duracion = pedidoActivo.meca_duracion || '';
     realOrder.meca_fecha_fin = pedidoActivo.meca_fecha_fin || '';
@@ -8419,6 +8676,89 @@ window.verDetallePedido = function(id, explicitMode) {
 
     // Popular planilla SG MONTAJES con el código respetando 101-MEC / 102-ELEC
     setElemText('auth-id', formatPresupuestoCodigo(p));
+
+    // --- BRANDING CONDICIONAL: Acosta Servicios vs SG Montajes ---
+    (function() {
+        var _prov = (p.proveedor || p.meca_proveedor || '').trim().toUpperCase();
+        var _isAcostaModal = _prov.includes('ACOSTA');
+        var _logoEl = document.getElementById('modal-header-logo');
+        var _detailEl = document.getElementById('modal-header-company-details');
+        var _fiscalEl = document.getElementById('modal-header-fiscal-details');
+        var _wmEl = document.getElementById('modal-header-watermark');
+
+        if (_logoEl) {
+            if (_isAcostaModal) {
+                _logoEl.src = (window.LOGO_ACOSTA_BASE64) ? window.LOGO_ACOSTA_BASE64 : 'logo_acosta.png';
+                _logoEl.alt = 'Acosta Servicios';
+                _logoEl.style.height = '48px';
+                _logoEl.style.maxHeight = '48px';
+                _logoEl.style.width = 'auto';
+                _logoEl.style.maxWidth = '220px';
+                _logoEl.style.objectFit = 'contain';
+                _logoEl.style.borderRadius = '0';
+            } else {
+                _logoEl.src = (window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png';
+                _logoEl.alt = 'SG Montajes';
+                _logoEl.style.height = '48px';
+                _logoEl.style.maxHeight = '48px';
+                _logoEl.style.width = 'auto';
+                _logoEl.style.maxWidth = '220px';
+                _logoEl.style.objectFit = 'contain';
+                _logoEl.style.borderRadius = '0';
+            }
+        }
+        if (_detailEl) {
+            if (_isAcostaModal) {
+                _detailEl.innerHTML = '<strong style="color: #f8fafc;">I.V.A. Responsable Inscripto</strong><br>Estanislao López<br>Timbues - Pcia. Santa Fe';
+            } else {
+                _detailEl.innerHTML = '<strong style="color: #f8fafc;">I.V.A. Responsable Inscripto</strong><br>Estanislao López (CP S2204)<br>Timbues - Pcia. Santa Fe';
+            }
+        }
+        if (_fiscalEl) {
+            if (_isAcostaModal) {
+                _fiscalEl.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; gap: 8px;">
+                        <strong style="color: #ffffff; font-weight: 800;">C.U.I.T.:</strong>
+                        <span style="font-weight: 800; color: #ffffff;">30-71868621-7</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 8px;">
+                        <strong style="color: #ffffff; font-weight: 800;">Ini. Act.:</strong>
+                        <span style="font-weight: 800; color: #ffffff;">25/06/2024</span>
+                    </div>
+                `;
+            } else {
+                _fiscalEl.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; gap: 8px;">
+                        <strong style="color: #ffffff; font-weight: 800;">C.U.I.T.:</strong>
+                        <span style="font-weight: 800; color: #ffffff;">30-71602466-7</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 8px;">
+                        <strong style="color: #ffffff; font-weight: 800;">Ing.Br.:</strong>
+                        <span style="font-weight: 800; color: #ffffff;">0916600761</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 8px;">
+                        <strong style="color: #ffffff; font-weight: 800;">Ini. Act.:</strong>
+                        <span style="font-weight: 800; color: #ffffff;">21/12/2017</span>
+                    </div>
+                `;
+            }
+        }
+        if (_wmEl) {
+            if (_isAcostaModal) {
+                _wmEl.src = (window.LOGO_ACOSTA_WATERMARK_BASE64) ? window.LOGO_ACOSTA_WATERMARK_BASE64 : 'logo_acosta_watermark.png';
+                _wmEl.alt = 'Marca de agua Acosta Servicios';
+                _wmEl.style.width = '380px';
+                _wmEl.style.maxWidth = '100%';
+                _wmEl.style.objectFit = 'contain';
+            } else {
+                _wmEl.src = 'logo_sg_watermark_gold.png';
+                _wmEl.alt = 'Marca de agua SG MONTAJES';
+                _wmEl.style.width = '380px';
+                _wmEl.style.maxWidth = '100%';
+                _wmEl.style.objectFit = 'contain';
+            }
+        }
+    })();
     
     // Formatear fecha a DD/MM/YYYY
     let formattedDate = p.fecha || '';
@@ -8468,7 +8808,7 @@ window.verDetallePedido = function(id, explicitMode) {
     const rawCliLoc = cleanVal(p.localidad, rawClient ? rawClient.localidad : '-').toUpperCase();
     const rawCliIva = cleanVal(p.condicion_iva, rawClient ? rawClient.condicion_iva : 'RESPONSABLE INSCRIPTO').toUpperCase();
     const rawCliCuit = formatCuitDisplay(cleanVal(p.cuit, rawClient ? rawClient.cuit : '-'));
-    const rawCliCond = cleanVal(p.condicion_nombre, rawClient ? rawClient.condicion_nombre : (p.forma_pago || 'CONTADO')).toUpperCase();
+    const rawCliCond = cleanConditionName(cleanVal(p.condicion_nombre, rawClient ? rawClient.condicion_nombre : (p.forma_pago || 'CONTADO'))).toUpperCase();
     const rawCliEnt = formatDisplayDate(cleanVal(p.fecha_entrega || p.meca_fecha_fin, p.fecha || formattedDate));
     const rawOcMo = cleanVal(p.meca_nro_oc, p.nro_oc || '-');
     const rawOcMat = cleanVal(p.oc_materiales, '-');
@@ -8502,13 +8842,31 @@ window.verDetallePedido = function(id, explicitMode) {
 
     if (mecaHeaderBox) {
         mecaHeaderBox.style.display = 'block';
+        
+        // Conditional layout for Mecánico vs Eléctrico
+        if (isElectrical) {
+            if (document.getElementById('lbl-modal-titulo')) document.getElementById('lbl-modal-titulo').innerText = 'Detalle:';
+            if (document.getElementById('modal-col-detalle-prop')) document.getElementById('modal-col-detalle-prop').style.display = 'none';
+            if (document.getElementById('modal-row-detalle-planta')) document.getElementById('modal-row-detalle-planta').style.display = 'flex';
+            if (document.getElementById('modal-row-planta-original')) document.getElementById('modal-row-planta-original').style.display = 'flex';
+        } else {
+            if (document.getElementById('lbl-modal-titulo')) document.getElementById('lbl-modal-titulo').innerText = 'Título:';
+            if (document.getElementById('modal-col-detalle-prop')) document.getElementById('modal-col-detalle-prop').style.display = 'flex';
+            if (document.getElementById('modal-row-detalle-planta')) document.getElementById('modal-row-detalle-planta').style.display = 'flex';
+            if (document.getElementById('modal-row-planta-original')) document.getElementById('modal-row-planta-original').style.display = 'none';
+        }
+
         const rawDenom = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
         const rawOt = (p.meca_nro_ot || p.nro_ot || '-');
+
+        const plantasList = (typeof window.getPlantas === 'function') ? window.getPlantas() : ['VGG', 'PGSM', 'PPA', 'APS', 'APG'];
+        const optsPlanta = plantasList.map(pl => `<option value="${pl}" ${pl === rawPlanta ? 'selected' : ''}>${pl}</option>`).join('');
 
         if (canEditControls) {
             setElemHtml('auth-meca-cliente-val', `<input type="text" id="auth-edit-meca-cliente" value="${rawCliName !== '-' ? rawCliName : ''}" oninput="saveTempEdits()" style="width: 100%; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">`);
             setElemText('auth-meca-cliente-codigo-val', rawCliCode);
             setElemHtml('auth-meca-denominacion-val', `<input type="text" id="auth-edit-meca-denominacion" value="${rawDenom !== 'SERVICIOS Y MONTAJES' ? rawDenom : (p.meca_denominacion || p.denominacion || p.motivo || '')}" oninput="saveTempEdits()" style="width: 100%; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; text-transform: uppercase;">`);
+            setElemHtml('auth-meca-detalle-prop-val', `<textarea id="auth-edit-meca-propuesta" oninput="saveTempEdits()" style="width: 100%; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; resize: vertical;" rows="2">${p.meca_propuesta || p.propuesta || ''}</textarea>`);
             setElemHtml('auth-meca-nro-ot-val', `<input type="text" id="auth-edit-meca-nro-ot" value="${rawOt !== '-' ? rawOt : ''}" oninput="saveTempEdits()" style="width: 130px; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; font-family: monospace;">`);
             setElemHtml('auth-meca-domicilio-val', `<input type="text" id="auth-edit-meca-domicilio" value="${rawCliDom !== '-' ? rawCliDom : ''}" oninput="saveTempEdits()" style="width: 100%; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">`);
             setElemHtml('auth-meca-localidad-val', `<input type="text" id="auth-edit-meca-localidad" value="${rawCliLoc !== '-' ? rawCliLoc : ''}" oninput="saveTempEdits()" style="width: 100%; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">`);
@@ -8519,9 +8877,13 @@ window.verDetallePedido = function(id, explicitMode) {
             setElemHtml('auth-meca-oc-mo-val', `<input type="text" id="auth-edit-meca-oc-mo" value="${rawOcMo !== '-' ? rawOcMo : ''}" oninput="saveTempEdits()" style="width: 130px; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; font-family: monospace;">`);
             setElemHtml('auth-meca-oc-mat-val', `<input type="text" id="auth-edit-meca-oc-mat" value="${rawOcMat !== '-' ? rawOcMat : ''}" oninput="saveTempEdits()" style="width: 130px; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; font-family: monospace;">`);
             setElemHtml('auth-meca-planta-val', `
-                <select id="auth-edit-meca-planta" onchange="saveTempEdits()" style="font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
-                    <option value="VGG" ${rawPlanta !== 'PGSM' ? 'selected' : ''}>VGG</option>
-                    <option value="PGSM" ${rawPlanta === 'PGSM' ? 'selected' : ''}>PGSM</option>
+                <select id="auth-edit-meca-planta" onchange="const o=document.getElementById('auth-edit-meca-planta-orig');if(o)o.value=this.value;saveTempEdits();" style="font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
+                    ${optsPlanta}
+                </select>
+            `);
+            setElemHtml('auth-meca-planta-val-orig', `
+                <select id="auth-edit-meca-planta-orig" onchange="const m=document.getElementById('auth-edit-meca-planta');if(m)m.value=this.value;saveTempEdits();" style="font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
+                    ${optsPlanta}
                 </select>
             `);
             setElemText('auth-meca-nro-presupuesto-val', rawNroPres);
@@ -8529,6 +8891,8 @@ window.verDetallePedido = function(id, explicitMode) {
             setElemText('auth-meca-cliente-val', rawCliName);
             setElemText('auth-meca-cliente-codigo-val', rawCliCode);
             setElemText('auth-meca-denominacion-val', rawDenom);
+            setElemText('auth-meca-detalle-prop-val', p.meca_propuesta || p.propuesta || '-');
+            setElemText('auth-meca-detalle-prop-val', p.meca_propuesta || p.propuesta || '-');
             setElemText('auth-meca-nro-ot-val', rawOt);
             setElemText('auth-meca-domicilio-val', rawCliDom);
             setElemText('auth-meca-localidad-val', rawCliLoc);
@@ -8539,6 +8903,7 @@ window.verDetallePedido = function(id, explicitMode) {
             setElemText('auth-meca-oc-mo-val', rawOcMo);
             setElemText('auth-meca-oc-mat-val', rawOcMat);
             setElemText('auth-meca-planta-val', rawPlanta);
+            setElemText('auth-meca-planta-val-orig', rawPlanta);
             setElemText('auth-meca-nro-presupuesto-val', rawNroPres);
         }
     }
@@ -8568,13 +8933,14 @@ window.verDetallePedido = function(id, explicitMode) {
         let condHtml = `<select id="auth-condition-select" onchange="saveTempEdits(); recalcAuthTotal()" style="width: 100%; font-size: 11px; padding: 4px 6px; color: white; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px;">`;
         const seenCodes = new Set();
         const uniqueConds = (typeof condicionesDB !== 'undefined' && Array.isArray(condicionesDB)) ? condicionesDB.filter(c => {
+            if (!c || String(c.codigo) === '0' || (c.nombre && /no\s*usar/i.test(c.nombre))) return false;
             if (seenCodes.has(c.codigo)) return false;
             seenCodes.add(c.codigo);
             return true;
         }) : [];
         uniqueConds.forEach(c => {
-            const displayName = c.nombre ? `${c.nombre} (${c.dias} días)` : `Condición ${c.codigo} (${c.dias} días)`;
-            const selectedAttr = String(c.codigo) === String(p.condicion_id) ? 'selected' : '';
+            const displayName = c.nombre ? `${cleanConditionName(c.nombre)} (${c.dias} días)` : `Condición ${c.codigo} (${c.dias} días)`;
+            const selectedAttr = String(c.codigo) === String(p.condicion_id || '1') ? 'selected' : '';
             condHtml += `<option value="${c.codigo}" ${selectedAttr}>${displayName}</option>`;
         });
         condHtml += `</select>`;
@@ -8621,7 +8987,7 @@ window.verDetallePedido = function(id, explicitMode) {
         if (currEl) currEl.innerHTML = currHtml;
 
     } else {
-        if (document.getElementById('auth-condition-container')) document.getElementById('auth-condition-container').innerText = (p.condicion_nombre || 'CONTADO').toUpperCase();
+        if (document.getElementById('auth-condition-container')) document.getElementById('auth-condition-container').innerText = cleanConditionName(p.condicion_nombre || 'CONTADO').toUpperCase();
         if (document.getElementById('auth-deposit-container')) document.getElementById('auth-deposit-container').innerText = (p.deposito_nombre || '-').toUpperCase();
         if (document.getElementById('auth-transport-container')) document.getElementById('auth-transport-container').innerText = (p.transporte_nombre || '-').toUpperCase();
         
@@ -8688,12 +9054,7 @@ window.verDetallePedido = function(id, explicitMode) {
         if (!authMecaContainer) return;
         authMecaContainer.style.display = 'block';
 
-        const obsHtml = (p.motivo && p.motivo.trim() && p.motivo.trim().toLowerCase() !== 'sin observaciones')
-            ? `<div style="margin-top: 10px; padding: 8px 12px; background: rgba(15, 23, 42, 0.35); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; font-size: 11.5px; text-align: left; color: #f8fafc;">
-                <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800; margin-right: 6px;">Observaciones:</span>
-                <span style="color: #f8fafc; font-weight: 600;">${p.motivo.trim()}</span>
-               </div>`
-            : '';
+        const obsHtml = '';
 
         const rejectedBannerHtml = isRejectedOrder ? `
             <div style="background: rgba(244, 63, 94, 0.15); border: 1.5px solid #f43f5e; border-radius: 8px; padding: 12px; margin-bottom: 12px; color: #fca5a5; display: flex; justify-content: space-between; align-items: center; text-align: left;">
@@ -8807,19 +9168,24 @@ window.verDetallePedido = function(id, explicitMode) {
                 ${obsHtml}
 
                 ${(() => {
-                    const propTecnica = p.meca_propuesta || p.propuesta || '';
+                    const propTecnica = p.meca_propuesta || p.propuesta || (isElectrical ? '' : (p.meca_denominacion || p.denominacion || p.motivo || ''));
+                    const propTecnicaForEl = p.meca_propuesta || p.propuesta || '';
                     const personal = p.meca_personal || p.personal || '';
                     const exclus = p.meca_exclusiones || p.exclusiones || '';
                     const obsGeneral = p.observaciones || p.meca_observaciones || '';
-                    const hasPropuesta = propTecnica.trim() || personal.trim() || exclus.trim() || obsGeneral.trim();
-                    if (!hasPropuesta) return '';
+                    const tituloObra = p.meca_denominacion || p.denominacion || p.motivo || '';
+                    if (isElectrical) return '';
+                    
                     const propRows = [];
-                    if (propTecnica.trim()) propRows.push({label: 'DETALLAR PROPUESTA', value: propTecnica.trim()});
-                    if (personal.trim()) propRows.push({label: 'CANT DE PERSONAL', value: personal.trim()});
+                    if (personal.trim()) propRows.push({label: 'SOLICITUD DE SUPERVISOR', value: personal.trim()});
                     if (exclus.trim()) propRows.push({label: 'INDICAR EXCLUSIONES', value: exclus.trim()});
                     if (obsGeneral.trim()) propRows.push({label: 'OBSERVACIONES', value: obsGeneral.trim()});
-                    let propHtml = '<div style="margin-top: 12px; background: rgba(15, 23, 42, 0.35); border: 1.5px solid rgba(56, 189, 248, 0.25); border-radius: 6px; overflow: hidden; text-align: left;">';
+                    
+                    if (propRows.length === 0) return '';
+                    
+                    let propHtml = '<div class="print-meca-propuesta" style="margin-top: 12px; background: rgba(15, 23, 42, 0.35); border: 1.5px solid rgba(56, 189, 248, 0.25); border-radius: 6px; overflow: hidden; text-align: left;">';
                     propHtml += '<div style="padding: 8px 12px; background: rgba(56, 189, 248, 0.12); border-bottom: 1px solid rgba(56, 189, 248, 0.2); font-size: 12px; font-weight: 800; color: #38bdf8; letter-spacing: 0.5px;"><i class="fas fa-file-contract" style="margin-right: 6px;"></i>PROPUESTA TÉCNICA / COMERCIAL</div>';
+
                     propRows.forEach(function(row) {
                         propHtml += '<div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 11.5px;">';
                         propHtml += '<div style="width: 30%; min-width: 160px; padding: 7px 12px; background: rgba(15, 23, 42, 0.3); font-weight: 700; color: #38bdf8; border-right: 1px solid rgba(255, 255, 255, 0.06);">' + row.label + '</div>';
@@ -9379,19 +9745,24 @@ window.imprimirPresupuestoModal = function() {
                 if (el) el.innerText = (val !== null && val !== undefined && String(val).trim() !== '') ? String(val) : '-';
             };
 
-            const rawCliName = (pedidoActivo.cliente_nombre || '-').toUpperCase();
-            const rawCliCode = (pedidoActivo.cliente_id || '-');
-            const rawCliDom = (pedidoActivo.domicilio || '-').toUpperCase();
-            const rawCliLoc = (pedidoActivo.localidad || '-').toUpperCase();
-            const rawCliCuit = formatCuitDisplay(pedidoActivo.cuit || '-');
+            const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) 
+                ? window.clientesDB.find(c => (c.codigo && pedidoActivo.cliente_id && String(c.codigo).trim() === String(pedidoActivo.cliente_id).trim()) || (c.nombre && pedidoActivo.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(pedidoActivo.cliente_nombre).trim().toUpperCase())) 
+                : null;
+
+            const rawCliName = (pedidoActivo.cliente_nombre || (rawClient ? rawClient.nombre : '-') || '-').toUpperCase();
+            const rawCliCode = (pedidoActivo.cliente_id || (rawClient ? rawClient.codigo : '-') || '-');
+            const rawCliDom = ((pedidoActivo.domicilio && pedidoActivo.domicilio !== '-') ? pedidoActivo.domicilio : (rawClient && rawClient.domicilio ? rawClient.domicilio : '-')).toUpperCase();
+            const rawCliLoc = ((pedidoActivo.localidad && pedidoActivo.localidad !== '-') ? pedidoActivo.localidad : (rawClient && rawClient.localidad ? rawClient.localidad : '-')).toUpperCase();
+            const rawCliCuit = formatCuitDisplay(pedidoActivo.cuit || (rawClient ? rawClient.cuit : '-'));
             const rawCliEnt = (pedidoActivo.fecha_entrega || pedidoActivo.meca_fecha_fin || pedidoActivo.fecha || '-');
-            const rawCliCond = (pedidoActivo.condicion_nombre || pedidoActivo.forma_pago || 'CONTADO').toUpperCase();
+            const rawCliCond = cleanConditionName(pedidoActivo.condicion_nombre || pedidoActivo.forma_pago || 'CONTADO').toUpperCase();
             const rawNroPres = (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(pedidoActivo) : (pedidoActivo.id || '-'));
-            const rawPlanta = (pedidoActivo.meca_planta || 'VGG').toUpperCase();
+            const rawPlanta = (pedidoActivo.meca_planta || pedidoActivo.planta || (rawClient && rawClient.localidad && rawClient.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
 
             setCleanText('auth-meca-cliente-val', rawCliName);
             setCleanText('auth-meca-cliente-codigo-val', rawCliCode);
             setCleanText('auth-meca-denominacion-val', (pedidoActivo.meca_denominacion || pedidoActivo.denominacion || pedidoActivo.motivo || 'SERVICIOS Y MONTAJES').toUpperCase());
+            setCleanText('auth-meca-detalle-prop-val', (pedidoActivo.meca_propuesta || pedidoActivo.propuesta || '-'));
             setCleanText('auth-meca-nro-ot-val', (pedidoActivo.meca_nro_ot || pedidoActivo.nro_ot || '-'));
             setCleanText('auth-meca-domicilio-val', rawCliDom);
             setCleanText('auth-meca-localidad-val', rawCliLoc);
@@ -9400,6 +9771,7 @@ window.imprimirPresupuestoModal = function() {
             setCleanText('auth-meca-condicion-val', rawCliCond);
             setCleanText('auth-meca-nro-presupuesto-val', rawNroPres);
             setCleanText('auth-meca-planta-val', rawPlanta);
+            setCleanText('auth-meca-planta-val-orig', rawPlanta);
 
             // 3. Renderizar la tabla de comprobante oficial completa con todos los ítems e importes
             const targetReport = pedidoActivo.tipo_reporte || 'detallado';
@@ -11425,7 +11797,8 @@ function initAdminView() {
             appData.users.forEach(u => {
                 const vendedorStr = u.vendedor_nombre ? ` 🧑‍💼 ${u.vendedor_nombre}` : '';
                 const rubroStr = u.rubro_defecto === 'Mecánico' ? ' [⚙️ Mecánico]' : ' [⚡ Eléctrico]';
-                const optText = `${u.username}${vendedorStr}${rubroStr} (${u.email || 'Sin email'})`;
+                const empresaStr = u.empresa && u.empresa.includes('ACOSTA') ? ' 🔵 [Acosta]' : ' ⚙️ [SG]';
+                const optText = `${u.username}${vendedorStr}${rubroStr}${empresaStr} (${u.email || 'Sin email'})`;
                 if (editSelect) editSelect.innerHTML += `<option value="${u.id}">${optText}</option>`;
                 if (deleteSelect && u.id !== currentUserId) {
                     deleteSelect.innerHTML += `<option value="${u.id}">${optText}</option>`;
@@ -11469,6 +11842,8 @@ function initAdminView() {
                 if (eField) eField.value = user.email || '';
                 if (pField) pField.value = user.password || '';
                 if (rField) rField.value = user.rubro_defecto || 'Eléctrico';
+                const empField = document.getElementById('edit-empresa');
+                if (empField) empField.value = user.empresa || 'SG MONTAJES SRL';
 
                 const perms = getUserEffectivePermissions(user);
 
@@ -11585,6 +11960,7 @@ function initAdminView() {
             appData.users[userIdx].email = email;
             appData.users[userIdx].password = password;
             appData.users[userIdx].rubro_defecto = rubro_defecto;
+            appData.users[userIdx].empresa = document.getElementById('edit-empresa') ? document.getElementById('edit-empresa').value : 'SG MONTAJES SRL';
 
             // Extraer vistas seleccionadas
             const selectedPerms = [];
@@ -11689,7 +12065,8 @@ function initAdminView() {
                     role: newUser.role,
                     rubro_defecto: newUser.rubro_defecto,
                     vendedor_codigo: '',
-                    vendedor_nombre: ''
+                    vendedor_nombre: '',
+                    empresa: 'SG MONTAJES SRL'
                 }], { onConflict: 'username' }).then(function(res) {
                     if (res && res.error) console.warn("⚠️ Supabase create user warning:", res.error);
                     else console.log("☁️ Supabase: Usuario " + newUser.username + " registrado exitosamente en tabla usuarios.");
@@ -11953,8 +12330,14 @@ window.ejecutarLoginDirecto = function(e) {
 
         // 4. Si es un usuario nuevo no registrado, registrarlo dinámicamente como Solicitante
         if (!found) {
+            // Generar ID correlativo: max(id numérico existente) + 1
+            var existingNumIds = (appData.users || []).map(function(u) {
+                var n = parseInt(u.id, 10);
+                return isNaN(n) ? 0 : n;
+            });
+            var nextUserId = String((existingNumIds.length > 0 ? Math.max.apply(null, existingNumIds) : 0) + 1);
             found = {
-                id: String(Date.now()),
+                id: nextUserId,
                 username: rawUserVal,
                 password: passVal || '123',
                 email: cleanUserVal + '@sgmontajes.com.ar',
@@ -13585,6 +13968,7 @@ window.enviarEmailPedido = function(id) {
                 : (p.items || []);
 
             const htmlItemsRows = formattedItems.map(r => {
+                const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-' && chosenFmt === 'detallado');
                 const q = (r.cantidad === '-' || r.cantidad === undefined) ? '-' : r.cantidad;
                 const pr = (r.precio === '-' || r.precio === undefined) 
                     ? '-' 
@@ -13593,6 +13977,18 @@ window.enviarEmailPedido = function(id) {
                     ? '-' 
                     : (typeof r.subtotal === 'number' ? `$${r.subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : r.subtotal);
                 
+                if (isHeaderRow) {
+                    return `
+                    <tr style="border-bottom: 1px solid #cbd5e1; font-size: 11.5px; background-color: #f1f5f9;">
+                        <td style="padding: 7px 9px; font-weight: bold; border-right: 1px solid #cbd5e1; text-align: center;">-</td>
+                        <td style="padding: 7px 9px; border-right: 1px solid #cbd5e1; color: #0284c7; font-weight: 800;">${r.detalle || '-'}</td>
+                        <td style="padding: 7px 9px; border-right: 1px solid #cbd5e1; text-align: center;">-</td>
+                        <td style="padding: 7px 9px; border-right: 1px solid #cbd5e1; text-align: right;">-</td>
+                        <td style="padding: 7px 9px; text-align: right;">-</td>
+                    </tr>
+                    `;
+                }
+
                 return `
                 <tr style="border-bottom: 1px solid #cbd5e1; font-size: 11.5px;">
                     <td style="padding: 7px 9px; font-family: monospace; font-weight: bold; color: #0284c7; border-right: 1px solid #cbd5e1;">${r.codigo || '-'}</td>
@@ -13603,6 +13999,13 @@ window.enviarEmailPedido = function(id) {
                 </tr>
                 `;
             }).join('');
+
+            const rawClientEmail = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
+                ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && p.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
+                : null;
+            const emailDom = (p.domicilio && p.domicilio !== '-' && p.domicilio.trim() !== '') ? p.domicilio.trim().toUpperCase() : (rawClientEmail && rawClientEmail.domicilio ? rawClientEmail.domicilio.trim().toUpperCase() : '-');
+            const emailLoc = (p.localidad && p.localidad !== '-' && p.localidad.trim() !== '') ? p.localidad.trim().toUpperCase() : (rawClientEmail && rawClientEmail.localidad ? rawClientEmail.localidad.trim().toUpperCase() : '-');
+            const emailPlanta = (p.meca_planta || p.planta || (rawClientEmail && rawClientEmail.localidad && rawClientEmail.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
 
             // 4. Cuerpo oficial del correo — idéntico visualmente al comprobante PDF impreso
             const logoSrcEmail = (window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png';
@@ -13643,12 +14046,16 @@ window.enviarEmailPedido = function(id) {
                                 <td colspan="2" style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Obra / Denominación:</span> <strong style="color: #0f172a;">${(p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase()}</strong></td>
                             </tr>
                             <tr>
-                                <td style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Planta:</span> <strong style="color: #0284c7;">${(p.meca_planta || p.planta || 'VGG').toUpperCase()}</strong></td>
-                                <td style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">OT:</span> <span style="font-family: monospace; font-weight: bold; color: #0284c7;">${p.meca_nro_ot || p.nro_ot || '-'}</span>${(p.meca_nro_oc || p.nro_oc) ? ` &nbsp;|&nbsp; <span style="color: #64748b; font-weight: 600;">OC:</span> <strong style="color: #16a34a;">${p.meca_nro_oc || p.nro_oc}</strong>` : ''}</td>
+                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Domicilio:</span> <strong style="color: #0f172a;">${emailDom}</strong></td>
+                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Localidad:</span> <strong style="color: #0f172a;">${emailLoc}</strong></td>
+                            </tr>
+                            <tr>
+                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Planta:</span> <strong style="color: #0284c7;">${emailPlanta}</strong></td>
+                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">OT:</span> <span style="font-family: monospace; font-weight: bold; color: #0284c7;">${p.meca_nro_ot || p.nro_ot || '-'}</span>${(p.meca_nro_oc || p.nro_oc) ? ` &nbsp;|&nbsp; <span style="color: #64748b; font-weight: 600;">OC:</span> <strong style="color: #16a34a;">${p.meca_nro_oc || p.nro_oc}</strong>` : ''}</td>
                             </tr>
                             <tr>
                                 <td style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">F. Entrega:</span> ${p.fecha_entrega || p.meca_fecha_fin || p.fecha || '-'}</td>
-                                <td style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Condición:</span> <strong>${(p.condicion_nombre || p.forma_pago || 'CONTADO').toUpperCase()}</strong></td>
+                                <td style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Condición:</span> <strong>${cleanConditionName(p.condicion_nombre || p.forma_pago || 'CONTADO').toUpperCase()}</strong></td>
                             </tr>
                         </table>
                     </div>
@@ -14299,34 +14706,69 @@ window.generarPDFAvanceProyectoHistorico = function(id, certIndex) {
 
 
 window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliName, logoSrc, nowStr) {
+    const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) 
+        ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && (c.nombre === p.cliente_nombre || c.nombre === cliName || String(c.nombre).trim().toUpperCase() === String(cliName || '').trim().toUpperCase() || String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre || '').trim().toUpperCase())))
+        : null;
+
     const fechaEmision = p.fecha || nowStr;
     const hora = "10:36:51";
-    const cuitCli = p.cuit || "30-50679216-5";
+    const cuitCli = (p.cuit && p.cuit !== '-' && p.cuit.trim() !== '') 
+        ? p.cuit 
+        : (rawClient && rawClient.cuit ? rawClient.cuit : "30-50679216-5");
     const oc = p.nro_oc || p.meca_nro_oc || "-";
-    const entrega = p.fecha_entrega || "2026-10-14";
-    const domicilio = p.domicilio || "-";
-    const condicion = p.condicion_venta || "CONTADO";
-    const planta = (p.meca_planta || p.planta || "PPA").toUpperCase();
-    const numOt = p.meca_nro_ot || p.nro_ot || "0T897378JSHS";
-    const localidad = p.localidad || "-";
+    const entrega = p.fecha_entrega || p.meca_fecha_fin || "2026-10-14";
+    const domicilio = (p.domicilio && p.domicilio !== '-' && p.domicilio.trim() !== '') 
+        ? p.domicilio.trim().toUpperCase() 
+        : (rawClient && rawClient.domicilio ? rawClient.domicilio.trim().toUpperCase() : "-");
+    const condicion = cleanConditionName(p.condicion_nombre || p.condicion_venta || p.forma_pago || "CONTADO").toUpperCase();
+    const planta = (p.meca_planta || p.planta || (rawClient && rawClient.localidad && rawClient.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
+    const numOt = p.meca_nro_ot || p.nro_ot || "-";
+    const localidad = (p.localidad && p.localidad !== '-' && p.localidad.trim() !== '') 
+        ? p.localidad.trim().toUpperCase() 
+        : (rawClient && rawClient.localidad ? rawClient.localidad.trim().toUpperCase() : "-");
     const detalle = p.meca_denominacion || p.motivo || p.denominacion || "-";
-    const codCliente = p.cliente_id || "2";
+    const codCliente = p.cliente_id || (rawClient ? rawClient.codigo : "2");
     
     // Propuesta tecnica
-    const propTecnica = p.meca_propuesta || p.propuesta || "-";
+    const propTecnica = p.meca_propuesta || p.propuesta || detalle || "-";
     const personal = p.meca_personal || p.personal || "-";
     const exclus = p.meca_exclusiones || p.exclusiones || "-";
     const obs = p.observaciones || p.meca_observaciones || "-";
 
-    let rowsHtml = items.map(r => `
+    // --- Detectar proveedor Acosta Servicios ---
+    const _provStr = (p.proveedor || p.meca_proveedor || p.proveedor_nombre || '').trim().toUpperCase();
+    // Buscar en todos los campos posibles del objeto p por si acaso
+    const _allProvStr = Object.values(p).filter(v => typeof v === 'string').join(' ').toUpperCase();
+    const _isAcosta = _provStr.includes('ACOSTA') || ((_allProvStr.includes('ACOSTA')) && !_allProvStr.includes('MECA_DENOMINACION=ACOSTA'));
+    // Debug en consola para detectar problemas
+    if (typeof console !== 'undefined') console.log('[PDF] Proveedor detectado:', _provStr, '| isAcosta:', _isAcosta, '| meca_proveedor:', p.meca_proveedor, '| proveedor:', p.proveedor);
+    const _logoAcostaB64 = (typeof window !== 'undefined' && window.LOGO_ACOSTA_BASE64) ? window.LOGO_ACOSTA_BASE64 : 'logo_acosta.png';
+    const _watermarkAcostaB64 = (typeof window !== 'undefined' && window.LOGO_ACOSTA_WATERMARK_BASE64) ? window.LOGO_ACOSTA_WATERMARK_BASE64 : 'logo_acosta_watermark.png';
+    const _watermarkSgB64 = (typeof window !== 'undefined' && window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : (typeof window !== 'undefined' && window.LOGO_SG_BASE64 ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png');
+    const _activeWatermark = _isAcosta ? _watermarkAcostaB64 : _watermarkSgB64;
+    const _activeLogo = _isAcosta ? _logoAcostaB64 : (logoSrc || ((typeof window !== 'undefined' && window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png'));
+
+    let rowsHtml = items.map(r => {
+        const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-' && format === 'detallado');
+        if (isHeaderRow) {
+            return `
+            <tr style="border-bottom: 1px solid #000; font-size: 11px; background-color: #e2e8f0; font-weight: 800;">
+                <td style="padding: 6px; border-right: 1px solid #000; text-align:center;">-</td>
+                <td style="padding: 6px; border-right: 1px solid #000;">${r.detalle}</td>
+                <td style="padding: 6px; border-right: 1px solid #000; text-align: right;">-</td>
+                <td style="padding: 6px; border-right: 1px solid #000; text-align: center;">-</td>
+                <td style="padding: 6px; text-align: right;">-</td>
+            </tr>`;
+        }
+        return `
         <tr style="border-bottom: 1px solid #000; font-size: 11px;">
             <td style="padding: 6px; border-right: 1px solid #000; font-weight:bold; text-align:center;">${String(r.codigo).startsWith('TITLE-') ? '' : r.codigo}</td>
             <td style="padding: 6px; border-right: 1px solid #000;">${r.detalle}</td>
             <td style="padding: 6px; border-right: 1px solid #000; text-align: right;">${r.precio === '-' ? '-' : '$' + parseFloat(r.precio).toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
             <td style="padding: 6px; border-right: 1px solid #000; text-align: center; font-weight:bold;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
             <td style="padding: 6px; text-align: right; font-weight: bold;">${r.subtotal === '-' ? '-' : '$' + parseFloat(r.subtotal).toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 
     const htmlContent = `
         <div id="pdf-wrapper-download" style="padding: 20px; font-family: 'Arial', sans-serif; background: #fff; color: #000; width: 800px; margin: 0 auto; position: relative;">
@@ -14335,18 +14777,27 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 
                 <!-- Header -->
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border: 2px solid #000; border-radius: 8px; padding: 15px;">
+                    ${_isAcosta ? `
                     <div style="width: 30%;">
-                        <img src="${logoSrc}" style="height: 40px; margin-bottom: 5px;">
+                        <img src="${_logoAcostaB64}" style="height: 48px; margin-bottom: 5px; object-fit: contain; max-width: 100%;">
+                        <div style="font-size: 10px; line-height: 1.3;">
+                            <strong>I.V.A. Responsable Inscripto</strong><br>
+                            Estanislao López<br>
+                            Timbues - Pcia. Santa Fe
+                        </div>
+                    </div>` : `
+                    <div style="width: 30%;">
+                        <img src="${_activeLogo}" style="height: 40px; margin-bottom: 5px; object-fit: contain; max-width: 100%;">
                         <div style="font-size: 10px; line-height: 1.3;">
                             <strong>I.V.A. Responsable Inscripto</strong><br>
                             Estanislao López (CP S2204)<br>
                             Timbues - Pcia. Santa Fe
                         </div>
-                    </div>
+                    </div>`}
                     
                     <div style="width: 40%; text-align: center;">
                         <h2 style="margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 1px;">PRESUPUESTO</h2>
-                        <div style="display: inline-block; border: 2px solid #000; padding: 2px 12px; font-size: 18px; font-weight: bold; margin-top: 4px; margin-bottom: 4px;">X</div>
+                        <div style="display: inline-block; border: 2px solid #000; border-radius: 4px; padding: 2px 12px; font-size: 18px; font-weight: bold; margin-top: 4px; margin-bottom: 4px;">X</div>
                         <div style="font-size: 8px; font-weight: bold;">COMPROBANTE NO<br>VÁLIDO COMO FACTURA</div>
                     </div>
                     
@@ -14354,8 +14805,9 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                         <div style="font-size: 14px; font-weight: bold; margin-bottom: 4px;">Nro. ${nro}</div>
                         <div><strong>Fecha:</strong> ${fechaEmision} ${hora}</div>
                         <div><strong>Orden de Compra:</strong> ${oc}</div>
-                        <div><strong>C.U.I.T.:</strong> 30-71602466-7</div>
-                        <div><strong>Ing.Br.:</strong> 0916600761 | <strong>Ini. Act.:</strong> 21/12/2017</div>
+                        ${_isAcosta ? `<div><strong>C.U.I.T.:</strong> 30-71868621-7</div>
+                        <div><strong>Ini. Act.:</strong> 25/06/2024</div>` : `<div><strong>C.U.I.T.:</strong> 30-71602466-7</div>
+                        <div><strong>Ing.Br.:</strong> 0916600761 | <strong>Ini. Act.:</strong> 21/12/2017</div>`}
                     </div>
                 </div>
 
@@ -14368,9 +14820,14 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${cliName}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Detalle:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">${(p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico') ? 'Detalle:' : 'Título:'}</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${detalle}</strong>
                             </div>
+                            ${!((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
+                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Detalle:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; white-space: pre-wrap;">${propTecnica}</strong>
+                            </div>` : ''}
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Domicilio:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${domicilio}</strong>
@@ -14383,10 +14840,11 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Condición:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${condicion}</strong>
                             </div>
+                            ${((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
                             <div style="display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Planta:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${planta}</strong>
-                            </div>
+                            </div>` : ''}
                         </div>
                         <div style="width: 45%; padding: 8px;">
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
@@ -14397,6 +14855,11 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Número de OT:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${numOt}</strong>
                             </div>
+                            ${!((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
+                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Planta:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${planta}</strong>
+                            </div>` : ''}
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Localidad:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${localidad}</strong>
@@ -14416,8 +14879,8 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 <!-- Items Table with Watermark -->
                 <div style="position: relative; margin-bottom: 10px;">
                     <!-- Watermark -->
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.35; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
-                        <img src="${logoSrc}" style="width: 75%; object-fit: contain; transform: rotate(-30deg); filter: contrast(1.15);">
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.30; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                        <img src="${_activeWatermark}" style="width: 75%; object-fit: contain; transform: rotate(-25deg); filter: contrast(1.15);">
                     </div>
                     
                     <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; position: relative; z-index: 1; background: transparent;">
@@ -14442,15 +14905,13 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     </table>
                 </div>
 
-                <!-- Propuesta Tecnica -->
+                <!-- Propuesta Tecnica (Solo Mecanico) -->
+                ${!((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
                 <div style="border: 2px solid #000; margin-bottom: 10px; font-size: 11px;">
                     <div style="padding: 6px; font-weight: bold; border-bottom: 1px solid #000;">PROPUESTA TÉCNICA / COMERCIAL</div>
+
                     <div style="display: flex; border-bottom: 1px solid #000;">
-                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold;">DETALLAR PROPUESTA:</div>
-                        <div style="width: 70%; padding: 4px 6px;">${propTecnica}</div>
-                    </div>
-                    <div style="display: flex; border-bottom: 1px solid #000;">
-                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold;">CANT DE PERSONAL:</div>
+                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold;">SOLICITUD DE SUPERVISOR:</div>
                         <div style="width: 70%; padding: 4px 6px;">${personal}</div>
                     </div>
                     <div style="display: flex; border-bottom: 1px solid #000;">
@@ -14461,7 +14922,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                         <div style="background: #3b82f6; color: white; padding: 1px 6px; border-radius: 4px; margin-right: 10px; font-weight: bold;">Observaciones:</div>
                         <div>${obs}</div>
                     </div>
-                </div>
+                </div>` : ''}
 
                 <div style="background: #94a3b8; color: white; text-align: center; padding: 6px; font-size: 11px; font-weight: bold; margin-bottom: 10px; border-radius: 4px;">
                     PRECIOS DEL PRESUPUESTO, SUJETOS A MODIFICACIONES SIN PREVIO AVISO
@@ -14982,18 +15443,53 @@ window.getPresupuestoFormattedItems = function(p, format) {
         return formatted;
     }
 
-    return validItems.map((it, idx) => {
+    const catalog = (p.tipo_presupuesto === 'Mecánico' || (p.id && String(p.id).toUpperCase().includes('MEC'))) ? (window.presupuestoMecanicoDB || []) : (window.presupuestosCatalogDB || []);
+    const materials = [];
+    const labor = [];
+
+    validItems.forEach((it, idx) => {
+        let subrubro = (it.subrubro || '').trim();
+        if (!subrubro) {
+             const foundCat = catalog.find(c => c.codigo === it.codigo);
+             if (foundCat && foundCat.subrubro) subrubro = foundCat.subrubro.trim();
+        }
         const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
         const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
         const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
-        return {
+        
+        const formattedItem = {
             codigo: it.codigo || `ITM-${idx+1}`,
             detalle: it.detalle || it.descripcion || it.denominacion || it.nombre || '-',
             precio: pr,
             cantidad: q,
             subtotal: sub
         };
+        
+        if (subrubro.toLowerCase().includes('material') || subrubro.toLowerCase().includes('equipo')) {
+            materials.push(formattedItem);
+        } else {
+            labor.push(formattedItem);
+        }
     });
+
+    const formatted = [];
+    if (labor.length > 0) {
+        formatted.push({ codigo: '-', detalle: 'MANO DE OBRA / HORAS', precio: '-', cantidad: '-', subtotal: '-' });
+        labor.forEach(l => formatted.push(l));
+    }
+    
+    if (materials.length > 0) {
+        formatted.push({ codigo: '-', detalle: 'MATERIALES E INSUMOS', precio: '-', cantidad: '-', subtotal: '-' });
+        materials.forEach(m => formatted.push(m));
+    }
+    
+    if (formatted.length === 0) {
+        const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
+        const totalVal = parseFloat(String(p.importe || '0').replace(',', '.')) || 0;
+        formatted.push({ codigo: '-', detalle: devText, precio: '-', cantidad: '-', subtotal: totalVal });
+    }
+
+    return formatted;
 };
 
 window.findPedidoById = function(id) {

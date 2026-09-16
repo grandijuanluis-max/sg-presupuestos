@@ -7,19 +7,18 @@ Documento integral y prompt maestro consolidado con todos los requerimientos, re
 ## 🏢 1. Identidad y Propósito del Sistema
 
 - **Empresa**: SG MONTAJES SRL — Ingeniería & Montajes Industriales • Obras Eléctricas y Mecánicas
-- **Objetivo**: Sistema web empresarial para la gestión integral de cotizaciones comerciales, presupuestos técnicos, seguimiento y certificación de avances de obra, control estricto de facturación proporcional, consulta de stock PRESEA y analítica gerencial en tiempo real (Business Intelligence).
-- **Acceso en Producción**: https://gr-nota-de-venta.web.app
-- **Servidor Local / API**: Python 3 (`server.py` en `http://localhost:8000`)
+- **Objetivo**: Sistema web empresarial para la gestión integral de cotizaciones comerciales, presupuestos técnicos, seguimiento y certificación de avances de obra, control estricto de facturación proporcional y reportes gerenciales en tiempo real.
+- **Acceso en Producción**: Despliegue en GitHub Pages / Supabase Cloud.
+- **Identidad Gráfica**: Esquema corporativo Boca Juniors (Azul Profundo `#00529F` y Dorado/Ámbar `#F3B229`), Glassmorphism compacto de alta densidad y elegancia ejecutiva.
 
 ---
 
 ## ⚙️ 2. Arquitectura y Stack Tecnológico
 
-- **Frontend**: HTML5 Semántico + Vanilla JavaScript (ES6+ modular, reactivo, sin dependencias pesadas) + CSS3 Glassmorphism responsivo + Chart.js para visualización de métricas.
-- **Backend API**: Servidor Python nativo (`server.py`) con API REST, endpoints de analítica, base de datos local SQLite/JSON, despacho SMTP corporativo y compresión de respuestas.
-- **Base de Datos y Sincronización en Tiempo Real**: Supabase (PostgreSQL 15 + Supabase Realtime Channels) sincronizado bidireccionalmente con `localStorage` y catálogos estáticos compilados desde DBF (`clientes_db.js`, `condiciones_db.js`, `stock_db.js`, `vendedores_db.js`, `presupuestos_catalog_db.js`).
-- **Despacho de Correos**: Servidor SMTP Corporativo oficial (`@sgmontajes.com.ar`) para el envío automático de notificaciones de avance de obra y facturación administrativa.
-- **Diseño Adaptativo**: 100% responsivo para celulares, tablets, computadoras portátiles y de escritorio.
+- **Frontend**: HTML5 Semántico + Vanilla JavaScript (ES6+ modular, reactivo, sin dependencias externas pesadas) + CSS3 Glassmorphism compacto y responsivo.
+- **Base de Datos y Sincronización en Tiempo Real**: Supabase (PostgreSQL 15 + Supabase Realtime Channels) sincronizado bidireccionalmente con `localStorage` y catálogos estáticos compilados (`clientes_db.js`, `condiciones_db.js`, `vendedores_db.js`, `presupuestos_catalog_db.js`).
+- **Despacho Oficial de Correos Electrónicos**: Despacho automático y silencioso en segundo plano desde la casilla institucional `cotizaciones@sgmontajes.com.ar`, con compilación instantánea de PDF oficial y adjunto directo.
+- **Diseño Adaptativo y Compacto**: 100% responsivo para celulares, tablets, computadoras portátiles y monitores de escritorio con densidad de información optimizada para evitar scrolls excesivos.
 
 ---
 
@@ -29,7 +28,7 @@ El sistema opera bajo dos rubros principales totalmente diferenciados con correl
 
 1. **⚡ Presupuesto Eléctrico (`102-ELEC-XXXX`)**:
    - Cotización de montajes eléctricos industriales, tableros de potencia y comando, tendido de bandejas portacables, cableados de fuerza motriz, iluminación industrial y cálculo de horas hombre técnicas.
-   - Catálogo de materiales eléctricos y tarifario de mano de obra especializada.
+   - Catálogo de materiales eléctricos y tarifario de mano de obra especializada con numeración correlativa estricta (`ELE-001`, `ELE-002`...).
 
 2. **⚙️ Presupuesto Mecánico (`101-MEC-XXXX`)**:
    - Cotización de montajes mecánicos pesados, estructuras metálicas, cañerías industriales, soldadura calificada, piping y mecanizados.
@@ -42,20 +41,35 @@ El sistema opera bajo dos rubros principales totalmente diferenciados con correl
 
 ## 🔄 4. Flujo y Reglas de Estados Comerciales
 
-### 4.1. Secuencia Progresiva de Estados
-El ciclo de vida comercial sigue una jerarquía estrictamente progresiva:
+### 4.1. Los 4 Únicos Estados Comerciales del Presupuesto
+El ciclo de vida comercial de un presupuesto opera estrictamente bajo **4 únicos estados comerciales**:
 
-1. `📤 Enviado sin OC` *(Nivel 1)*: Presupuesto emitido y entregado formalmente al cliente, a la espera de confirmación.
-2. `⏳ Aprobado sin OC` *(Nivel 2)*: Aprobación verbal/preliminar del cliente previa a la emisión de la orden de compra.
-3. `✅ Aprobado con OC` *(Nivel 3)*: Aprobación formal adjudicada. **Exige ingreso obligatorio del Número de Orden de Compra (OC)**.
-4. `🧾 Facturado Parcial` *(Nivel 4)*: Facturación parcial emitida correspondiente a hitos de avance de obra certificados.
-5. `💎 Facturado Total` *(Nivel 5)*: 100% del importe total facturado y obra administrativa concluida.
-6. `❌ Rechazado` *(Estado Terminal)*: Oferta desestimada por el cliente. **Exige ingreso obligatorio del motivo de rechazo**.
+1. `📤 Enviado sin OC` *(Nivel 1 - Color Celeste/Azul `#38bdf8`)*: Presupuesto emitido y entregado formalmente al cliente por correo o mano, a la espera de confirmación.
+2. `⏳ Aprobado sin OC` *(Nivel 2 - Color Ámbar `#fef08a`)*: Aprobación verbal/preliminar del cliente previa a la emisión de la orden de compra.
+3. `✅ Aprobado con OC` *(Nivel 3 - Color Verde Esmeralda `#6ee7b7`)*: Aprobación formal adjudicada. **Exige ingreso obligatorio del Número de Orden de Compra (OC)**.
+4. `❌ Rechazado` *(Estado Terminal - Color Rosa/Rojo `#fda4af`)*: Oferta desestimada por el cliente. **Exige ingreso obligatorio del motivo de rechazo**.
 
-### 4.2. 🚫 Prohibición Estricta de Retroceso de Estados
-- **Los estados no pueden volver atrás**: Un presupuesto que ha alcanzado un nivel superior no puede retroceder a uno anterior (por ejemplo, `Facturado Parcial` no puede cambiar a `Aprobado con OC`, `Aprobado sin OC` ni `Enviado sin OC`).
+### 4.2. Derivación a "Registros de Facturación"
+- **Separación de Conceptos**: La facturación (`Facturado Parcial` y `Facturado Total`) **NO forma parte del desplegable de estados comerciales del presupuesto**. El presupuesto adjudicado permanece comercialmente como `Aprobado con OC`.
+- **Módulo "Registros de Facturación" (`tpl-facturacion`)**: Es el espacio exclusivo donde van a parar los presupuestos y comprobantes **una vez que están aprobados con OC** para su control administrativo, clasificándose automáticamente según su cobranza real:
+  - 🔴 **Pendiente de Facturar**: 0% facturado.
+  - 🟡 **Facturación Parcial**: >0% y <100% facturado.
+  - 🟢 **Facturación Total**: 100% facturado.
+
+### 4.3. 🚫 Prohibición Estricta de Retroceso de Estados
+- **Los estados no pueden volver atrás**: Un presupuesto que ha alcanzado un nivel superior no puede retroceder a uno anterior (por ejemplo, `Aprobado con OC` no puede volver a `Aprobado sin OC` ni `Enviado sin OC`).
 - **En el selector desplegable**: Las opciones inferiores a la actual aparecen deshabilitadas con el indicador `🚫`.
-- **En "Estado del Presupuesto"**: Los presupuestos en `💎 Facturado Total` permanecen siempre visibles en la grilla para registro histórico y auditoría contable.
+
+### 4.4. 🔄 Reactivación de Presupuestos Rechazados ("Revivir")
+- **Acción exclusiva en presupuestos rechazados**: En la vista de "Rechazo de Presupuesto", el botón verde **`Revivir`** permite reactivar la oferta.
+- **Cuadro de diálogo y confirmación exacta**:
+  > `¿Estás seguro de que deseas revivir este presupuesto? Se restaurará su estado a "Pendiente" y sus ítems se actualizarán con los precios actuales del tarifario.`
+- **Acciones automáticas al confirmar**:
+  1. **Restauración de Estado**: Pasa automáticamente al estado comercial `"Enviado sin OC"`, reincorporándose a la tabla activa de seguimiento.
+  2. **Actualización de Precios Vigentes**: Cada artículo/ítem del presupuesto consulta en tiempo real el tarifario activo (mecánico o eléctrico) y refresca su precio unitario con el valor actual de la base de datos.
+  3. **Recálculo de Totales**: Se recalculan los subtotales (`cantidad * precio unitario`) y el importe total general del presupuesto.
+  4. **Limpieza de Motivo de Rechazo**: Se eliminan los motivos de rechazo previos registrados.
+  5. **Persistencia y Refresco Inmediato**: Se guardan los cambios en el almacenamiento local y Supabase, se muestra la notificación de éxito y se actualiza la grilla en pantalla.
 
 ---
 
@@ -70,194 +84,71 @@ El ciclo de vida comercial sigue una jerarquía estrictamente progresiva:
 - **Cálculo Automático en Pesos**: Determina en tiempo real el monto valorizado en pesos del avance ingresado respecto al monto total del presupuesto.
 - **Notificación Automática por Email**: Disparo de correo de alerta a Facturación (`📄 Notificación de Avance de Obra`) cada vez que se certifica un nuevo hito.
 
-### 5.2. Reglas de Facturación Proporcional
+### 5.2. Certificación Desglosada por Proyecto (por Títulos)
+- **Acceso Exclusivo y Centralizado**: Botón **`Avance de Proyecto`** ubicado en el encabezado del modal de *Avance de Obra*.
+- **Validación Estricta de Tope Infranqueable del 100%**:
+  - Ningún rubro o título puede superar el 100% de avance acumulado.
+  - El sistema calcula dinámicamente el saldo máximo disponible (`100% - acumulado previo`). Si el operador intenta ingresar un valor superior, el sistema bloquea la entrada y ajusta automáticamente al tope permitido.
+  - Los conceptos que alcanzan el 100% acumulado se deshabilitan y se identifican con la insignia verde **`✓ 100% Completado`**.
+- **Sincronización Automática**: Actualización en tiempo real del historial financiero y la barra de progreso acumulado.
+
+### 5.3. Reglas de Facturación Proporcional
 1. **Tope por Avance**: El `% Facturado` **nunca puede superar el % de Avance de Obra realizado**.
 2. **Avance 0%**: Si el avance de obra es `0%`, está estrictamente prohibido ingresar porcentaje de facturación o cambiar el estado a `Facturado`.
 3. **Facturado Total**: Para marcar un presupuesto como `Facturado Total` (100%), la obra debe tener certificado previamente el **100% de Avance de Obra**.
 4. **Límite Absoluto**: Ningún porcentaje (ni de avance ni de facturación) puede exceder el **100%**.
-5. **Aviso Destacado "FALTA FACTURAR"**: Si existe avance físico certificado superior al porcentaje facturado, el sistema muestra en la grilla una alerta ámbar/roja con el monto exacto listo para facturar.
+5. **Aviso Destacado "FALTA FACTURAR"**: Si existe avance físico certificado superior al porcentaje facturado, el sistema muestra en la grilla una alerta llamativa con el monto exacto listo para facturar.
 
 ---
 
-## 📊 6. Módulo de Estadísticas y Business Intelligence (BI)
+## 📑 6. Visualización y Formato Oficial de Comprobantes
 
-El panel analítico de control gerencial (`tpl-metrics`) opera en tiempo real con filtros por rango de fechas, rubro y operador:
+### 6.1. Selector Dinámico de Presentación (3 Formatos)
+Al consultar un presupuesto con el botón **[ 👁️ Ver ]**, el usuario puede alternar instantáneamente entre 3 modalidades de comprobante:
+1. 🏗️ **Comprobante por Proyecto**: Agrupa y consolida los conceptos por proyecto u obra específica, presentando el alcance global, los hitos clave y la consolidación económica general.
+2. 📄 **Comprobante Detallado**: Muestra la planilla técnica completa con el desglose ítem por ítem, rubros, cantidades, unidades de medida, precios unitarios y subtotales.
+3. 📋 **Comprobante Resumido**: Presenta la cotización condensada en una sola línea ejecutiva con la denominación del trabajo, cantidad global, subtotal neto, I.V.A. (21%) e importe total final.
 
-### 6.1. Recuadro de KPIs (8 Indicadores Clave)
-1. **Total Presupuestado**: Monto total acumulado y cantidad de cotizaciones emitidas.
-2. **Total Facturado (Avances)**: Monto monetario real certificado y porcentaje global facturado.
-3. 📅 **Facturado en el Mes**: Suma de facturación y avances registrados en el mes calendario en curso (ej. *Septiembre 2026*).
-4. 📈 **Facturado en el Año**: Suma acumulada de facturación en el año fiscal en curso (ej. *2026*).
-5. **Saldo Pendiente de Cobro**: Monto por certificar/facturar hasta completar las obras.
-6. **Aprobados con OC**: Cantidad de presupuestos y volumen monetario formalmente adjudicado.
-7. **⚡ Rubro Eléctrico**: Monto y cantidad de cotizaciones del sector eléctrico.
-8. **⚙️ Rubro Mecánico**: Monto y cantidad de cotizaciones del sector mecánico.
-
-### 6.2. Visualizaciones Gráficas Interactivas (Chart.js)
-1. **Distribución por Estado Comercial**: Gráfico de torta con cantidades de aprobados, pendientes y rechazados.
-2. **Monto Total vs Facturado por Estado**: Gráfico de barras comparativo de volumen financiero.
-3. **Top 5 Clientes en Cotización**: Gráfico de barras horizontal con las 5 cuentas de mayor volumen cotizado.
-4. **Mix de Rubros (Eléctrico vs Mecánico)**: Gráfico de dona con la participación porcentual de cada división.
-
-### 6.3. Tablas Analíticas de Rendimiento
-- **Rendimiento por Usuario / Operador**: Presupuestos emitidos, aprobados con OC, monto cotizado, total facturado y **% de Efectividad Comercial**.
-- **Resumen Financiero por Cliente**: Cotizaciones por cliente, volumen total, avance promedio, facturación acumulada y saldo pendiente.
+### 6.2. Estándares Visuales de Comprobante Oficial
+- **Membrete Corporativo**: Datos fiscales completos (SG MONTAJES SRL, CUIT 30-71602466-7, Ingresos Brutos, IVA Responsable Inscripto).
+- **Ficha de Cliente en Celdas Individuales**: Datos de obra y cliente enmarcados en recuadros rectangulares independientes con esquinas redondeadas.
+- **Marca de Agua Centralizada**: Logotipo oficial de SG MONTAJES centrado e inclinado detrás de la grilla de ítems con opacidad calibrada para garantizar lectura clara.
+- **Encabezados Transparentes**: Los encabezados del comprobante cuentan con fondo traslúcido para no obstruir la marca de agua.
+- **Etiquetado de Totales**: Todas las etiquetas de monto neto final se rotulan estrictamente como `TOTAL:` (eliminando sufijos redundantes como "Total Neto Presupuesto").
 
 ---
 
-## 🖨️ 7. Reporte Impreso Oficial Gerencial (PDF / Impresión)
+## 📧 7. Despacho Oficial de Cotizaciones por Email
 
-Diseñado para presentación formal gerencial con inicio directo en la **Hoja 1** (sin hojas en blanco):
-
-- **Encabezado Oficial**: Logo de SG MONTAJES SRL, fecha y hora de emisión, período analizado y filtros activos (Operador y Rubro).
-- **Sección 1: Indicadores Financieros Clave (KPIs)**: Grilla de 8 tarjetas ejecutivas con tipografía nítida y legible.
-- **Sección 2: Resumen Financiero por Cliente**: Tabla completa de clientes con fila de **TOTAL GENERAL CLIENTES**.
-- **Sección 3: Rendimiento por Vendedor / Operador**: Tabla con cotizaciones, aprobaciones, montos y **% de efectividad comercial**, con fila de **TOTAL GENERAL VENDEDORES**.
-- **Sección 4: Detalle Completo de Cotizaciones**: Listado completo de presupuestos filtrados (ID, Fecha, Rubro, Cliente, Obra, Importe Total, Estado Comercial con badges de color, % Avance y Facturado) con fila de **TOTAL GENERAL COTIZACIONES**.
-- **Paginación Inteligente**: Encabezados de tabla repetibles en cada hoja (`thead { display: table-header-group; }`).
+- **Despacho Automático en Segundo Plano**: Al pulsar "Enviar Cotización Oficial", el sistema compila el archivo PDF oficial con logotipo e ítems y lo despacha de forma silenciosa e inmediata desde `cotizaciones@sgmontajes.com.ar`.
+- **Destinatarios Consolidados**: Botón rápido `[+ Agregar Todos los Destinatarios]` para sumar cliente, cotizaciones, administración y facturación con un solo toque.
+- **Chips Interactivos**: Selección y remoción ágil de destinatarios TO y CC.
+- **Actualización de Estado y Sincronización**: Al enviar, el presupuesto actualiza automáticamente su estado a `Enviado sin OC` (en color celeste/azul corporativo) y sincroniza los cambios en la nube.
 
 ---
 
-## 📑 8. Exportación de Planilla Excel Profesional (`.xls`)
+## 📊 8. Reportes Gerenciales e Integración Excel
 
-Generador nativo de hojas de cálculo Microsoft Excel (`.xls`) con estilos corporativos y formato numérico oficial:
+### 8.1. Reporte Impreso Oficial Multi-Tabla
+- Estructura limpia y ejecutiva sin páginas en blanco iniciales.
+- **Tabla 1: Resumen por Estado Comercial**: Cantidad de presupuestos, subtotal neto, IVA y total por cada estado.
+- **Tabla 2: Resumen Consolidado por Cliente**: Agrupación por cliente con fila de **TOTAL GENERAL CLIENTES**.
+- **Tabla 3: Detalle de Cotizaciones**: Listado individual completo con ID, fecha, rubro, cliente, obra, estado, % avance y total con IVA.
 
-- **Estructura Multi-Tabla**:
-  1. **Encabezado y Metadatos**: Fecha de emisión, período y filtros aplicados.
-  2. **Tabla 1: Resumen Ejecutivo Consolidado**: 8 KPIs con formato de moneda (`$ #,##0.00`), porcentajes y totales.
-  3. **Tabla 2: Resumen de Cuentas por Cliente**: Presupuestos, total cotizado, % avance, total facturado y saldo por cobrar.
-  4. **Tabla 3: Rendimiento por Usuario / Operador**: Efectividad de cierre, montos cotizados y facturados.
-  5. **Tabla 4: Detalle de Cotizaciones y Presupuestos**: ID, Fecha, Rubro, Cliente, CUIT, Obra, Importe, Estado, % Avance, Facturado, N° OC y Operador.
-
----
-
-## 👁️ 9. Confección y Visualización de Comprobantes (Detallado y Resumido)
-
-- **Carga Continua de Presupuestos**: Al pulsar "Confirmar y Cargar", el sistema guarda la oferta e inmediatamente reinicia el formulario en blanco para permitir la carga ágil del siguiente presupuesto.
-- **Comprobante Detallado**: Muestra el desglose técnico ítem por ítem con precios unitarios, cantidades, IVA y subtotales.
-- **Comprobante Resumido**: Muestra la oferta comercial condensada en una única línea resumen con denominación de la obra, neto, IVA (21%) y total final.
-- **Alternancia Rápida**: Selector superior con cambio instantáneo entre ambas modalidades.
-- **Opciones de Emisión**: Impresión en A4 con membrete oficial, envío directo por WhatsApp y despacho por correo electrónico.
+### 8.2. Exportación Nativa a Excel (`.xls`)
+- Generación nativa con membrete institucional, fecha/hora exacta y formato numérico monetario (`$ #.##0,00`) y porcentual real.
 
 ---
 
-## 📦 10. Consulta de Stock e Inventario PRESEA
+## 🛡️ 9. Seguridad, UX y Navegación Universal
 
-- Módulo dedicado para la búsqueda en tiempo real de artículos y materiales.
-- Filtros por código, descripción, rubro y subrubro.
-- Indicadores visuales de stock físico existente y disponibilidad comercial inmediata.
-
----
-
-## 👥 11. Usuarios, Permisos y Seguridad
-
-- **Usuarios Registrados**:
-  - `mel` (Administrador — Rubro Eléctrico)
-  - `juanluis` (Solicitante — Rubro Eléctrico)
-  - `luciano` (Solicitante — Rubro Eléctrico)
-  - `roberto` (Solicitante — Rubro Mecánico)
-  - `melani` (Administrador — Rubro Eléctrico)
-  - `nicole` (Solicitante — Rubro Eléctrico)
-  - `alexis` (Solicitante — Rubro Mecánico)
-  - `emiliano` (Solicitante — Rubro Eléctrico)
-
-- **Parámetros de Seguridad por Usuario**:
-  - `Visualizar Comprobante / Historial`: Consulta en modo lectura y auditoría (`[ 👁️ Ver ]`).
-  - `Editar y Avance de Obra`: Modificación de datos, avance de obra y basar presupuesto (`[ ✏️ Editar ]`, `[ 🔨 Avance ]`, `[ 📑 Basar Pres. ]`).
-- **Limpieza de Datos**: Eliminación total de conceptos obsoletos de *Depósito*, *Transporte* y *Vendedores externos*.
+- **Segregación Estricta Ver vs Editar**:
+  - `[ 👁️ Ver ]`: Modo solo lectura para consulta visual y generación de comprobantes.
+  - `[ ✏️ Editar ]`: Modo edición con formulario activo y actualización de ítems.
+- **Edición de Precios por Matriz de Permisos**: La modificación de precios unitarios está vinculada a los permisos del usuario (`menu-ingresar-edit-price` / `edit-precios`).
+- **Navegación Universal con Tecla Escape (`Esc`)**: Cierre inmediato de cualquier modal abierto y retorno limpio a la vista anterior.
+- **Acceso y Salida Limpia**: Login simplificado con botón "Ingresar" y cierre de sesión seguro mediante botón "Salir" (`#logout-btn`).
 
 ---
 
-## 🗄️ 12. Esquema de Base de Datos en Supabase (PostgreSQL)
-
-```sql
--- TABLA: USUARIOS
-CREATE TABLE IF NOT EXISTS usuarios (
-    id TEXT PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    email TEXT,
-    role TEXT NOT NULL DEFAULT 'Solicitante',
-    rubro_defecto TEXT NOT NULL DEFAULT 'Eléctrico',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
-);
-
--- TABLA: PRESUPUESTOS
-CREATE TABLE IF NOT EXISTS presupuestos (
-    id TEXT PRIMARY KEY,
-    fecha TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
-    tipo_presupuesto TEXT NOT NULL,
-    cliente_id TEXT NOT NULL,
-    cliente_nombre TEXT NOT NULL,
-    cuit TEXT,
-    telefono TEXT,
-    email TEXT,
-    importe NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
-    estado TEXT NOT NULL DEFAULT 'Enviado sin OC',
-    nro_oc TEXT,
-    motivo_rechazo TEXT,
-    operador TEXT NOT NULL,
-    condicion_venta TEXT,
-    moneda_id INT DEFAULT 1,
-    cotizacion NUMERIC(15, 8) DEFAULT 1.00000000,
-    
-    -- Campos Ficha Mecánica / Identificación de la Oferta
-    meca_denominacion TEXT,
-    meca_proveedor TEXT,
-    meca_fecha_oferta TEXT,
-    meca_validez TEXT,
-    meca_planta TEXT,
-    meca_nro_oc TEXT,
-    meca_nro_ot TEXT,
-    meca_fecha_inicio TEXT,
-    meca_duracion TEXT,
-    meca_fecha_fin TEXT,
-    meca_propuesta TEXT,
-    meca_personal TEXT,
-    meca_exclusiones TEXT,
-    
-    -- Avance y Facturación
-    avance_porcentaje_acumulado NUMERIC(5, 2) DEFAULT 0.00,
-    facturado_porcentaje NUMERIC(5, 2) DEFAULT 0.00,
-    monto_facturado NUMERIC(15, 2) DEFAULT 0.00,
-    
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
-);
-
--- TABLA: ITEMS DE PRESUPUESTO
-CREATE TABLE IF NOT EXISTS presupuesto_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    presupuesto_id TEXT REFERENCES presupuestos(id) ON DELETE CASCADE,
-    codigo TEXT,
-    detalle TEXT NOT NULL,
-    rubro TEXT,
-    subrubro TEXT,
-    cantidad NUMERIC(10, 2) NOT NULL DEFAULT 1,
-    unidad TEXT DEFAULT 'UN',
-    precio_unitario NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
-    subtotal NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
-    orden INT DEFAULT 0
-);
-
--- TABLA: AVANCES DE OBRA
-CREATE TABLE IF NOT EXISTS avances_obra (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    presupuesto_id TEXT REFERENCES presupuestos(id) ON DELETE CASCADE,
-    fecha DATE NOT NULL,
-    porcentaje NUMERIC(5, 2) NOT NULL,
-    monto_equivalente NUMERIC(15, 2) NOT NULL,
-    nro_documento TEXT,
-    detalle TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
-);
-
--- TABLA: APP STATE (SINCRONIZACIÓN GLOBAL)
-CREATE TABLE IF NOT EXISTS app_state (
-    id TEXT PRIMARY KEY DEFAULT 'global_config',
-    data JSONB NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
-);
-
--- PUBLICACIÓN TIEMPO REAL
-ALTER PUBLICATION supabase_realtime ADD TABLE presupuestos, presupuesto_items, avances_obra, app_state;
-```
+*Documento maestro actualizado y consolidado — SG MONTAJES SRL © 2026*

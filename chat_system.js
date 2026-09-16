@@ -309,6 +309,14 @@
                         const msg = typeof row.message === 'string' ? JSON.parse(row.message) : row.message;
                         if (msg && msg.id && msg.text) {
                             if (!msg.timestamp && row.timestamp) msg.timestamp = row.timestamp;
+                            const cur = resolveCurrentUser();
+                            const myId = cur ? String(cur.id) : '';
+                            if ((msg.type === 'dm' || msg.channel === 'dm') && msg.recipientId !== 'all') {
+                                if (String(msg.senderId) !== myId && String(msg.recipientId) !== myId) {
+                                    return; // Ignorar DMs ajenos
+                                }
+                            }
+                            if (row.read) msg.read = true; // Cargar estado de lectura
                             loaded.push(msg);
                         }
                     } catch (e) {}
@@ -405,12 +413,19 @@
         const exists = ChatState.messages.some(m => m.id === msg.id);
         if (exists) return;
 
-        ChatState.messages.push(msg);
-        saveMessagesToLocal();
-
         const cur = resolveCurrentUser();
         const myId = cur ? String(cur.id) : '';
         const isFromMe = myId && String(msg.senderId) === myId;
+
+        // PRIVACIDAD: Ignorar DMs que no son para mí ni de mí
+        if ((msg.type === 'dm' || msg.channel === 'dm') && msg.recipientId !== 'all') {
+            if (String(msg.senderId) !== myId && String(msg.recipientId) !== myId) {
+                return;
+            }
+        }
+
+        ChatState.messages.push(msg);
+        saveMessagesToLocal();
 
         // Determinar clave de conversación
         let convKey = 'general';
@@ -1208,7 +1223,7 @@
                             <div style="font-size: 13px; line-height: 1.4;">${escapeHtml(msg.text)}</div>
                             <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; font-size: 10px; opacity: 0.85;">
                                 <span>${timeStr}</span>
-                                <i class="fas fa-check" style="font-size: 9px;"></i>
+                                ${msg.read ? '<span style="color: #60a5fa; font-weight: 700; font-size: 9px;">Leído <i class="fas fa-check-double"></i></span>' : '<i class="fas fa-check" style="font-size: 9px; color: rgba(255,255,255,0.7);"></i>'}
                             </div>
                         </div>
                     </div>
@@ -1234,6 +1249,46 @@
 
         bodyEl.innerHTML = html;
         scrollChatToBottom();
+        
+        // MARCAR COMO LEÍDOS
+        if (cur && html.length > 0) {
+            const myId = String(cur.id);
+            const unreadIds = [];
+            ChatState.messages.forEach(m => {
+                const isFromOther = String(m.senderId) !== myId;
+                const isForMe = (m.type === 'dm' && String(m.recipientId) === myId) || (m.type === 'general' && ChatState.activeConversationType === 'general') || (m.type === 'group' && String(m.groupId) === String(ChatState.activeConversationId));
+                
+                // Si estoy viendo esta conversacion y el msj es de otro y no esta marcado localmente
+                if (isFromOther && isForMe && !m._markedReadLocal) {
+                    const isActive = (ChatState.activeConversationType === 'general' && m.type === 'general') ||
+                                     (ChatState.activeConversationType === 'dm' && String(m.senderId) === String(ChatState.activeConversationId)) ||
+                                     (ChatState.activeConversationType === 'group' && String(m.groupId) === String(ChatState.activeConversationId));
+                    if (isActive) {
+                        m._markedReadLocal = true;
+                        unreadIds.push(m.id);
+                    }
+                }
+            });
+            
+            if (unreadIds.length > 0 && ChatState.chatChannel) {
+                // Broadcast read receipt
+                try {
+                    ChatState.chatChannel.send({
+                        type: 'broadcast',
+                        event: 'read_receipt',
+                        payload: { messageIds: unreadIds, readBy: cur.username }
+                    });
+                } catch(e) {}
+                
+                // Update DB silently
+                const client = typeof getSupabase === 'function' ? getSupabase() : null;
+                if (client) {
+                    unreadIds.forEach(id => {
+                        client.from('notificaciones').update({ read: true }).eq('id', id).then(function(){}).catch(function(e){});
+                    });
+                }
+            }
+        }
     }
 
     function scrollChatToBottom() {

@@ -1316,7 +1316,7 @@ input:focus, select:focus, textarea:focus {
     }
 
     body.modal-open .palaversich-sheet {
-    background: #0f172a !important;
+    background: transparent !important;
     color: #f8fafc !important;
     padding: 14px 16px;
     font-family: inherit !important;
