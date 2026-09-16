@@ -10,7 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="html2pdf.bundle.min.js"></script>
     <script src="logo_base64.js?v=1"></script>
-    <link rel="stylesheet" href="styles.css?v=321">
+    <link rel="stylesheet" href="styles.css?v=332">
 </head>
 <body>
     <div id="app">
@@ -1527,35 +1527,35 @@
                 <!-- Ficha Cliente y Datos de la Orden (Formato Oficial PRESEA) -->
                 <div id="auth-mecanico-header-box" style="display: block; margin-bottom: 12px; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; font-size: 11.5px; color: #f8fafc; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
                     <!-- Fila 1: Cliente | Código -->
-                    <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
-                        <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
+                    <div id="modal-row-1" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
+                        <div id="modal-col-cliente" style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Cliente:</span>
                             <span id="auth-meca-cliente-val" style="font-weight: 800; color: #ffffff; text-transform: uppercase;">-</span>
                         </div>
-                        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+                        <div id="modal-col-f1-codigo" style="flex: 1; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Código:</span>
                             <span id="auth-meca-cliente-codigo-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                     </div>
                     
-                    <!-- Fila 2: Detalle | Número de OT -->
-                    <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
-                        <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
+                    <!-- Fila 2: Título/Detalle | Número de OT -->
+                    <div id="modal-row-2" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
+                        <div id="modal-col-titulo-denominacion" style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
                             <span id="lbl-modal-titulo" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Título:</span>
                             <span id="auth-meca-denominacion-val" style="font-weight: 800; color: #ffffff; text-transform: uppercase;">-</span>
                         </div>
-                        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+                        <div id="modal-col-ot-row2" style="flex: 1; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Número de OT:</span>
                             <span id="auth-meca-nro-ot-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                     </div>
-                    <!-- Fila 3: Detalle | Planta -->
+                    <!-- Fila 3: Detalle | Planta (Solo Mecánico) -->
                     <div id="modal-row-detalle-planta" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: flex-start; justify-content: space-between;">
                         <div id="modal-col-detalle-prop" style="flex: 1.5; display: flex; align-items: flex-start; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Detalle:</span>
                             <span id="auth-meca-detalle-prop-val" style="font-weight: 700; color: #f8fafc; font-size: 11px; margin-top: 1px; white-space: pre-wrap;">-</span>
                         </div>
-                        <div style="flex: 1; display: flex; align-items: flex-start; gap: 8px;">
+                        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Planta:</span>
                             <span id="auth-meca-planta-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase; margin-top: 1px;">-</span>
                         </div>
@@ -1585,25 +1585,24 @@
                         </div>
                     </div>
 
-                    <!-- Fila 6: Condición | Nro Presupuesto -->
+                    <!-- Fila 6: Condición (Mecánico) / Planta (Eléctrico) | Nro Presupuesto -->
                     <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Condición:</span>
-                            <span id="auth-meca-condicion-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
+                            <!-- Para Eléctrico: Planta (en lugar de Condición) -->
+                            <div id="modal-col-f6-planta-el" style="display: none; align-items: center; gap: 8px;">
+                                <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Planta:</span>
+                                <span id="auth-meca-planta-val-el" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
+                            </div>
+                            <!-- Para Mecánico: Condición -->
+                            <div id="modal-col-f6-condicion-meca" style="display: flex; align-items: center; gap: 8px;">
+                                <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Condición:</span>
+                                <span id="auth-meca-condicion-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
+                            </div>
                         </div>
                         <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
                             <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Nro Pres.:</span>
                             <span id="auth-meca-nro-presupuesto-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
-                    </div>
-
-                    <!-- Fila 7: Planta Original (Solo Eléctrico) -->
-                    <div id="modal-row-planta-original" style="display: none; padding: 6px 12px; align-items: center; justify-content: space-between;">
-                        <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Planta:</span>
-                            <span id="auth-meca-planta-val-orig" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
-                        </div>
-                        <div style="flex: 1;"></div>
                     </div>
                 </div>
 
@@ -3018,7 +3017,7 @@
     <script src="supabase_config.js?v=3"></script>
     
     <!-- Script principal de lógica de negocio -->
-    <script src="app.js?v=327"></script>
+    <script src="app.js?v=337"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

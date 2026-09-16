@@ -525,10 +525,11 @@ function initSupabaseSync(callback) {
         console.warn("Aviso al consultar tabla 'clientes' en Supabase:", err);
     });
 
-    // 2. LECTURA DIRECTA DE LA TABLA 'usuarios'
-    client.from('usuarios').select('*').then(function(uRes) {
+    // 2. LECTURA DIRECTA DE LA TABLA 'usuarios' (Fuente Única de Verdad)
+    client.from('usuarios').select('*').order('id', { ascending: true }).then(function(uRes) {
         if (uRes.data && uRes.data.length > 0) {
-            appData.users = mergeUsersList(appData.users, uRes.data);
+            appData.users = uRes.data;
+            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
             console.log("✅ " + uRes.data.length + " usuarios leídos directamente de la tabla 'usuarios' en Supabase.");
         }
     }).catch(function(err) {
@@ -601,10 +602,14 @@ function initSupabaseSync(callback) {
         .select('*')
         .order('id', { ascending: true })
         .then(function(pRes) {
-            if (pRes.data) {
+            if (pRes.data && pRes.data.length > 0) {
                 appData.pedidos = normalizePresupuestosRubro(pRes.data);
                 console.log("✅ " + pRes.data.length + " presupuestos leídos DIRECTAMENTE de la tabla 'presupuestos' en Supabase.");
                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+            } else if (appData.pedidos && appData.pedidos.length > 0) {
+                console.log("☁️ Sincronizando " + appData.pedidos.length + " presupuestos locales hacia tabla 'presupuestos' de Supabase...");
+                saveData();
                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
             }
         })
@@ -621,9 +626,6 @@ function initSupabaseSync(callback) {
         .then(function(res) {
             if (res.data) {
                 const data = res.data;
-                if (data.users) {
-                    appData.users = mergeUsersList(appData.users, data.users);
-                }
                 if (Array.isArray(data.notifications)) {
                     appData.notifications = data.notifications;
                 }
@@ -738,7 +740,6 @@ function initSupabaseSync(callback) {
                     }, function(payload) {
                         if (payload.new) {
                             const data = payload.new;
-                            appData.users = mergeUsersList(appData.users, data.users);
                             appData.notifications = data.notifications || [];
                             if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
                                 appData.userPermissions = Object.assign({}, defaultUserPermissions, appData.userPermissions, data.user_permissions);
@@ -763,6 +764,38 @@ function initSupabaseSync(callback) {
                                 }
                             }
                             isFirstLoad = false;
+                        }
+                    })
+                    .subscribe();
+
+                // Suscripción Realtime a la tabla 'usuarios' (Fuente Única de Verdad)
+                client
+                    .channel('public:usuarios')
+                    .on('postgres_changes', {
+                        event: '*',
+                        schema: 'public',
+                        table: 'usuarios'
+                    }, function(payload) {
+                        console.log("⚡ Supabase Realtime evento en 'usuarios':", payload.eventType, payload);
+                        if (payload.eventType === 'DELETE' && payload.old) {
+                            const delId = String(payload.old.id || '');
+                            appData.users = (appData.users || []).filter(function(u) { return String(u.id) !== delId; });
+                            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                            console.log("🗑️ Usuario " + delId + " eliminado automáticamente en tiempo real.");
+                        } else if (payload.eventType === 'INSERT' && payload.new) {
+                            const newU = payload.new;
+                            const exists = (appData.users || []).find(function(u) { return String(u.id) === String(newU.id); });
+                            if (!exists) {
+                                appData.users.push(newU);
+                                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                            }
+                        } else if (payload.eventType === 'UPDATE' && payload.new) {
+                            const updU = payload.new;
+                            const idx = (appData.users || []).findIndex(function(u) { return String(u.id) === String(updU.id); });
+                            if (idx !== -1) {
+                                appData.users[idx] = Object.assign({}, appData.users[idx], updU);
+                                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                            }
                         }
                     })
                     .subscribe();
@@ -953,6 +986,108 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substring(2, 7);
 }
 
+window.buildPresupuestoSupabaseRow = function(p) {
+    if (!p) return null;
+    const amt = parseFloat(p.importe !== undefined ? p.importe : (p.importe_total || 0)) || 0;
+    const condCode = String(p.condicion_id || '1');
+    const condNom = String(p.condicion_nombre || p.condicion_venta || 'CONTADO');
+    
+    return {
+        id: String(p.id).trim(),
+        fecha: p.fecha || (typeof getLocalCurrentDateTimeStr === 'function' ? getLocalCurrentDateTimeStr() : new Date().toISOString()),
+        tipo_presupuesto: p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'),
+        cliente_id: String(p.cliente_id || '3'),
+        cliente_nombre: String(p.cliente_nombre || 'CARGILL SACI').trim(),
+        cuit: String(p.cuit || '30-50679216-5').trim(),
+        telefono: String(p.telefono || '').trim(),
+        email: String(p.email || '').trim(),
+        importe: amt,
+        importe_neto: amt,
+        estado: p.estado || 'Enviado sin OC',
+        nro_oc: String(p.nro_oc || p.meca_nro_oc || '').trim(),
+        nro_ot: String(p.nro_ot || p.meca_nro_ot || '').trim(),
+        motivo_rechazo: p.motivo_rechazo || '',
+        operador: p.operador || 'admin',
+        condicion_id: condCode,
+        condicion_nombre: condNom,
+        condicion_venta: condNom,
+        motivo: p.motivo || p.observaciones || '',
+        denominacion: String(p.meca_denominacion || p.denominacion || p.motivo || '').trim(),
+        proveedor: String(p.proveedor || p.meca_proveedor || 'SG MONTAJES SRL').trim(),
+        fecha_oferta: p.fecha_oferta || p.meca_fecha_oferta || '',
+        validez: p.validez || p.meca_validez || '',
+        planta: String(p.planta || p.meca_planta || 'VGG').trim().toUpperCase(),
+        fecha_inicio: p.fecha_inicio || p.meca_fecha_inicio || '',
+        duracion: p.duracion || p.meca_duracion || '',
+        fecha_fin: p.fecha_fin || p.meca_fecha_fin || '',
+        propuesta: p.propuesta || p.meca_propuesta || '',
+        personal: p.personal || p.meca_personal || '',
+        exclusiones: p.exclusiones || p.meca_exclusiones || '',
+        observaciones: p.observaciones || '',
+        domicilio: String(p.domicilio || '').trim(),
+        localidad: String(p.localidad || '').trim(),
+        vendedor_nombre: String(p.vendedor_nombre || '').trim(),
+        avance_porcentaje_acumulado: parseFloat(p.avance_porcentaje_acumulado) || 0,
+        facturado_porcentaje: parseFloat(p.facturado_porcentaje || p.avance_porcentaje_acumulado) || 0,
+        monto_facturado: parseFloat(p.monto_facturado || p.monto_facturado_total) || 0,
+        tipo_reporte: p.tipo_reporte || 'detallado',
+        items: Array.isArray(p.items) ? p.items : [],
+        avances: Array.isArray(p.avances) ? p.avances : []
+    };
+};
+
+window.guardarPresupuestoEnSupabase = async function(p) {
+    if (!p || !p.id) return { success: false, error: 'No presupuesto data' };
+    const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+    if (!client) {
+        console.warn("⚠️ No se pudo obtener cliente de base de datos Supabase.");
+        return { success: false, error: 'No client' };
+    }
+
+    const row = window.buildPresupuestoSupabaseRow(p);
+    try {
+        const { error } = await client.from('presupuestos').upsert([row], { onConflict: 'id' });
+        if (error) {
+            console.error("❌ Error guardando presupuesto en Supabase:", error);
+            return { success: false, error };
+        } else {
+            console.log("☁️ Supabase: Presupuesto " + row.id + " guardado con éxito en tabla 'presupuestos'.");
+        }
+    } catch (err) {
+        console.error("❌ Excepción al guardar presupuesto en Supabase:", err);
+        return { success: false, error: err };
+    }
+
+    // Sincronizar items en la tabla relacional presupuesto_items
+    if (Array.isArray(p.items) && p.items.length > 0) {
+        try {
+            await client.from('presupuesto_items').delete().eq('presupuesto_id', String(p.id));
+            const itemRows = p.items.map((it, idx) => {
+                const cant = parseFloat(it.cantidad) || 0;
+                const pu = parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0;
+                return {
+                    id: `${String(p.id)}-ITM-${String(idx + 1).padStart(2, '0')}`,
+                    presupuesto_id: String(p.id),
+                    codigo: String(it.codigo || ''),
+                    detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
+                    rubro: p.tipo_presupuesto || 'Eléctrico',
+                    subrubro: String(it.subrubro || ''),
+                    cantidad: cant,
+                    unidad: it.unidad || it.udm || 'UN',
+                    precio_unitario: pu,
+                    subtotal: parseFloat(it.subtotal) || (cant * pu),
+                    orden: idx + 1
+                };
+            });
+            await client.from('presupuesto_items').insert(itemRows);
+        } catch(itErr) {
+            console.warn("Aviso guardando presupuesto_items:", itErr);
+        }
+    }
+
+    return { success: true };
+};
+
 function saveData() {
     try {
         localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData));
@@ -963,11 +1098,10 @@ function saveData() {
     // Guardar en Supabase para sincronización global y tiempo real
     const client = getDbClient();
     if (client) {
-        // 1. Estado global en app_state
+        // 1. Estado global en app_state (permisos, notificaciones, precios y pedidos para Realtime)
         client.from('app_state').upsert({
             id: 'globalData',
             pedidos: appData.pedidos || [],
-            users: appData.users || [],
             notifications: appData.notifications || [],
             user_permissions: (appData.userPermissions && typeof appData.userPermissions === 'object' && Object.keys(appData.userPermissions).length > 0)
                 ? Object.assign({}, defaultUserPermissions, appData.userPermissions)
@@ -984,169 +1118,29 @@ function saveData() {
             console.error("Error saving to Supabase:", err);
         });
 
-        // 2. Sincronizar usuarios individuales en la tabla usuarios para que aparezcan en el Table Editor
-        if (Array.isArray(appData.users) && appData.users.length > 0) {
-            const usersRows = appData.users.map(function(u) {
-                return {
-                    id: String(u.id),
-                    username: String(u.username || '').trim(),
-                    password: String(u.password || '123'),
-                    email: u.email || '',
-                    role: u.role || 'Solicitante',
-                    rubro_defecto: u.rubro_defecto || 'Eléctrico'
-                };
-            });
-            client.from('usuarios').upsert(usersRows, { onConflict: 'username' }).then(function(res) {
-                if (res && res.error) console.warn("⚠️ Supabase usuarios warning:", res.error);
-                else console.log("☁️ Supabase: " + usersRows.length + " usuarios sincronizados.");
-            }).catch(function() {});
-        }
+        // 2. USUARIOS: NO se hace upsert masivo aquí (tabla usuarios es independiente)
 
-        // 3. Sincronizar presupuestos individuales en la tabla presupuestos de Supabase
+        // 3. PRESUPUESTOS: Sincronización en la tabla 'presupuestos' de Supabase
         if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
-            const presupuestosRowsCore = appData.pedidos.map(function(p) {
-                const totalAmt = parseFloat(p.importe !== undefined ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
-                return {
-                    id: String(p.id),
-                    fecha: p.fecha || getLocalCurrentDateTimeStr(),
-                    tipo_presupuesto: p.tipo_presupuesto || 'Eléctrico',
-                    cliente_id: String(p.cliente_id || '3'),
-                    cliente_nombre: String(p.cliente_nombre || 'CARGILL SACI'),
-                    importe_neto: totalAmt,
-                    estado: p.estado || 'Enviado sin OC',
-                    nro_oc: p.nro_oc || p.meca_nro_oc || '',
-                    nro_ot: p.nro_ot || p.meca_nro_ot || '',
-                    denominacion: p.denominacion || p.meca_denominacion || '',
-                    planta: p.planta || p.meca_planta || '',
-                    proveedor: p.proveedor || p.meca_proveedor || 'SG MONTAJES SRL',
-                    fecha_oferta: p.fecha_oferta || p.meca_fecha_oferta || '',
-                    validez: p.validez || p.meca_validez || '',
-                    fecha_inicio: p.fecha_inicio || p.meca_fecha_inicio || '',
-                    duracion: p.duracion || p.meca_duracion || '',
-                    fecha_fin: p.fecha_fin || p.meca_fecha_fin || '',
-                    propuesta: p.propuesta || p.meca_propuesta || '',
-                    personal: p.personal || p.meca_personal || '',
-                    exclusiones: p.exclusiones || p.meca_exclusiones || '',
-                    motivo_rechazo: p.motivo_rechazo || '',
-                    operador: p.operador || 'admin',
-                    avance_porcentaje_acumulado: parseFloat(p.avance_porcentaje_acumulado) || 0,
-                    facturado_porcentaje: parseFloat(p.facturado_porcentaje || p.avance_porcentaje_acumulado) || 0,
-                    monto_facturado: parseFloat(p.monto_facturado || p.monto_facturado_total) || 0
-                };
+            const presupuestosRows = appData.pedidos.map(function(p) {
+                return window.buildPresupuestoSupabaseRow(p);
             });
-
-            const presupuestosRowsFull = appData.pedidos.map(function(p, i) {
-                const totalAmt = parseFloat(p.importe !== undefined ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
-                return Object.assign({}, presupuestosRowsCore[i], {
-                    importe: totalAmt,
-                    observaciones: p.observaciones || p.meca_observaciones || '',
-                    tipo_reporte: p.tipo_reporte || 'detallado',
-                    condicion_venta: cleanConditionName(p.condicion_venta || p.condicion_nombre || 'CONTADO'),
-                    domicilio: p.domicilio || '',
-                    localidad: p.localidad || '',
-                    cuit: p.cuit || '',
-                    vendedor_nombre: p.vendedor_nombre || p.operador_vendedor_nombre || '',
-                    items: Array.isArray(p.items) ? p.items : [],
-                    avances: Array.isArray(p.avances) ? p.avances : []
-                });
-            });
-
-            client.from('presupuestos').upsert(presupuestosRowsFull, { onConflict: 'id' }).then(function(res) {
-                if (res && res.error) {
-                    if (res.error.code === 'PGRST204' || String(res.error.message).includes('column')) {
-                        // Reintento resiliente con columnas core si la tabla no tiene todas las columnas añadidas
-                        client.from('presupuestos').upsert(presupuestosRowsCore, { onConflict: 'id' }).then(function(coreRes) {
-                            if (coreRes && coreRes.error) {
-                                console.warn("⚠️ Supabase presupuestos core warning:", coreRes.error);
-                            } else {
-                                console.log("☁️ Supabase: " + presupuestosRowsCore.length + " presupuestos sincronizados con éxito (modo estándar).");
-                            }
-                        }).catch(function(coreErr) {
-                            console.error("Error sincronizando presupuestos core:", coreErr);
-                        });
-                    } else {
-                        console.warn("⚠️ Supabase presupuestos warning:", res.error);
-                    }
-                } else {
-                    console.log("☁️ Supabase: " + presupuestosRowsFull.length + " presupuestos sincronizados con éxito (modo completo).");
-                }
+            client.from('presupuestos').upsert(presupuestosRows, { onConflict: 'id' }).then(function(res) {
+                if (res && res.error) console.warn("⚠️ Supabase presupuestos warning:", res.error);
+                else console.log("☁️ Supabase: " + presupuestosRows.length + " presupuestos sincronizados con éxito en tabla 'presupuestos'.");
             }).catch(function(err) {
                 console.error("Error sincronizando presupuestos:", err);
             });
         }
 
-        // 4. Sincronizar avances de obra individuales en la tabla avances_obra de Supabase
-        const allAvancesRows = [];
-        if (Array.isArray(appData.pedidos)) {
-            appData.pedidos.forEach(function(p) {
-                if (Array.isArray(p.avances) && p.avances.length > 0) {
-                    const totalAmt = parseFloat(p.importe || p.importe_neto || p.importe_total || 0);
-                    p.avances.forEach(function(a, aIdx) {
-                        const pct = parseFloat(a.porcentaje) || 0;
-                        const monto = parseFloat(a.monto) || (totalAmt * (pct / 100));
-                        let cleanFecha = a.fecha || new Date().toISOString().substring(0, 10);
-                        if (String(cleanFecha).includes('/')) {
-                            const fParts = String(cleanFecha).split('/');
-                            if (fParts.length === 3) {
-                                cleanFecha = `${fParts[2]}-${String(fParts[1]).padStart(2, '0')}-${String(fParts[0]).padStart(2, '0')}`;
-                            }
-                        }
-                        allAvancesRows.push({
-                            id: a.id || `${String(p.id)}-AV-${String(aIdx + 1).padStart(2, '0')}`,
-                            presupuesto_id: String(p.id),
-                            fecha: cleanFecha,
-                            porcentaje: pct,
-                            monto_equivalente: monto,
-                            detalle: a.detalle || ''
-                        });
-                    });
-                }
-            });
-        }
-        if (allAvancesRows.length > 0) {
-            client.from('avances_obra').upsert(allAvancesRows, { onConflict: 'id' }).then(function(res) {
-                if (res && res.error) console.warn("⚠️ Supabase avances_obra warning:", res.error);
-                else console.log("☁️ Supabase: " + allAvancesRows.length + " avances de obra sincronizados.");
-            }).catch(function(err) {
-                console.error("Error sincronizando avances:", err);
-            });
-        }
 
-        // 5. Sincronizar items de presupuestos en la tabla presupuesto_items de Supabase
-        const allItemsRows = [];
-        if (Array.isArray(appData.pedidos)) {
-            appData.pedidos.forEach(function(p) {
-                if (Array.isArray(p.items) && p.items.length > 0) {
-                    p.items.forEach(function(it, idx) {
-                        const cant = parseFloat(it.cantidad) || 0;
-                        const pu = parseFloat(it.precio || it.precio_unitario) || 0;
-                        const sub = parseFloat(it.subtotal) || (cant * pu);
-                        if (cant > 0 || sub > 0 || it.detalle) {
-                            allItemsRows.push({
-                                id: `${String(p.id)}-ITM-${String(idx + 1).padStart(2, '0')}`,
-                                presupuesto_id: String(p.id),
-                                codigo: String(it.codigo || `ITM-${idx + 1}`),
-                                detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
-                                rubro: p.tipo_presupuesto || 'Eléctrico',
-                                cantidad: cant,
-                                unidad: it.unidad || it.udm || 'UN',
-                                precio_unitario: pu,
-                                subtotal: sub,
-                                orden: idx + 1
-                            });
-                        }
-                    });
-                }
-            });
-        }
-        if (allItemsRows.length > 0) {
-            client.from('presupuesto_items').upsert(allItemsRows, { onConflict: 'id' }).then(function(res) {
-                if (res && res.error) console.warn("⚠️ Supabase presupuesto_items warning:", res.error);
-                else console.log("☁️ Supabase: " + allItemsRows.length + " items sincronizados en presupuesto_items.");
-            }).catch(function(err) {
-                console.error("Error sincronizando presupuesto_items:", err);
-            });
-        }
+        // 4. AVANCES DE OBRA: NO se hace upsert masivo aquí.
+        // Los avances se sincronizan individualmente cuando se cargan desde abrirModalAvanceObra.
+        // El upsert masivo recrea avances de presupuestos borrados en Supabase.
+
+        // 5. ITEMS: NO se hace upsert masivo aquí.
+        // Los items se sincronizan individualmente cuando se guarda cada presupuesto.
+
 
         // 6. Sincronizar notificaciones en la tabla notificaciones de Supabase
         if (Array.isArray(appData.notifications) && appData.notifications.length > 0) {
@@ -5693,6 +5687,9 @@ window.confirmarConTipoReporte = function(tipoReporte) {
             
             window.pedidoEnEdicionId = null;
             try { saveData(); } catch(e) {}
+            if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+                window.guardarPresupuestoEnSupabase(targetPedido);
+            }
             showToast(`Presupuesto ${targetId} modificado correctamente.`, 'success');
             try { verDetallePedido(targetId); } catch(e) {}
         } else {
@@ -5789,29 +5786,8 @@ window.confirmarConTipoReporte = function(tipoReporte) {
 
             appData.pedidos.push(newPedido);
             try { saveData(); } catch(e) {}
-
-            // Inserción directa en presupuesto_items de Supabase
-            const client = (typeof getDbClient === 'function') ? getDbClient() : null;
-            if (client && Array.isArray(newPedido.items) && newPedido.items.length > 0) {
-                const itemRows = newPedido.items.map((it, idx) => {
-                    const cant = parseFloat(it.cantidad) || 0;
-                    const pu = parseFloat(it.precio || it.precio_unitario) || 0;
-                    return {
-                        presupuesto_id: String(newPedido.id),
-                        codigo: String(it.codigo || ''),
-                        detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
-                        rubro: newPedido.tipo_presupuesto || 'Eléctrico',
-                        cantidad: cant,
-                        unidad: it.unidad || it.udm || 'UN',
-                        precio_unitario: pu,
-                        subtotal: parseFloat(it.subtotal) || (cant * pu),
-                        orden: idx + 1
-                    };
-                });
-                client.from('presupuesto_items').insert(itemRows).then(function(res) {
-                    if (res && res.error) console.warn("⚠️ Error insertando items en Supabase:", res.error);
-                    else console.log("☁️ Supabase: " + itemRows.length + " items insertados en presupuesto_items.");
-                }).catch(function() {});
+            if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+                window.guardarPresupuestoEnSupabase(newPedido);
             }
 
             if (isReqAuth) {
@@ -8356,6 +8332,9 @@ window.guardarModificacionesPedido = function() {
     realOrder.estado = pedidoActivo.estado;
     
     saveData();
+    if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+        window.guardarPresupuestoEnSupabase(realOrder);
+    }
     pedidoEdicionTemp = null;
     
     showToast(`Presupuesto ${pedidoActivo.id} modificado y actualizado con éxito.`, 'success');
@@ -8751,7 +8730,7 @@ window.verDetallePedido = function(id, explicitMode) {
                 _wmEl.style.maxWidth = '100%';
                 _wmEl.style.objectFit = 'contain';
             } else {
-                _wmEl.src = 'logo_sg_watermark_gold.png';
+                _wmEl.src = (window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : 'logo_sg_watermark_gold.png';
                 _wmEl.alt = 'Marca de agua SG MONTAJES';
                 _wmEl.style.width = '380px';
                 _wmEl.style.maxWidth = '100%';
@@ -8786,11 +8765,12 @@ window.verDetallePedido = function(id, explicitMode) {
 
     const formatDisplayDate = (val) => {
         if (!val || val === '-') return '-';
-        if (/^\d{4}-\d{2}-\d{2}$/.test(String(val))) {
-            const parts = String(val).split('-');
-            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        const str = String(val).trim();
+        const m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) {
+            return `${m[3]}/${m[2]}/${m[1]}`;
         }
-        return String(val);
+        return str;
     };
 
     const formatCuitDisplay = (val) => {
@@ -8846,14 +8826,14 @@ window.verDetallePedido = function(id, explicitMode) {
         // Conditional layout for Mecánico vs Eléctrico
         if (isElectrical) {
             if (document.getElementById('lbl-modal-titulo')) document.getElementById('lbl-modal-titulo').innerText = 'Detalle:';
-            if (document.getElementById('modal-col-detalle-prop')) document.getElementById('modal-col-detalle-prop').style.display = 'none';
-            if (document.getElementById('modal-row-detalle-planta')) document.getElementById('modal-row-detalle-planta').style.display = 'flex';
-            if (document.getElementById('modal-row-planta-original')) document.getElementById('modal-row-planta-original').style.display = 'flex';
+            if (document.getElementById('modal-row-detalle-planta')) document.getElementById('modal-row-detalle-planta').style.display = 'none';
+            if (document.getElementById('modal-col-f6-planta-el')) document.getElementById('modal-col-f6-planta-el').style.display = 'flex';
+            if (document.getElementById('modal-col-f6-condicion-meca')) document.getElementById('modal-col-f6-condicion-meca').style.display = 'none';
         } else {
             if (document.getElementById('lbl-modal-titulo')) document.getElementById('lbl-modal-titulo').innerText = 'Título:';
-            if (document.getElementById('modal-col-detalle-prop')) document.getElementById('modal-col-detalle-prop').style.display = 'flex';
             if (document.getElementById('modal-row-detalle-planta')) document.getElementById('modal-row-detalle-planta').style.display = 'flex';
-            if (document.getElementById('modal-row-planta-original')) document.getElementById('modal-row-planta-original').style.display = 'none';
+            if (document.getElementById('modal-col-f6-planta-el')) document.getElementById('modal-col-f6-planta-el').style.display = 'none';
+            if (document.getElementById('modal-col-f6-condicion-meca')) document.getElementById('modal-col-f6-condicion-meca').style.display = 'flex';
         }
 
         const rawDenom = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
@@ -8876,22 +8856,23 @@ window.verDetallePedido = function(id, explicitMode) {
             setElemHtml('auth-meca-entrega-val', `<input type="date" id="auth-edit-meca-entrega" value="${p.fecha_entrega || p.meca_fecha_fin || p.fecha || ''}" oninput="saveTempEdits()" style="width: 120px; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">`);
             setElemHtml('auth-meca-oc-mo-val', `<input type="text" id="auth-edit-meca-oc-mo" value="${rawOcMo !== '-' ? rawOcMo : ''}" oninput="saveTempEdits()" style="width: 130px; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; font-family: monospace;">`);
             setElemHtml('auth-meca-oc-mat-val', `<input type="text" id="auth-edit-meca-oc-mat" value="${rawOcMat !== '-' ? rawOcMat : ''}" oninput="saveTempEdits()" style="width: 130px; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; font-family: monospace;">`);
-            setElemHtml('auth-meca-planta-val', `
-                <select id="auth-edit-meca-planta" onchange="const o=document.getElementById('auth-edit-meca-planta-orig');if(o)o.value=this.value;saveTempEdits();" style="font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
+            const selectPlantaHtml = `
+                <select id="auth-edit-meca-planta" onchange="saveTempEdits();" style="font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
                     ${optsPlanta}
                 </select>
-            `);
-            setElemHtml('auth-meca-planta-val-orig', `
-                <select id="auth-edit-meca-planta-orig" onchange="const m=document.getElementById('auth-edit-meca-planta');if(m)m.value=this.value;saveTempEdits();" style="font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">
-                    ${optsPlanta}
-                </select>
-            `);
+            `;
+            if (isElectrical) {
+                setElemHtml('auth-meca-planta-val-el', selectPlantaHtml);
+                setElemText('auth-meca-planta-val', rawPlanta);
+            } else {
+                setElemHtml('auth-meca-planta-val', selectPlantaHtml);
+                setElemText('auth-meca-planta-val-el', rawPlanta);
+            }
             setElemText('auth-meca-nro-presupuesto-val', rawNroPres);
         } else {
             setElemText('auth-meca-cliente-val', rawCliName);
             setElemText('auth-meca-cliente-codigo-val', rawCliCode);
             setElemText('auth-meca-denominacion-val', rawDenom);
-            setElemText('auth-meca-detalle-prop-val', p.meca_propuesta || p.propuesta || '-');
             setElemText('auth-meca-detalle-prop-val', p.meca_propuesta || p.propuesta || '-');
             setElemText('auth-meca-nro-ot-val', rawOt);
             setElemText('auth-meca-domicilio-val', rawCliDom);
@@ -8903,7 +8884,7 @@ window.verDetallePedido = function(id, explicitMode) {
             setElemText('auth-meca-oc-mo-val', rawOcMo);
             setElemText('auth-meca-oc-mat-val', rawOcMat);
             setElemText('auth-meca-planta-val', rawPlanta);
-            setElemText('auth-meca-planta-val-orig', rawPlanta);
+            setElemText('auth-meca-planta-val-el', rawPlanta);
             setElemText('auth-meca-nro-presupuesto-val', rawNroPres);
         }
     }
@@ -9764,6 +9745,7 @@ window.imprimirPresupuestoModal = function() {
             setCleanText('auth-meca-denominacion-val', (pedidoActivo.meca_denominacion || pedidoActivo.denominacion || pedidoActivo.motivo || 'SERVICIOS Y MONTAJES').toUpperCase());
             setCleanText('auth-meca-detalle-prop-val', (pedidoActivo.meca_propuesta || pedidoActivo.propuesta || '-'));
             setCleanText('auth-meca-nro-ot-val', (pedidoActivo.meca_nro_ot || pedidoActivo.nro_ot || '-'));
+            if (document.getElementById('auth-meca-nro-ot-val-el')) setCleanText('auth-meca-nro-ot-val-el', (pedidoActivo.meca_nro_ot || pedidoActivo.nro_ot || '-'));
             setCleanText('auth-meca-domicilio-val', rawCliDom);
             setCleanText('auth-meca-localidad-val', rawCliLoc);
             setCleanText('auth-meca-cuit-val', rawCliCuit);
@@ -9771,7 +9753,7 @@ window.imprimirPresupuestoModal = function() {
             setCleanText('auth-meca-condicion-val', rawCliCond);
             setCleanText('auth-meca-nro-presupuesto-val', rawNroPres);
             setCleanText('auth-meca-planta-val', rawPlanta);
-            setCleanText('auth-meca-planta-val-orig', rawPlanta);
+            if (document.getElementById('auth-meca-planta-val-el')) setCleanText('auth-meca-planta-val-el', rawPlanta);
 
             // 3. Renderizar la tabla de comprobante oficial completa con todos los ítems e importes
             const targetReport = pedidoActivo.tipo_reporte || 'detallado';
@@ -13470,29 +13452,36 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
             clearTimeout(timeoutId);
             if (resp.ok) {
                 const data = await resp.json();
-                return data;
+                if (data && data.success) {
+                    // Registrar despacho real en Supabase
+                    try {
+                        const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+                        if (client) {
+                            client.from('notificaciones').insert({
+                                id: String(Date.now()),
+                                tipo: 'email_despachado',
+                                titulo: `Cotización enviada a ${to}`,
+                                mensaje: subject,
+                                leida: false,
+                                fecha: new Date().toISOString()
+                            }).then(() => {});
+                        }
+                    } catch(dbErr) {}
+                    return data;
+                } else if (data && data.error) {
+                    return { success: false, error: data.error };
+                }
             }
         } catch(err) {
-            // Continúa con el siguiente endpoint silenciosamente
+            // Continúa con el siguiente endpoint
         }
     }
 
-    // Registrar despacho en base de datos Supabase
-    try {
-        const client = (typeof getDbClient === 'function') ? getDbClient() : null;
-        if (client) {
-            client.from('notificaciones').insert({
-                id: String(Date.now()),
-                tipo: 'email_despachado',
-                titulo: `Cotización enviada a ${to}`,
-                mensaje: subject,
-                leida: false,
-                fecha: new Date().toISOString()
-            }).then(() => {});
-        }
-    } catch(dbErr) {}
-
-    return { success: true, sender: 'cotizaciones@sgmontajes.com.ar' };
+    // Si ningún endpoint respondió
+    return { 
+        success: false, 
+        error: 'El servidor de correo local no está iniciado o no se pudo conectar. Por favor ejecutá "Iniciar_Servidor.command" en tu Mac.' 
+    };
 };
 
 window.enviarEmailPedido = function(id) {
@@ -13701,13 +13690,19 @@ window.enviarEmailPedido = function(id) {
             <div id="dispatch-email-error-box" style="display: none; margin-bottom: 12px;"></div>
 
             <!-- Botones de Acción Inferiores -->
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 14px; flex-wrap: wrap; gap: 10px;">
-                <button type="button" id="btn-dispatch-cancel" style="background: #334155; color: #ffffff; font-weight: 700; font-size: 13px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 14px; flex-wrap: wrap; gap: 8px;">
+                <button type="button" id="btn-dispatch-cancel" style="background: #334155; color: #ffffff; font-weight: 700; font-size: 12.5px; padding: 10px 18px; border-radius: 8px; border: none; cursor: pointer;">
                     Cancelar
                 </button>
-                <div>
-                    <button type="button" id="btn-dispatch-send-now" title="Enviar automáticamente la cotización oficial con PDF adjunto" style="background: #0284c7; color: #ffffff; font-weight: 800; font-size: 14px; padding: 10px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45); transition: all 0.2s;">
-                        <i class="fas fa-paper-plane"></i> Enviar Cotización Oficial
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" id="btn-dispatch-mailto-now" title="Descargar PDF y abrir en Outlook o cliente de correo predeterminado" style="background: #0078d4; color: #ffffff; font-weight: 700; font-size: 13px; padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0, 120, 212, 0.35);">
+                        <i class="fas fa-envelope-open-text"></i> Abrir en Outlook
+                    </button>
+                    <button type="button" id="btn-dispatch-gmail-now" title="Descargar PDF oficial y abrir Gmail Web listo para enviar con 1 clic" style="background: #ea4335; color: #ffffff; font-weight: 800; font-size: 13px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 14px rgba(234, 67, 53, 0.4);">
+                        <i class="fab fa-google"></i> Enviar con Gmail Web
+                    </button>
+                    <button type="button" id="btn-dispatch-send-now" title="Enviar automáticamente desde cotizaciones@sgmontajes.com.ar" style="background: #0284c7; color: #ffffff; font-weight: 800; font-size: 13px; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45);">
+                        <i class="fas fa-paper-plane"></i> Enviar Automático
                     </button>
                 </div>
             </div>
@@ -14009,6 +14004,7 @@ window.enviarEmailPedido = function(id) {
 
             // 4. Cuerpo oficial del correo — idéntico visualmente al comprobante PDF impreso
             const logoSrcEmail = (window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png';
+            const watermarkEmail = (window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : (window.LOGO_SG_BASE64 ? window.LOGO_SG_BASE64 : 'logo_sg_watermark_gold.png');
             const nowStrEmail = new Date().toLocaleDateString('es-AR');
             const htmlContent = `
                 <div style="font-family: 'Segoe UI', Arial, Helvetica, sans-serif; max-width: 720px; margin: 0 auto; background: #ffffff; color: #000000; border: 2px solid #0f766e; border-radius: 8px; overflow: hidden; padding: 20px;">
@@ -14060,27 +14056,32 @@ window.enviarEmailPedido = function(id) {
                         </table>
                     </div>
 
-                    <!-- Tabla de ítems (igual que PDF: header verde, filas, total verde claro) -->
-                    <table style="width: 100%; border-collapse: collapse; text-align: left; border: 1px solid #cbd5e1; margin-bottom: 20px; font-size: 11.5px;">
-                        <thead style="background: #0f766e; color: #ffffff; font-size: 12px;">
-                            <tr>
-                                <th style="padding: 8px; font-weight: 700; border-right: 1px solid #0d9488; width: 15%;">CÓDIGO</th>
-                                <th style="padding: 8px; font-weight: 700; border-right: 1px solid #0d9488; width: 45%;">DETALLE</th>
-                                <th style="padding: 8px; font-weight: 700; text-align: center; border-right: 1px solid #0d9488; width: 10%;">CANT.</th>
-                                <th style="padding: 8px; font-weight: 700; text-align: right; border-right: 1px solid #0d9488; width: 15%;">P. UNIT.</th>
-                                <th style="padding: 8px; font-weight: 700; text-align: right; width: 15%;">SUBTOTAL</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${htmlItemsRows}
-                        </tbody>
-                        <tfoot>
-                            <tr style="background: #f0fdf4; border-top: 2px solid #0f766e; font-size: 14px;">
-                                <td colspan="4" style="padding: 10px; text-align: right; font-weight: bold; border-right: 1px solid #cbd5e1; color: #166534;">TOTAL PRESUPUESTO:</td>
-                                <td style="padding: 10px; text-align: right; font-weight: 900; color: #166534; font-family: monospace;">${totalStr}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                    <!-- Tabla de ítems con Marca de Agua de Fondo -->
+                    <div style="position: relative; margin-bottom: 20px;">
+                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.18; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                            <img src="${watermarkEmail}" style="width: 75%; max-width: 420px; object-fit: contain; transform: rotate(-25deg);" alt="Marca de Agua">
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; text-align: left; border: 1px solid #cbd5e1; font-size: 11.5px; position: relative; z-index: 1; background: transparent;">
+                            <thead style="background: #0f766e; color: #ffffff; font-size: 12px;">
+                                <tr>
+                                    <th style="padding: 8px; font-weight: 700; border-right: 1px solid #0d9488; width: 15%;">CÓDIGO</th>
+                                    <th style="padding: 8px; font-weight: 700; border-right: 1px solid #0d9488; width: 45%;">DETALLE</th>
+                                    <th style="padding: 8px; font-weight: 700; text-align: center; border-right: 1px solid #0d9488; width: 10%;">CANT.</th>
+                                    <th style="padding: 8px; font-weight: 700; text-align: right; border-right: 1px solid #0d9488; width: 15%;">P. UNIT.</th>
+                                    <th style="padding: 8px; font-weight: 700; text-align: right; width: 15%;">SUBTOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${htmlItemsRows}
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: #f0fdf4; border-top: 2px solid #0f766e; font-size: 14px;">
+                                    <td colspan="4" style="padding: 10px; text-align: right; font-weight: bold; border-right: 1px solid #cbd5e1; color: #166534;">TOTAL PRESUPUESTO:</td>
+                                    <td style="padding: 10px; text-align: right; font-weight: 900; color: #166534; font-family: monospace;">${totalStr}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
 
                     <!-- Pie: adjunto + firma (igual que PDF) -->
                     <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #94a3b8; font-size: 12px; color: #0284c7; font-weight: bold;">
@@ -14115,7 +14116,27 @@ window.enviarEmailPedido = function(id) {
             btnSendNow.disabled = false;
             btnSendNow.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Cotización Oficial';
 
-            // Actualizar estado de despacho en el pedido local y en Supabase
+            if (!res || !res.success) {
+                // Servidor local no levantado: Despacho automático directo por Gmail Web
+                if (typeof showToast === 'function') {
+                    showToast('📄 Descargando PDF oficial y abriendo Gmail con la cotización lista...', 'info');
+                }
+                await ejecutarDespachoGmailWeb();
+                if (p) {
+                    p.email_enviado = true;
+                    p.fecha_envio_email = new Date().toLocaleString('es-AR');
+                    if (p.estado === 'Cargado sin orden de compra' || !p.estado) {
+                        p.estado = 'Enviado sin OC';
+                    }
+                    if (typeof saveData === 'function') {
+                        try { saveData(); } catch(saveErr) {}
+                    }
+                }
+                closeEmailModal();
+                return;
+            }
+
+            // Actualizar estado de despacho en el pedido local y en Supabase (servidor local exitoso)
             if (p) {
                 p.email_enviado = true;
                 p.fecha_envio_email = new Date().toLocaleString('es-AR');
@@ -14134,16 +14155,26 @@ window.enviarEmailPedido = function(id) {
         };
     }
 
-    // Acción de envío vía Gmail Web
+    // Acción de envío vía Gmail Web directo (sin servidor)
     const btnGmailNow = document.getElementById('btn-dispatch-gmail-now');
     if (btnGmailNow) {
         btnGmailNow.onclick = async () => {
             await ejecutarDespachoGmailWeb();
+            if (p) {
+                p.email_enviado = true;
+                p.fecha_envio_email = new Date().toLocaleString('es-AR');
+                if (p.estado === 'Cargado sin orden de compra' || !p.estado) {
+                    p.estado = 'Enviado sin OC';
+                }
+                if (typeof saveData === 'function') {
+                    try { saveData(); } catch(saveErr) {}
+                }
+            }
             closeEmailModal();
         };
     }
 
-    // Acción de envío vía cliente mailto (compatible 100% con GitHub Pages sin backend)
+    // Acción de envío vía cliente mailto / Outlook (compatible 100% sin backend)
     const btnMailtoNow = document.getElementById('btn-dispatch-mailto-now');
     if (btnMailtoNow) {
         btnMailtoNow.onclick = async () => {
@@ -14184,8 +14215,19 @@ window.enviarEmailPedido = function(id) {
                 filename: pdfFilename
             });
 
+            if (p) {
+                p.email_enviado = true;
+                p.fecha_envio_email = new Date().toLocaleString('es-AR');
+                if (p.estado === 'Cargado sin orden de compra' || !p.estado) {
+                    p.estado = 'Enviado sin OC';
+                }
+                if (typeof saveData === 'function') {
+                    try { saveData(); } catch(saveErr) {}
+                }
+            }
+
             btnMailtoNow.disabled = false;
-            btnMailtoNow.innerHTML = '<i class="fas fa-envelope-open-text"></i> Abrir en mi Correo (mailto)';
+            btnMailtoNow.innerHTML = '<i class="fas fa-envelope-open-text"></i> Abrir en Outlook';
             closeEmailModal();
         };
     }
@@ -14749,7 +14791,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     const _activeLogo = _isAcosta ? _logoAcostaB64 : (logoSrc || ((typeof window !== 'undefined' && window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png'));
 
     let rowsHtml = items.map(r => {
-        const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-' && format === 'detallado');
+        const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-');
         if (isHeaderRow) {
             return `
             <tr style="border-bottom: 1px solid #000; font-size: 11px; background-color: #e2e8f0; font-weight: 800;">
@@ -14812,22 +14854,75 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 </div>
 
                 <!-- Client Info Box -->
-                <div style="border: 2px solid #000; border-radius: 8px; margin-bottom: 15px; font-size: 11px;">
+                <div style="border: 2px solid #000; border-radius: 8px; margin-bottom: 15px; font-size: 11px; padding: 6px 8px;">
+                    ${((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
+                    <!-- Formato Eléctrico Equilibrado Sin Espacios Vacíos -->
+                    <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
+                        <div style="flex: 1.5; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">Cliente:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${cliName}</strong>
+                        </div>
+                        <div style="flex: 1; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">Código:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${codCliente}</strong>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
+                        <div style="flex: 1.5; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">Detalle:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${detalle}</strong>
+                        </div>
+                        <div style="flex: 1; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">Número OT:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${numOt}</strong>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
+                        <div style="flex: 1.5; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">Domicilio:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${domicilio}</strong>
+                        </div>
+                        <div style="flex: 1; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">Localidad:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${localidad}</strong>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
+                        <div style="flex: 1.5; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">C.U.I.T.:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${cuitCli}</strong>
+                        </div>
+                        <div style="flex: 1; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">F. Entrega:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${entrega}</strong>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; gap: 8px;">
+                        <div style="flex: 1.5; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">Planta:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${planta}</strong>
+                        </div>
+                        <div style="flex: 1; display: flex; gap: 5px;">
+                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">Nro Pres.:</span> 
+                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${nro}</strong>
+                        </div>
+                    </div>
+                    ` : `
+                    <!-- Formato Mecánico Oficial -->
                     <div style="display: flex;">
-                        <div style="width: 55%; border-right: 1px solid #000; padding: 8px;">
+                        <div style="width: 55%; border-right: 1px solid #000; padding: 2px 8px 2px 0;">
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Cliente:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${cliName}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">${(p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico') ? 'Detalle:' : 'Título:'}</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Título:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${detalle}</strong>
                             </div>
-                            ${!((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Detalle:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; white-space: pre-wrap;">${propTecnica}</strong>
-                            </div>` : ''}
+                            </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Domicilio:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${domicilio}</strong>
@@ -14836,17 +14931,12 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">C.U.I.T.:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${cuitCli}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
+                            <div style="display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Condición:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${condicion}</strong>
                             </div>
-                            ${((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
-                            <div style="display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Planta:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${planta}</strong>
-                            </div>` : ''}
                         </div>
-                        <div style="width: 45%; padding: 8px;">
+                        <div style="width: 45%; padding: 2px 0 2px 8px;">
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Código:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${codCliente}</strong>
@@ -14855,11 +14945,10 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Número de OT:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${numOt}</strong>
                             </div>
-                            ${!((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Planta:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${planta}</strong>
-                            </div>` : ''}
+                            </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
                                 <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Localidad:</span> 
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${localidad}</strong>
@@ -14874,13 +14963,14 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                             </div>
                         </div>
                     </div>
+                    `}
                 </div>
 
                 <!-- Items Table with Watermark -->
                 <div style="position: relative; margin-bottom: 10px;">
                     <!-- Watermark -->
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.30; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
-                        <img src="${_activeWatermark}" style="width: 75%; object-fit: contain; transform: rotate(-25deg); filter: contrast(1.15);">
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.55; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                        <img src="${_activeWatermark}" style="width: 80%; max-width: 500px; object-fit: contain; transform: rotate(-25deg); filter: contrast(1.15);">
                     </div>
                     
                     <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; position: relative; z-index: 1; background: transparent;">
@@ -15443,46 +15533,119 @@ window.getPresupuestoFormattedItems = function(p, format) {
         return formatted;
     }
 
-    const catalog = (p.tipo_presupuesto === 'Mecánico' || (p.id && String(p.id).toUpperCase().includes('MEC'))) ? (window.presupuestoMecanicoDB || []) : (window.presupuestosCatalogDB || []);
-    const materials = [];
-    const labor = [];
+    const isMecanico = (
+        (p.tipo_presupuesto || '').toLowerCase().includes('mecánico') ||
+        (p.tipo_presupuesto || '').toLowerCase().includes('mecanico') ||
+        (p.rubro || '').toLowerCase().includes('mecánico') ||
+        (p.rubro || '').toLowerCase().includes('mecanico') ||
+        (p.id && String(p.id).toUpperCase().includes('MEC')) ||
+        (p.id && String(p.id).startsWith('101'))
+    );
+
+    // En Eléctrico: NO se separan con títulos (detalle plano continuo de ítems)
+    if (!isMecanico) {
+        const formattedElectrico = validItems.map((it, idx) => {
+            const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
+            const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
+            const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
+            return {
+                codigo: it.codigo || `ITM-${idx+1}`,
+                detalle: it.detalle || it.descripcion || it.denominacion || it.nombre || '-',
+                precio: pr,
+                cantidad: q,
+                subtotal: sub
+            };
+        });
+
+        if (formattedElectrico.length === 0) {
+            const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
+            const totalVal = parseFloat(String(p.importe || '0').replace(',', '.')) || 0;
+            formattedElectrico.push({ codigo: '-', detalle: devText, precio: '-', cantidad: '-', subtotal: totalVal });
+        }
+        return formattedElectrico;
+    }
+
+    // En Mecánico: SEPARAR CON TÍTULOS SEGÚN SUBRUBRO (Mano de Obra Taller, Mantenimiento, Parada de Planta, Emergencia, Materiales)
+    const catalog = window.presupuestoMecanicoDB || [];
+    const groupsMap = {};
 
     validItems.forEach((it, idx) => {
         let subrubro = (it.subrubro || '').trim();
         if (!subrubro) {
-             const foundCat = catalog.find(c => c.codigo === it.codigo);
+             const foundCat = catalog.find(c => c.codigo === it.codigo || c.id === it.codigo);
              if (foundCat && foundCat.subrubro) subrubro = foundCat.subrubro.trim();
         }
+
+        let catKey = '';
+        const subLow = subrubro.toLowerCase();
+        if (subLow.includes('taller')) {
+            catKey = 'MANO DE OBRA EN TALLER';
+        } else if (subLow.includes('emergencia')) {
+            catKey = 'MANO DE OBRA EMERGENCIA MANTENIMIENTO';
+        } else if (subLow.includes('parada')) {
+            catKey = 'MANO DE OBRA PARADA DE PLANTA';
+        } else if (subLow.includes('mantenimiento')) {
+            catKey = 'MANO DE OBRA MANTENIMIENTO';
+        } else if (subLow.includes('material') || subLow.includes('equipo') || subLow.includes('insumo')) {
+            catKey = 'MATERIALES Y EQUIPOS';
+        } else if (subrubro) {
+            catKey = subrubro.toUpperCase();
+        } else {
+            // Inferencia si no tiene subrubro cargado
+            const detLow = (it.detalle || it.descripcion || '').toLowerCase();
+            if (detLow.includes('taller')) {
+                catKey = 'MANO DE OBRA EN TALLER';
+            } else if (detLow.includes('material') || detLow.includes('perfil') || detLow.includes('chapa') || detLow.includes('bulon') || detLow.includes('tornillo')) {
+                catKey = 'MATERIALES Y EQUIPOS';
+            } else {
+                catKey = 'MANO DE OBRA MANTENIMIENTO';
+            }
+        }
+
+        if (!groupsMap[catKey]) {
+            groupsMap[catKey] = [];
+        }
+
         const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
         const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
         const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
-        
-        const formattedItem = {
+
+        groupsMap[catKey].push({
             codigo: it.codigo || `ITM-${idx+1}`,
             detalle: it.detalle || it.descripcion || it.denominacion || it.nombre || '-',
             precio: pr,
             cantidad: q,
             subtotal: sub
-        };
-        
-        if (subrubro.toLowerCase().includes('material') || subrubro.toLowerCase().includes('equipo')) {
-            materials.push(formattedItem);
-        } else {
-            labor.push(formattedItem);
-        }
+        });
+    });
+
+    // Orden estándar preferido para Mecánico
+    const preferredOrder = [
+        'MANO DE OBRA EN TALLER',
+        'MANO DE OBRA MANTENIMIENTO',
+        'MANO DE OBRA PARADA DE PLANTA',
+        'MANO DE OBRA EMERGENCIA MANTENIMIENTO',
+        'MATERIALES Y EQUIPOS'
+    ];
+
+    const sortedCategoryKeys = Object.keys(groupsMap).sort((a, b) => {
+        const idxA = preferredOrder.indexOf(a);
+        const idxB = preferredOrder.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b);
     });
 
     const formatted = [];
-    if (labor.length > 0) {
-        formatted.push({ codigo: '-', detalle: 'MANO DE OBRA / HORAS', precio: '-', cantidad: '-', subtotal: '-' });
-        labor.forEach(l => formatted.push(l));
-    }
-    
-    if (materials.length > 0) {
-        formatted.push({ codigo: '-', detalle: 'MATERIALES E INSUMOS', precio: '-', cantidad: '-', subtotal: '-' });
-        materials.forEach(m => formatted.push(m));
-    }
-    
+    sortedCategoryKeys.forEach(catTitle => {
+        const catItems = groupsMap[catTitle];
+        if (catItems && catItems.length > 0) {
+            formatted.push({ codigo: '-', detalle: catTitle, precio: '-', cantidad: '-', subtotal: '-' });
+            catItems.forEach(item => formatted.push(item));
+        }
+    });
+
     if (formatted.length === 0) {
         const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
         const totalVal = parseFloat(String(p.importe || '0').replace(',', '.')) || 0;

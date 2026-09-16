@@ -1345,6 +1345,12 @@ input:focus, select:focus, textarea:focus {
     body.modal-open .palaversich-sheet td,
     body.modal-open .palaversich-sheet th {
         color: #000000 !important;
+        background-color: transparent !important;
+    }
+    body.modal-open .palaversich-sheet table,
+    body.modal-open .palaversich-sheet tbody,
+    body.modal-open .palaversich-sheet tr {
+        background-color: transparent !important;
     }
 
     /* Logo de fondo (Marca de Agua Oficial SG MONTAJES que cubre Artículos y Propuesta Técnica) */

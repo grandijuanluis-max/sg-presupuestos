@@ -143,11 +143,18 @@ def send_email_smtp(to_emails, subject, html_content, text_content=None, reply_t
                     server.login(SMTP_USER, SMTP_PASS)
                     server.sendmail(SMTP_USER, all_recipients, msg.as_string())
         except Exception as e_ssl:
-            print(f"⚠️ [SMTP SSL 465 Fallback] Falló conexión SSL 465 ({e_ssl}), reintentando STARTTLS en puerto 587...", flush=True)
-            with smtplib.SMTP(SMTP_HOST, 587, timeout=45) as server:
-                server.starttls()
-                server.login(SMTP_USER, SMTP_PASS)
-                server.sendmail(SMTP_USER, all_recipients, msg.as_string())
+            print(f"⚠️ [SMTP Fallback] Falló conexión con {SMTP_HOST} ({e_ssl}), reintentando por IP directa 200.58.112.220...", flush=True)
+            try:
+                context = ssl._create_unverified_context()
+                with smtplib.SMTP_SSL("200.58.112.220", 465, context=context, timeout=45) as server:
+                    server.login(SMTP_USER, SMTP_PASS)
+                    server.sendmail(SMTP_USER, all_recipients, msg.as_string())
+            except Exception as e_ip:
+                print(f"⚠️ [SMTP Fallback IP] Falló SSL por IP ({e_ip}), reintentando STARTTLS 587 por IP...", flush=True)
+                with smtplib.SMTP("200.58.112.220", 587, timeout=45) as server:
+                    server.starttls()
+                    server.login(SMTP_USER, SMTP_PASS)
+                    server.sendmail(SMTP_USER, all_recipients, msg.as_string())
             
         print(f"📧 [SMTP SUCCESS] Correo enviado exitosamente a: {all_recipients} | Asunto: {subject} | Adjuntos: {len(attachments or [])}", flush=True)
         return {"success": True, "recipients": all_recipients, "attachments_count": len(attachments or [])}
