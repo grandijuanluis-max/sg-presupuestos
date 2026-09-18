@@ -1543,9 +1543,15 @@
                     <div class="header-box header-right" style="display: flex; flex-direction: column; align-items: flex-end;">
                         <div class="invoice-number" style="text-align: right; width: 100%;">Nro. <span id="auth-id" style="color: #38bdf8; font-weight: 800;">00000-00014873</span></div>
                         <div class="invoice-date" style="text-align: right; width: 100%;">Fecha: <span id="auth-date-val" style="color: #f8fafc; font-weight: 600;">17/09/2023</span></div>
-                        <div id="auth-header-oc-container" style="font-size: 10px; font-weight: 800; margin-top: 3px; color: #38bdf8; text-align: right; width: 100%;">
-                            OC Mano de Obra: <span id="auth-header-nro-oc-mo-val" style="color: #38bdf8; font-weight: 800;">-</span><br>
-                            OC Materiales: <span id="auth-header-nro-oc-mat-val" style="color: #38bdf8; font-weight: 800;">-</span>
+                        <div id="auth-header-oc-container" style="font-size: 10.5px; font-weight: 800; margin-top: 3px; color: #38bdf8; text-align: right; width: 100%;">
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                                <div>OC Mano de Obra: <span id="auth-header-nro-oc-mo-val" style="color: #38bdf8; font-weight: 800;">-</span></div>
+                                <div>OC Materiales: <span id="auth-header-nro-oc-mat-val" style="color: #34d399; font-weight: 800;">-</span></div>
+                                <button type="button" class="btn btn-sm" onclick="if(typeof pedidoActivo !== 'undefined' && pedidoActivo) window.editarOrdenesDeCompra(pedidoActivo.id)" 
+                                        style="margin-top: 2px; padding: 2px 7px; font-size: 9.5px; background: rgba(56,189,248,0.2); color: #38bdf8; border: 1px solid #38bdf8; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-weight: 800;" title="Modificar o cargar OC de Mano de Obra y Materiales">
+                                    <i class="fa-solid fa-pen"></i> Modificar OC
+                                </button>
+                            </div>
                         </div>
                         <div id="modal-header-fiscal-details" class="company-fiscal-details" style="font-size: 10.5px; margin-top: 4px; color: #f8fafc; line-height: 1.4; display: inline-flex; flex-direction: column; text-align: left;">
                             <div style="display: flex; justify-content: space-between; gap: 8px;">
@@ -1743,11 +1749,13 @@
                 <!-- Nota: Se eliminó el panel de estado crediticio y bloqueo a petición del usuario. -->
                 
                 <!-- Historial de Auditoría si ya fue resuelta -->
-                <div id="auth-resolved-panel" style="display: none; margin-bottom: 15px; font-size: 12px; border: 1px solid #2b6cb0; padding: 10px; background: #ebf8ff; color: #2b6cb0;">
-                    <strong style="display: block; margin-bottom: 5px;">📜 Resolución de Tarea (Administración):</strong>
-                    <div>Estado final: <strong id="auth-final-state" style="text-transform: uppercase;">Aprobado</strong></div>
-                    <div>Fecha de resolución: <span id="auth-resolution-date">-</span></div>
-                    <div id="auth-reject-comment-container" style="display: none; margin-top: 5px;">Motivo rechazo: <em id="auth-reject-comment">-</em></div>
+                <div id="auth-resolved-panel" style="display: none; margin-bottom: 15px; font-size: 13px; border: 1.5px solid #3b82f6; border-radius: 8px; padding: 12px; background: rgba(15, 23, 42, 0.95); color: #f8fafc;">
+                    <strong style="display: block; margin-bottom: 5px; color: #38bdf8;">📜 Resolución de Tarea (Administración):</strong>
+                    <div>Estado final: <strong id="auth-final-state" style="text-transform: uppercase; color: #ffffff;">Aprobado</strong></div>
+                    <div>Fecha de resolución: <span id="auth-resolution-date" style="color: #cbd5e1;">-</span></div>
+                    <div id="auth-reject-comment-container" style="display: none; margin-top: 8px; padding: 8px 12px; background: #ffffff; color: #0f172a; border-radius: 6px; border-left: 4px solid #f43f5e; font-weight: 600;">
+                        Motivo rechazo: <em id="auth-reject-comment" style="font-style: normal; color: #e11d48; font-weight: 700;">-</em>
+                    </div>
                 </div>
             </div>
 
@@ -1767,9 +1775,9 @@
 
 
 
-                <div class="form-group" id="reject-comment-group" style="display: none; animation: fadeIn 0.2s; margin-top: 5px;">
-                    <label style="color: var(--danger); font-weight: bold;">Motivo del Rechazo <span style="color: #ff8888;">(Obligatorio)</span></label>
-                    <textarea id="auth-reject-reason-input" rows="2" placeholder="Ingrese el motivo obligatorio por el cual rechaza el presupuesto..." style="width: 100%; border-color: var(--danger);"></textarea>
+                <div class="form-group" id="reject-comment-group" style="display: none; animation: fadeIn 0.2s; margin-top: 10px; background: rgba(244, 63, 94, 0.1); padding: 12px; border-radius: 8px; border: 1.5px solid rgba(244, 63, 94, 0.4);">
+                    <label style="color: #fca5a5; font-weight: 800; font-size: 13px; display: block; margin-bottom: 6px;">Motivo del Rechazo <span style="color: #f87171;">(Obligatorio)</span>:</label>
+                    <textarea id="auth-reject-reason-input" rows="3" placeholder="Ingrese el motivo obligatorio por el cual rechaza el presupuesto..." style="width: 100%; box-sizing: border-box; background: #ffffff !important; color: #0f172a !important; border: 2px solid #f43f5e !important; border-radius: 6px; padding: 10px 12px; font-size: 13px; font-weight: 600; font-family: inherit; outline: none;"></textarea>
                 </div>
                 
                 <div style="display: flex; justify-content: center; margin-top: 5px;">
@@ -3063,7 +3071,7 @@
             localStorage.removeItem('sg_plantas');
         } catch(e) {}
     </script>
-    <script src="app.js?v=410"></script>
+    <script src="app.js?v=423"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

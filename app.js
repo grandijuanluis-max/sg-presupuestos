@@ -1,8 +1,8 @@
 
 window.findPedidoIndex = function(id) {
     if (!id) return -1;
-    const pedidosList = (typeof appData !== 'undefined' && appData && Array.isArray(appData.pedidos)) 
-        ? appData.pedidos 
+    const pedidosList = (typeof appData !== 'undefined' && appData && Array.isArray(appData.pedidos))
+        ? appData.pedidos
         : ((window.appData && Array.isArray(window.appData.pedidos)) ? window.appData.pedidos : []);
     if (!pedidosList.length) return -1;
 
@@ -234,33 +234,33 @@ function numeroALetras(num, moneda = 'PESOS') {
 // Generador de texto para el detalle de facturas pendientes
 function generarDetalleFacturasPendientes(client, currency) {
     if (!client) return "SIN FACTURAS PENDIENTES DE PAGO\nDEUDA TOTAL REGISTRADA: $0,00";
-    
+
     const deuda = client.deuda_actual || 0;
     if (deuda === 0) {
         return `SIN FACTURAS PENDIENTES DE PAGO\nDEUDA TOTAL REGISTRADA: $0,00`;
     }
-    
+
     const isUSD = currency === 'Dólares';
     const currName = isUSD ? 'Dolares' : 'Pesos';
     const symbol = isUSD ? 'U$S' : '$';
-    
+
     // Simular un desglose de dos facturas pendientes basadas en la deuda del cliente
     const f1_amt = (deuda * 0.6).toFixed(2);
     const f2_amt = (deuda * 0.4).toFixed(2);
-    
+
     let text = `15/04/2026  FACTURA A  701041124  ${parseFloat(f1_amt).toLocaleString('es-AR', {minimumFractionDigits: 2})} ${currName}\n`;
     text += `10/05/2026  FACTURA A  701041556  ${parseFloat(f2_amt).toLocaleString('es-AR', {minimumFractionDigits: 2})} ${currName}\n`;
-    
+
     const cotiz = 1011.00;
     const deudaEnPesos = (deuda * cotiz).toLocaleString('es-AR', {minimumFractionDigits: 2});
-    
+
     if (isUSD) {
         text += `COMPROMISOS VARIOS EN U$ D/ELF. COTIZACION  ${(deuda * cotiz * 0.95).toLocaleString('es-AR', {maximumFractionDigits: 2})}\n`;
         text += `DEUDA TOTAL EN U$ S/ULT. COTIZACION        ${deuda.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
     } else {
         text += `DEUDA TOTAL REGISTRADA EN PESOS: $${deuda.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
     }
-    
+
     return text;
 }
 
@@ -284,12 +284,13 @@ const MOTIVATIONAL_QUOTES = [
 const defaultUserPermissions = {
     'mel': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
     'melani': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'juanluis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'luciano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'roberto': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'nicole': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'alexis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'emiliano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios']
+    'juanluis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
+    'luciano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
+    'roberto': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
+    'nicole': ['menu-facturacion'],
+    'alexis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
+    'emiliano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
+    'hernan': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit']
 };
 
 // Usuarios por defecto si la base de datos está vacía
@@ -302,7 +303,8 @@ const defaultData = {
         { id: '5', username: 'melani', password: '123', email: 'melanidaiana28@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL' },
         { id: '6', username: 'nicole', password: '123', email: 'nicole@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '105', vendedor_nombre: 'Nicole', empresa: 'SG MONTAJES SRL' },
         { id: '7', username: 'alexis', password: '123', email: 'alexis@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '106', vendedor_nombre: 'Alexis', empresa: 'SG MONTAJES SRL' },
-        { id: '8', username: 'emiliano', password: '123', email: 'emiliano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '107', vendedor_nombre: 'Emiliano', empresa: 'SG MONTAJES SRL' }
+        { id: '8', username: 'emiliano', password: '123', email: 'emiliano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '107', vendedor_nombre: 'Emiliano', empresa: 'SG MONTAJES SRL' },
+        { id: '9', username: 'hernan', password: '123', email: 'hernan@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '108', vendedor_nombre: 'Hernán', empresa: 'SG MONTAJES SRL' }
     ],
     pedidos: [],
     notifications: [],
@@ -456,7 +458,7 @@ try {
     if (local && local.users && local.users.length > 0) {
         let loadedPedidos = Array.isArray(local.pedidos) ? local.pedidos : [];
         appData.pedidos = normalizePresupuestosRubro(loadedPedidos);
-        
+
         // Filtrar usuarios removidos (admin, aut, sol)
         appData.users = (local.users || defaultData.users).filter(u => !['admin', 'aut', 'sol'].includes(String(u.username).trim().toLowerCase()));
         if (appData.users.length === 0) appData.users = defaultData.users.slice();
@@ -476,7 +478,7 @@ try {
 function mergeUsersList(localUsers, remoteUsers) {
     const list = Array.isArray(localUsers) ? localUsers.slice() : [];
     const rem = Array.isArray(remoteUsers) ? remoteUsers : [];
-    
+
     rem.forEach(ru => {
         if (!ru || !ru.username) return;
         const exists = list.find(lu => String(lu.username).trim().toLowerCase() === String(ru.username).trim().toLowerCase());
@@ -533,8 +535,47 @@ function initSupabaseSync(callback) {
     client.from('usuarios').select('*').order('id', { ascending: true }).then(function(uRes) {
         if (uRes.data && uRes.data.length > 0) {
             appData.users = uRes.data;
+            if (!appData.userPermissions) appData.userPermissions = {};
+
+            uRes.data.forEach(function(u) {
+                if (!u || !u.username) return;
+                const cleanU = String(u.username).trim().toLowerCase();
+                let p = u.permisos || u.permissions;
+                if (typeof p === 'string') {
+                    try { p = JSON.parse(p); } catch(e) {}
+                }
+                if (Array.isArray(p) && p.length > 0) {
+                    if (u.can_edit_prices === true) {
+                        if (!p.includes('menu-ingresar-edit-price')) p.push('menu-ingresar-edit-price');
+                        if (!p.includes('edit-precios')) p.push('edit-precios');
+                    } else if (u.can_edit_prices === false) {
+                        p = p.filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price' && x !== 'modificar-precios');
+                    }
+                    appData.userPermissions[cleanU] = p;
+                } else if (u.can_edit_prices === true) {
+                    if (!appData.userPermissions[cleanU]) {
+                        appData.userPermissions[cleanU] = (defaultUserPermissions[cleanU] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all']).slice();
+                    }
+                    if (!appData.userPermissions[cleanU].includes('menu-ingresar-edit-price')) {
+                        appData.userPermissions[cleanU].push('menu-ingresar-edit-price');
+                    }
+                    if (!appData.userPermissions[cleanU].includes('edit-precios')) {
+                        appData.userPermissions[cleanU].push('edit-precios');
+                    }
+                } else if (u.can_edit_prices === false) {
+                    if (appData.userPermissions && appData.userPermissions[cleanU]) {
+                        appData.userPermissions[cleanU] = appData.userPermissions[cleanU].filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price' && x !== 'modificar-precios');
+                    }
+                }
+            });
+
             try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
             console.log("✅ " + uRes.data.length + " usuarios leídos directamente de la tabla 'usuarios' en Supabase.");
+
+            if (typeof buildSidebar === 'function' && typeof getCurrentUser === 'function') {
+                const cur = getCurrentUser();
+                if (cur) buildSidebar();
+            }
         }
     }).catch(function(err) {
         console.warn("Aviso al consultar tabla 'usuarios' en Supabase:", err);
@@ -544,7 +585,7 @@ function initSupabaseSync(callback) {
     client.from('tarifario').select('*').then(function(tarRes) {
         if (tarRes.data && tarRes.data.length > 0) {
             const customPrices = getCustomItemPrices();
-            
+
             // Map de la base de datos a un diccionario rápido por código
             const dbByCode = {};
             tarRes.data.forEach(function(row) {
@@ -554,7 +595,7 @@ function initSupabaseSync(callback) {
                 if (row.planta) key = key + '_' + row.planta.trim().toUpperCase();
                 customPrices[key] = cPrice;
                 customPrices[row.codigo] = cPrice; // Guardamos el genérico también por compatibilidad
-                
+
                 if (!dbByCode[row.codigo]) dbByCode[row.codigo] = [];
                 dbByCode[row.codigo].push(row);
             });
@@ -598,7 +639,7 @@ function initSupabaseSync(callback) {
                         });
                     }
                 });
-                
+
                 // Agregar ítems que estén en Supabase pero no en el stock base
                 tarRes.data.forEach(row => {
                     if (row.rubro === 'Mecánico' && !PRESUPUESTO_MECANICO_STOCK.find(b => b.codigo === row.codigo)) {
@@ -615,7 +656,7 @@ function initSupabaseSync(callback) {
                         });
                     }
                 });
-                
+
                 window.presupuestoMecanicoDB = mecaArr;
             }
 
@@ -642,7 +683,7 @@ function initSupabaseSync(callback) {
                             estado: row.estado || 'ACTIVOS',
                             planta: row.planta ? row.planta.trim().toUpperCase() : null
                         };
-                        
+
                         if (row.rubro === 'Eléctrico') {
                             if (window.presupuestosCatalogDB) window.presupuestosCatalogDB.push(newItem);
                         } else {
@@ -762,7 +803,7 @@ function initSupabaseSync(callback) {
                 if (supabaseRealtimeChannel) {
                     client.removeChannel(supabaseRealtimeChannel);
                 }
-                
+
                 // Suscripción Realtime DIRECTA a la tabla 'presupuestos'
                 client
                     .channel('public:presupuestos')
@@ -817,24 +858,25 @@ function initSupabaseSync(callback) {
                             appData.notifications = data.notifications || [];
                             if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
                                 appData.userPermissions = Object.assign({}, defaultUserPermissions, appData.userPermissions, data.user_permissions);
+                                if (Array.isArray(appData.users)) {
+                                    appData.users.forEach(function(u) {
+                                        if (!u || !u.username) return;
+                                        const uk = String(u.username).trim().toLowerCase();
+                                        if (data.user_permissions[uk]) {
+                                            u.permissions = data.user_permissions[uk];
+                                            u.permisos = data.user_permissions[uk];
+                                            u.can_edit_prices = u.permissions.includes('menu-ingresar-edit-price') || u.permissions.includes('edit-precios');
+                                        }
+                                    });
+                                }
                             }
                             try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
 
                             if (!isFirstLoad && appData.currentUserId) {
                                 renderNotifications();
-                                const activeMenu = document.querySelector('.menu-item.active');
-                                if (activeMenu) {
-                                    const modalOverlay = document.getElementById('modal-overlay');
-                                    const isModalOpen = modalOverlay && modalOverlay.style.display === 'flex';
-                                    const isTyping = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-                                    if (!isModalOpen && !isTyping) {
-                                        const currentUser = getCurrentUser();
-                                        if (currentUser) {
-                                            const items = getMenuItemsForUser(currentUser);
-                                            const item = items.find(function(it) { return it.id === activeMenu.id; });
-                                            if (item && item.action) item.action();
-                                        }
-                                    }
+                                const currentUser = getCurrentUser();
+                                if (currentUser && typeof buildSidebar === 'function') {
+                                    buildSidebar();
                                 }
                             }
                             isFirstLoad = false;
@@ -861,14 +903,56 @@ function initSupabaseSync(callback) {
                             const exists = (appData.users || []).find(function(u) { return String(u.id) === String(newU.id); });
                             if (!exists) {
                                 appData.users.push(newU);
-                                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                             }
+                            const cleanU = String(newU.username || '').trim().toLowerCase();
+                            if (cleanU) {
+                                let p = newU.permisos || newU.permissions;
+                                if (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) {} }
+                                if (Array.isArray(p) && p.length > 0) {
+                                    if (newU.can_edit_prices === true) {
+                                        if (!p.includes('menu-ingresar-edit-price')) p.push('menu-ingresar-edit-price');
+                                        if (!p.includes('edit-precios')) p.push('edit-precios');
+                                    }
+                                    if (!appData.userPermissions) appData.userPermissions = {};
+                                    appData.userPermissions[cleanU] = p;
+                                }
+                            }
+                            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                         } else if (payload.eventType === 'UPDATE' && payload.new) {
                             const updU = payload.new;
                             const idx = (appData.users || []).findIndex(function(u) { return String(u.id) === String(updU.id); });
                             if (idx !== -1) {
                                 appData.users[idx] = Object.assign({}, appData.users[idx], updU);
-                                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                            }
+                            const cleanU = String(updU.username || '').trim().toLowerCase();
+                            if (cleanU) {
+                                let p = updU.permisos || updU.permissions;
+                                if (typeof p === 'string') { try { p = JSON.parse(p); } catch(e) {} }
+                                if (Array.isArray(p) && p.length > 0) {
+                                    if (updU.can_edit_prices === true) {
+                                        if (!p.includes('menu-ingresar-edit-price')) p.push('menu-ingresar-edit-price');
+                                        if (!p.includes('edit-precios')) p.push('edit-precios');
+                                    }
+                                    if (!appData.userPermissions) appData.userPermissions = {};
+                                    appData.userPermissions[cleanU] = p;
+                                } else if (typeof updU.can_edit_prices !== 'undefined') {
+                                    if (!appData.userPermissions) appData.userPermissions = {};
+                                    if (!appData.userPermissions[cleanU]) {
+                                        appData.userPermissions[cleanU] = (defaultUserPermissions[cleanU] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all']).slice();
+                                    }
+                                    if (updU.can_edit_prices === true) {
+                                        if (!appData.userPermissions[cleanU].includes('menu-ingresar-edit-price')) appData.userPermissions[cleanU].push('menu-ingresar-edit-price');
+                                        if (!appData.userPermissions[cleanU].includes('edit-precios')) appData.userPermissions[cleanU].push('edit-precios');
+                                    } else {
+                                        appData.userPermissions[cleanU] = appData.userPermissions[cleanU].filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price');
+                                    }
+                                }
+                            }
+                            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+
+                            const cur = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+                            if (cur && (String(cur.id) === String(updU.id) || String(cur.username).toLowerCase() === cleanU)) {
+                                if (typeof buildSidebar === 'function') buildSidebar();
                             }
                         }
                     })
@@ -938,7 +1022,7 @@ function initSupabaseSync(callback) {
                             customPrices[key] = nPrice;
                             if (!item.planta) customPrices[item.codigo] = nPrice;
                             try { localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices)); } catch(e) {}
-                            
+
                             // Actualizar catálogo eléctrico
                             if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
                                 const fe = PRESUPUESTO_ELECTRICO_STOCK.find(x => x.codigo === item.codigo);
@@ -948,43 +1032,95 @@ function initSupabaseSync(callback) {
                                     if (item.detalle) fe.detalle = item.detalle;
                                 } else if (item.rubro === 'Eléctrico') {
                                     PRESUPUESTO_ELECTRICO_STOCK.push({
-                                        codigo: item.codigo,
-                                        detalle: item.detalle || '',
-                                        descripcion: item.detalle || '',
-                                        rubro: 'Eléctrico',
-                                        subrubro: item.subrubro || 'Materiales y Equipos',
-                                        udm: item.unidad || 'Hs',
-                                        precio: nPrice,
-                                        precio_unitario: nPrice,
-                                        stock: parseFloat(item.stock) || 999,
-                                        estado: item.estado || 'ACTIVOS'
-                                    });
-                                }
-                            }
-                            // Actualizar catálogo mecánico
-                            if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
-                                const fm = PRESUPUESTO_MECANICO_STOCK.find(x => x.codigo === item.codigo);
-                                if (fm) {
-                                    fm.precio = nPrice;
-                                    fm.precio_unitario = nPrice;
-                                    if (item.detalle) fm.detalle = item.detalle;
-                                } else if (item.rubro === 'Mecánico') {
-                                    PRESUPUESTO_MECANICO_STOCK.push({
-                                        codigo: item.codigo,
-                                        detalle: item.detalle || '',
-                                        descripcion: item.detalle || '',
-                                        rubro: 'Mecánico',
-                                        subrubro: item.subrubro || 'Materiales y Equipos',
-                                        udm: item.unidad || 'Hs',
-                                        precio: nPrice,
-                                        precio_unitario: nPrice,
-                                        stock: parseFloat(item.stock) || 999,
-                                        estado: item.estado || 'ACTIVOS'
-                                    });
-                                }
-                            }
-                            console.log("⚡ Tarifario actualizado en vivo desde Supabase:", item.codigo, "$" + nPrice);
-                            // render removed to prevent losing focus
+                                         codigo: item.codigo,
+                                         detalle: item.detalle || '',
+                                         descripcion: item.detalle || '',
+                                         rubro: 'Eléctrico',
+                                         subrubro: item.subrubro || 'Materiales y Equipos',
+                                         udm: item.unidad || 'Hs',
+                                         precio: nPrice,
+                                         precio_unitario: nPrice,
+                                         stock: parseFloat(item.stock) || 999,
+                                         estado: item.estado || 'ACTIVOS'
+                                     });
+                                 }
+                             }
+                             if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+                                 const fcdb = window.presupuestosCatalogDB.find(x => x.codigo === item.codigo);
+                                 if (fcdb) {
+                                     fcdb.precio = nPrice;
+                                     fcdb.precio_unitario = nPrice;
+                                     if (item.detalle) fcdb.detalle = item.detalle;
+                                 } else if (item.rubro === 'Eléctrico') {
+                                     window.presupuestosCatalogDB.push({
+                                         codigo: item.codigo,
+                                         detalle: item.detalle || '',
+                                         descripcion: item.detalle || '',
+                                         rubro: 'Eléctrico',
+                                         subrubro: item.subrubro || 'Materiales y Equipos',
+                                         udm: item.unidad || 'Hs',
+                                         precio: nPrice,
+                                         precio_unitario: nPrice,
+                                         stock: parseFloat(item.stock) || 999,
+                                         estado: item.estado || 'ACTIVOS'
+                                     });
+                                 }
+                             }
+
+                             // Actualizar catálogo mecánico (tanto STOCK como presupuestoMecanicoDB con soporte de plantas)
+                             const itemPlanta = (item.planta || '').trim().toUpperCase();
+                             if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
+                                 const fm = PRESUPUESTO_MECANICO_STOCK.find(x => x.codigo === item.codigo);
+                                 if (fm) {
+                                     fm.precio = nPrice;
+                                     fm.precio_unitario = nPrice;
+                                     if (item.detalle) fm.detalle = item.detalle;
+                                 } else if (item.rubro === 'Mecánico') {
+                                     PRESUPUESTO_MECANICO_STOCK.push({
+                                         codigo: item.codigo,
+                                         detalle: item.detalle || '',
+                                         descripcion: item.detalle || '',
+                                         rubro: 'Mecánico',
+                                         subrubro: item.subrubro || 'Materiales y Equipos',
+                                         udm: item.unidad || 'Hs',
+                                         precio: nPrice,
+                                         precio_unitario: nPrice,
+                                         stock: parseFloat(item.stock) || 999,
+                                         estado: item.estado || 'ACTIVOS',
+                                         planta: itemPlanta
+                                     });
+                                 }
+                             }
+                             if (typeof window.presupuestoMecanicoDB !== 'undefined' && Array.isArray(window.presupuestoMecanicoDB)) {
+                                 const fmdb = window.presupuestoMecanicoDB.find(x => x.codigo === item.codigo && (!itemPlanta || (x.planta || '').toUpperCase() === itemPlanta));
+                                 if (fmdb) {
+                                     fmdb.precio = nPrice;
+                                     fmdb.precio_unitario = nPrice;
+                                     if (item.detalle) fmdb.detalle = item.detalle;
+                                 } else if (item.rubro === 'Mecánico') {
+                                     window.presupuestoMecanicoDB.push({
+                                         codigo: item.codigo,
+                                         detalle: item.detalle || '',
+                                         descripcion: item.detalle || '',
+                                         rubro: 'Mecánico',
+                                         subrubro: item.subrubro || 'Materiales y Equipos',
+                                         udm: item.unidad || 'Hs',
+                                         precio: nPrice,
+                                         precio_unitario: nPrice,
+                                         stock: parseFloat(item.stock) || 999,
+                                         estado: item.estado || 'ACTIVOS',
+                                         planta: itemPlanta
+                                     });
+                                 }
+                             }
+                             console.log("⚡ Tarifario actualizado en vivo desde Supabase:", item.codigo, "$" + nPrice);
+
+                             // Si el usuario está en la grilla de presupuesto mecánico y no está tipeando activamente, actualizar la grilla
+                             const mecaGrid = document.getElementById('req-mecanico-step2-container');
+                             const isTypingNow = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+                             if (mecaGrid && mecaGrid.children.length > 0 && !isTypingNow && typeof window.renderMecanicoExcelGrid === 'function') {
+                                 window.renderMecanicoExcelGrid();
+                             }
                         }
                     })
                     .subscribe();
@@ -1064,7 +1200,7 @@ function generateId() {
 window.buildPresupuestoSupabaseRow = function(p) {
     if (!p) return null;
     const amt = parseFloat(p.importe !== undefined && p.importe !== null ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
-    
+
     return {
         id: String(p.id).trim(),
         fecha: p.fecha || (typeof getLocalCurrentDateTimeStr === 'function' ? getLocalCurrentDateTimeStr() : new Date().toISOString()),
@@ -1105,8 +1241,8 @@ window.resolveItemSubrubro = function(it, tipoPresupuesto = '') {
     const detLow = det.toLowerCase();
 
     // 1. Buscar en catálogo Mecánico
-    const catM = (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) 
-        ? PRESUPUESTO_MECANICO_STOCK 
+    const catM = (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK))
+        ? PRESUPUESTO_MECANICO_STOCK
         : (window.presupuestoMecanicoDB || []);
     if (code) {
         const foundM = catM.find(c => c && (c.codigo === code || c.id === code));
@@ -1116,8 +1252,8 @@ window.resolveItemSubrubro = function(it, tipoPresupuesto = '') {
     }
 
     // 2. Buscar en catálogo Eléctrico
-    const catE = (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) 
-        ? PRESUPUESTO_ELECTRICO_STOCK 
+    const catE = (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK))
+        ? PRESUPUESTO_ELECTRICO_STOCK
         : (window.presupuestosCatalogDB || []);
     if (code) {
         const foundE = catE.find(c => c && (c.codigo === code || c.id === code));
@@ -1199,12 +1335,12 @@ window.guardarPresupuestoEnSupabase = async function(p) {
             const tarifarioUpserts = p.items.map(it => {
                 const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
                 let pPlanta = (p.tipo_presupuesto === 'Mecánico') ? (p.meca_planta || p.planta || '') : '';
-                
+
                 // Aplicar regla de planta dinámica si existe
                 if (pPlanta && pPlanta !== 'APS' && pPlanta !== 'APG' && pPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[pPlanta]) {
                     pPlanta = window.appData.plantasRules[pPlanta];
                 }
-                
+
                 const newId = pPlanta ? `${it.codigo}_${pPlanta.toUpperCase()}` : it.codigo;
                 return {
                     id: newId,
@@ -1219,7 +1355,7 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                     estado: 'ACTIVOS'
                 };
             });
-            
+
             if (tarifarioUpserts.length > 0 && client) {
                 client.from('tarifario').upsert(tarifarioUpserts, { onConflict: 'id' }).then(res => {
                     if (res.error) console.error("Error actualizando tarifario desde presupuesto:", res.error);
@@ -1275,14 +1411,13 @@ function saveData() {
     } catch (e) {
         console.error("Error saving data to localStorage:", e);
     }
-    
+
     // Guardar en Supabase para sincronización global y tiempo real
     const client = getDbClient();
     if (client) {
-        // 1. Estado global en app_state (permisos, notificaciones, precios y pedidos para Realtime)
+        // 1. Estado global en app_state (permisos, notificaciones, precios para Realtime)
         client.from('app_state').upsert({
             id: 'globalData',
-            pedidos: appData.pedidos || [],
             notifications: appData.notifications || [],
             user_permissions: (appData.userPermissions && typeof appData.userPermissions === 'object' && Object.keys(appData.userPermissions).length > 0)
                 ? Object.assign({}, defaultUserPermissions, appData.userPermissions)
@@ -1398,12 +1533,12 @@ function renderNotifications() {
             notifEl.style.fontSize = '12px';
             notifEl.style.cursor = 'pointer';
             if (!n.read) notifEl.style.backgroundColor = 'rgba(255,255,255,0.05)';
-            
+
             notifEl.innerHTML = `
                 <div style="font-weight: ${n.read ? 'normal' : 'bold'}; color: ${n.read ? 'var(--text-muted)' : 'var(--text-main)'};">${n.message}</div>
                 <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">${new Date(n.timestamp).toLocaleString('es-AR')}</div>
             `;
-            
+
             notifEl.onclick = () => {
                 n.read = true;
                 saveData();
@@ -1414,7 +1549,7 @@ function renderNotifications() {
                     verDetallePedido(n.taskId);
                 }
             };
-            
+
             dropdownList.appendChild(notifEl);
         });
     }
@@ -1433,7 +1568,7 @@ function initApp() {
             e.stopPropagation();
             dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
         });
-        
+
         document.addEventListener('click', () => {
             dropdown.style.display = 'none';
         });
@@ -1450,7 +1585,7 @@ function initApp() {
             e.stopPropagation();
             sidebar.classList.toggle('open');
         });
-        
+
         // Cerrar sidebar al hacer clic fuera
         document.addEventListener('click', (e) => {
             if (!sidebar.contains(e.target) && e.target !== toggleBtn) {
@@ -1465,25 +1600,25 @@ function initApp() {
             let value = e.target.value;
             // Remover cualquier caracter que no sea número o punto decimal
             value = value.replace(/[^0-9.]/g, '');
-            
+
             // Permitir como máximo un solo punto decimal
             const parts = value.split('.');
             if (parts.length > 2) {
                 value = parts[0] + '.' + parts.slice(1).join('');
             }
-            
+
             // Limitar la longitud antes y después del punto
             const finalParts = value.split('.');
             let integerPart = finalParts[0];
             let decimalPart = finalParts[1];
-            
+
             if (integerPart.length > 4) {
                 integerPart = integerPart.substring(0, 4);
             }
             if (decimalPart !== undefined && decimalPart.length > 8) {
                 decimalPart = decimalPart.substring(0, 8);
             }
-            
+
             e.target.value = decimalPart !== undefined ? (integerPart + '.' + decimalPart) : integerPart;
         }
     });
@@ -1505,7 +1640,7 @@ function initApp() {
             e.target.value = val.toFixed(8);
         }
     });
-    
+
     // Iniciar la app inmediatamente sin bloquear por red
     startApp();
     try {
@@ -1530,7 +1665,7 @@ function showToast(message, type = 'info') {
     if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
+
     let icon = 'ℹ️';
     if (type === 'success') icon = '✅';
     else if (type === 'error' || type === 'danger') icon = '❌';
@@ -1541,9 +1676,9 @@ function showToast(message, type = 'info') {
         <span style="font-size: 12px; font-weight: 600; color: #ffffff; line-height: 1.25;">${message}</span>
     `;
     container.appendChild(toast);
-    
+
     setTimeout(() => toast.classList.add('show'), 30);
-    
+
     setTimeout(() => {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 250);
@@ -1554,7 +1689,7 @@ function showToast(message, type = 'info') {
 function switchView(viewName) {
     const loginView = document.getElementById('login-view');
     const mainView = document.getElementById('main-view');
-    
+
     if (typeof closeModal === 'function') {
         closeModal();
     }
@@ -1611,38 +1746,69 @@ function getUserEffectivePermissions(userOrName, role) {
     let userRole = (userOrName && typeof userOrName === 'object') ? userOrName.role : (role || 'Solicitante');
     const uKey = String(username || '').trim().toLowerCase();
 
-    // 1. Buscar en appData.userPermissions por clave insensible a mayúsculas
+    // 0. Encontrar el objeto de usuario si se pasó sólo el username
+    let userObj = (userOrName && typeof userOrName === 'object') ? userOrName : null;
+    if (!userObj && appData && Array.isArray(appData.users)) {
+        userObj = appData.users.find(u => String(u.username || '').trim().toLowerCase() === uKey || String(u.id) === uKey);
+    }
+    if (userObj && userObj.role && !role) {
+        userRole = userObj.role;
+    }
+
     let perms = null;
-    if (appData && appData.userPermissions && typeof appData.userPermissions === 'object') {
-        for (let k of Object.keys(appData.userPermissions)) {
-            if (String(k).trim().toLowerCase() === uKey) {
-                const val = appData.userPermissions[k];
-                if (Array.isArray(val)) {
-                    perms = val;
-                    break;
+
+    // 1. Prioridad: permisos directos en el objeto de usuario (de la tabla 'usuarios' en Supabase)
+    if (userObj) {
+        let directPerms = userObj.permisos || userObj.permissions;
+        if (typeof directPerms === 'string') {
+            try { directPerms = JSON.parse(directPerms); } catch(e) {}
+        }
+        if (Array.isArray(directPerms) && directPerms.length > 0) {
+            perms = directPerms.slice();
+        }
+    }
+
+    // 2. Buscar en appData.userPermissions por clave insensible a mayúsculas
+    if (!perms || !Array.isArray(perms) || perms.length === 0) {
+        if (appData && appData.userPermissions && typeof appData.userPermissions === 'object') {
+            for (let k of Object.keys(appData.userPermissions)) {
+                if (String(k).trim().toLowerCase() === uKey) {
+                    const val = appData.userPermissions[k];
+                    if (Array.isArray(val) && val.length > 0) {
+                        perms = val.slice();
+                        break;
+                    }
                 }
             }
         }
     }
 
-    // 2. Si no se encontró, buscar en defaultUserPermissions
-    if (!perms || !Array.isArray(perms)) {
+    // 3. Si no se encontró, buscar en defaultUserPermissions
+    if (!perms || !Array.isArray(perms) || perms.length === 0) {
         for (let k of Object.keys(defaultUserPermissions)) {
             if (String(k).trim().toLowerCase() === uKey) {
-                perms = defaultUserPermissions[k];
+                perms = defaultUserPermissions[k].slice();
                 break;
             }
         }
     }
 
-    // 3. Si aún no se encontró, usar defaultMenuPermissions por rol
-    if (!perms || !Array.isArray(perms)) {
-        perms = defaultMenuPermissions[userRole] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all'];
+    // 4. Si aún no se encontró, usar defaultMenuPermissions por rol
+    if (!perms || !Array.isArray(perms) || perms.length === 0) {
+        perms = (defaultMenuPermissions[userRole] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all']).slice();
     }
 
-    let finalPerms = Array.isArray(perms) ? perms : [];
-    
-    // Si tiene el permiso heredado de antes
+    let finalPerms = Array.isArray(perms) ? perms.slice() : [];
+
+    // Ajuste según bandera can_edit_prices
+    if (userObj && typeof userObj.can_edit_prices === 'boolean') {
+        if (userObj.can_edit_prices) {
+            if (!finalPerms.includes('menu-ingresar-edit-price')) finalPerms.push('menu-ingresar-edit-price');
+            if (!finalPerms.includes('edit-precios')) finalPerms.push('edit-precios');
+        } else {
+            finalPerms = finalPerms.filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
+        }
+    }
 
     return finalPerms;
 }
@@ -1651,7 +1817,7 @@ window.getUserEffectivePermissions = getUserEffectivePermissions;
 
 window.getUserSeguimientoPermissions = function(user) {
     if (!user) return { hasAccess: false, canViewComprobante: false, canEdit: false };
-    
+
     const userPerms = getUserEffectivePermissions(user);
     const hasMenuAll = userPerms.includes('menu-all');
     const hasVer = userPerms.includes('menu-all-ver');
@@ -1723,12 +1889,12 @@ function buildSidebar() {
             userNameEl.insertAdjacentElement('afterend', vendedorBadge);
         }
     }
-    
+
     const roleEl = document.getElementById('current-user-role');
     if (roleEl) roleEl.remove();
 
     const items = getMenuItemsForUser(user);
-    
+
     items.forEach((item, index) => {
         const a = document.createElement('a');
         a.className = 'menu-item';
@@ -1740,7 +1906,7 @@ function buildSidebar() {
             a.classList.add('active');
             renderContent(item.tpl);
             if (item.action) item.action();
-            
+
             if (typeof window.registrarNavegacion === 'function') {
                 window.registrarNavegacion({ type: 'menu', id: item.id, tpl: item.tpl, label: item.label });
             }
@@ -1765,19 +1931,19 @@ function buildSidebar() {
         </div>
     `;
     sidebar.appendChild(themeContainer);
-    
+
     // Configurar listeners para los botones de tema
     const activeTheme = document.body.getAttribute('data-theme') || 'cyberpunk';
     themeContainer.querySelectorAll('.theme-btn').forEach(btn => {
         const theme = btn.getAttribute('data-theme');
         if (theme === activeTheme) btn.classList.add('active');
-        
+
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             const selectedTheme = btn.getAttribute('data-theme');
             document.body.setAttribute('data-theme', selectedTheme);
             localStorage.setItem('presea_theme', selectedTheme);
-            
+
             themeContainer.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
         });
@@ -1933,7 +2099,7 @@ function openModal(templateId) {
     const overlay = document.getElementById('modal-overlay');
     const template = document.getElementById(templateId);
     if (!overlay || !template) return;
-    
+
     document.body.classList.add('modal-open');
     overlay.innerHTML = '';
     overlay.appendChild(template.content.cloneNode(true));
@@ -1982,16 +2148,16 @@ function closeModal() {
 function evaluarCreditoCliente(client, newAmount = 0.0) {
     const defaultLimit = 5000000.0; // $5M default
     const vipLimit = 15000000.0;    // $15M VIP
-    
+
     const isVip = client.estado === 'VIP' || client.nombre.toUpperCase().includes('VIP');
     const creditLimit = isVip ? vipLimit : defaultLimit;
-    
+
     const deudaActual = parseFloat(client.deuda_actual || 0.0);
     const totalExposure = deudaActual + parseFloat(newAmount);
-    
+
     const exceedsLimit = totalExposure > creditLimit;
     const hasMora = Array.isArray(client.facturas_mora) && client.facturas_mora.length > 0;
-    
+
     const reasons = [];
     if (hasMora) {
         const firstOverdue = client.facturas_mora[0];
@@ -2000,7 +2166,7 @@ function evaluarCreditoCliente(client, newAmount = 0.0) {
     if (exceedsLimit) {
         reasons.push(`Límite de crédito excedido: Deuda actual $${deudaActual.toLocaleString('es-AR', {minimumFractionDigits:2})} + Pedido $${parseFloat(newAmount).toLocaleString('es-AR', {minimumFractionDigits:2})} = $${totalExposure.toLocaleString('es-AR', {minimumFractionDigits:2})} superando el límite de $${creditLimit.toLocaleString('es-AR', {minimumFractionDigits:2})}.`);
     }
-    
+
     return {
         isBlocked: exceedsLimit || hasMora,
         reasons: reasons.join(' | '),
@@ -2063,32 +2229,32 @@ window.abrirRobotDepositos = function() {
     const searchInput = document.getElementById('robot-dep-search-input');
     const resultsList = document.getElementById('robot-dep-results-list');
     const resultsCount = document.getElementById('robot-dep-results-count');
-    
+
     const renderResults = (query) => {
         resultsList.innerHTML = '';
         const cleanQuery = (query || '').toLowerCase().trim();
-        
+
         let filtered = [];
         if (cleanQuery === '') {
             filtered = depositosDB.slice(0, 100);
         } else {
-            filtered = depositosDB.filter(d => 
-                d.nombre.toLowerCase().includes(cleanQuery) || 
+            filtered = depositosDB.filter(d =>
+                d.nombre.toLowerCase().includes(cleanQuery) ||
                 d.codigo.includes(cleanQuery)
             );
         }
-        
+
         resultsCount.innerText = `Mostrando ${filtered.length} depósitos`;
-        
+
         filtered.forEach(d => {
             const tr = document.createElement('tr');
             tr.style.cursor = 'pointer';
-            
+
             tr.innerHTML = `
                 <td style="font-family: monospace;">${d.codigo}</td>
                 <td><strong>${d.nombre || 'Sin nombre'}</strong></td>
             `;
-            
+
             tr.onclick = () => {
                 seleccionarDeposito(d);
                 closeModal();
@@ -2111,32 +2277,32 @@ window.abrirRobotTransportes = function() {
     const searchInput = document.getElementById('robot-trans-search-input');
     const resultsList = document.getElementById('robot-trans-results-list');
     const resultsCount = document.getElementById('robot-trans-results-count');
-    
+
     const renderResults = (query) => {
         resultsList.innerHTML = '';
         const cleanQuery = (query || '').toLowerCase().trim();
-        
+
         let filtered = [];
         if (cleanQuery === '') {
             filtered = transportesDB.slice(0, 100);
         } else {
-            filtered = transportesDB.filter(t => 
-                t.nombre.toLowerCase().includes(cleanQuery) || 
+            filtered = transportesDB.filter(t =>
+                t.nombre.toLowerCase().includes(cleanQuery) ||
                 t.codigo.includes(cleanQuery)
             );
         }
-        
+
         resultsCount.innerText = `Mostrando ${filtered.length} transportes`;
-        
+
         filtered.forEach(t => {
             const tr = document.createElement('tr');
             tr.style.cursor = 'pointer';
-            
+
             tr.innerHTML = `
                 <td style="font-family: monospace;">${t.codigo}</td>
                 <td><strong>${t.nombre || 'Sin nombre'}</strong></td>
             `;
-            
+
             tr.onclick = () => {
                 seleccionarTransporte(t);
                 closeModal();
@@ -2159,34 +2325,34 @@ window.abrirRobotCondiciones = function() {
     const searchInput = document.getElementById('robot-cond-search-input');
     const resultsList = document.getElementById('robot-cond-results-list');
     const resultsCount = document.getElementById('robot-cond-results-count');
-    
+
     const renderResults = (query) => {
         resultsList.innerHTML = '';
         const cleanQuery = (query || '').toLowerCase().trim();
-        
+
         let filtered = [];
         if (cleanQuery === '') {
             filtered = condicionesDB.slice(0, 100);
         } else {
-            filtered = condicionesDB.filter(c => 
-                (c.nombre || '').toLowerCase().includes(cleanQuery) || 
+            filtered = condicionesDB.filter(c =>
+                (c.nombre || '').toLowerCase().includes(cleanQuery) ||
                 String(c.codigo).includes(cleanQuery) ||
                 String(c.dias).includes(cleanQuery)
             );
         }
-        
+
         resultsCount.innerText = `Mostrando ${filtered.length} condiciones`;
-        
+
         filtered.forEach(c => {
             const tr = document.createElement('tr');
             tr.style.cursor = 'pointer';
-            
+
             tr.innerHTML = `
                 <td style="font-family: monospace;">${c.codigo}</td>
                 <td><strong>${c.nombre || 'Sin nombre'}</strong></td>
                 <td>${c.dias} días</td>
             `;
-            
+
             tr.onclick = () => {
                 seleccionarCondicion(c);
                 closeModal();
@@ -2260,7 +2426,7 @@ window.setCotizacionMateriales = function(val, updateInputs = true) {
     try {
         localStorage.setItem('PRESUPUESTO_COTIZACION_MATERIALES', num.toString());
     } catch(e) {}
-    
+
     if (updateInputs) {
         const formatted = num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
@@ -2325,9 +2491,9 @@ window.saveCustomItemPrice = function(codigo, price, originalSubrubro = null, or
     if (!codigo) return;
     const numPrice = parseFloat(price || 0);
     if (isNaN(numPrice)) return;
-    
+
     let curPlanta = null;
-    
+
     if (plantaOverride !== null) {
         curPlanta = plantaOverride;
     } else {
@@ -2375,7 +2541,7 @@ if (curPlanta === 'PPA') curPlanta = 'APS';
             }
         }
     }
-    
+
     if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
         if (!curPlanta) { // Electrico uses generic
             const foundE = window.presupuestosCatalogDB.find(i => i.codigo === codigo);
@@ -3666,7 +3832,7 @@ function applyCustomPricesToCatalog(catalog) {
         if (item && item.codigo) {
             let key = item.codigo;
             if (item.planta) key = key + '_' + item.planta.trim().toUpperCase();
-            
+
             let cPrice = customPrices[key];
             if (cPrice === undefined && item.planta) {
                 // Fallback to generic code if specific plant is not found in customPrices
@@ -3742,7 +3908,7 @@ function getElectricalDefaultQty(code) {
 
 window.seleccionarTipoPresupuesto = function(tipo) {
     reqTipoPresupuesto = tipo;
-    
+
     // Si estamos en la vista de Ingreso de Pedidos
     const formReq = document.getElementById('form-request-ped');
     if (formReq) {
@@ -3751,7 +3917,7 @@ window.seleccionarTipoPresupuesto = function(tipo) {
             actualizarTablaItemsRequerimiento();
         }
         window.activeMecaTab = 0;
-        
+
         const container2 = document.getElementById('step-container-2');
         if (container2 && container2.style.display !== 'none') {
             const isExcelFlow = tipo === 'Mecánico' || tipo === 'Eléctrico';
@@ -3766,16 +3932,16 @@ window.seleccionarTipoPresupuesto = function(tipo) {
             }
         }
     }
-    
+
     // Cerrar modal de inmediato y actualizar indicadores visuales
     closeModal();
     updateTipoPresupuestoBadge();
-    
+
     // Actualizar de forma inmediata e instantánea cualquier tabla de listados activa
     if (typeof renderAssignmentsTable === 'function') {
         renderAssignmentsTable();
     }
-    
+
     showToast(`Rubro seleccionado: Presupuesto ${tipo}`, 'success');
 };
 
@@ -3786,7 +3952,7 @@ function updateTipoPresupuestoBadge() {
     const mecaFields = document.getElementById('req-mecanico-fields');
     const standardFields = document.getElementById('req-standard-fields');
     const isElec = reqTipoPresupuesto === 'Eléctrico';
-    
+
     // Cambiar tema global: fondo amarillo y letras azules en Eléctrico, original en Mecánico
     if (isElec) {
         document.body.classList.add('theme-electrico');
@@ -3799,14 +3965,14 @@ function updateTipoPresupuestoBadge() {
     if (lblMecaDenom) {
         lblMecaDenom.innerHTML = 'i. <u>Título:</u>';
     }
-    
+
     // Ocultar botón de gestionar plantas (listas) si es eléctrico, pero dejar la planta visible
     // (Ahora me pidieron que el botón de ABM de Plantas sea visible en ambos rubros)
     const btnPlantas = document.getElementById('btn-gestionar-plantas');
     if (btnPlantas) {
         btnPlantas.style.display = 'block';
     }
-    
+
     // Mostrar sección de propuesta comercial para ambos
     const reqMecaPropuestaBox = document.getElementById('req-meca-propuesta-box');
     if (reqMecaPropuestaBox) {
@@ -3949,7 +4115,7 @@ function initRequestView() {
     const reqClientInput = document.getElementById('req-client');
     const dropdown = document.getElementById('req-client-dropdown');
     const condSelect = document.getElementById('req-condition');
-    
+
     // Autocomplete Condiciones de Venta
     const reqCondInput = document.getElementById('req-condition-input');
     const condDropdown = document.getElementById('req-condition-dropdown');
@@ -3997,20 +4163,20 @@ function initRequestView() {
             condDropdown.innerHTML = '';
             condDropdown.scrollTop = 0;
             currentSelectedIndex = -1;
-            
-            const validConds = (typeof condicionesDB !== 'undefined' && Array.isArray(condicionesDB)) 
+
+            const validConds = (typeof condicionesDB !== 'undefined' && Array.isArray(condicionesDB))
                 ? condicionesDB.filter(c => c && String(c.codigo) !== '0' && (!c.nombre || !/no\s*usar/i.test(c.nombre)))
                 : [];
             if (cleanQuery === '') {
                 currentMatches = validConds;
             } else {
-                currentMatches = validConds.filter(c => 
-                    (c.nombre || '').toLowerCase().includes(cleanQuery) || 
+                currentMatches = validConds.filter(c =>
+                    (c.nombre || '').toLowerCase().includes(cleanQuery) ||
                     String(c.codigo).includes(cleanQuery) ||
                     String(c.dias).includes(cleanQuery)
                 );
             }
-            
+
             if (currentMatches.length > 0) {
                 renderDropdownChunk();
                 condDropdown.style.display = 'block';
@@ -4120,16 +4286,16 @@ function initRequestView() {
             depDropdown.innerHTML = '';
             depDropdown.scrollTop = 0;
             currentSelectedIndex = -1;
-            
+
             if (cleanQuery === '') {
                 currentMatches = depositosDB.slice(0, 100);
             } else {
-                currentMatches = depositosDB.filter(d => 
-                    d.nombre.toLowerCase().includes(cleanQuery) || 
+                currentMatches = depositosDB.filter(d =>
+                    d.nombre.toLowerCase().includes(cleanQuery) ||
                     d.codigo.includes(cleanQuery)
                 );
             }
-            
+
             if (currentMatches.length > 0) {
                 renderDropdownChunk();
                 depDropdown.style.display = 'block';
@@ -4239,16 +4405,16 @@ function initRequestView() {
             transDropdown.innerHTML = '';
             transDropdown.scrollTop = 0;
             currentSelectedIndex = -1;
-            
+
             if (cleanQuery === '') {
                 currentMatches = transportesDB.slice(0, 100);
             } else {
-                currentMatches = transportesDB.filter(t => 
-                    t.nombre.toLowerCase().includes(cleanQuery) || 
+                currentMatches = transportesDB.filter(t =>
+                    t.nombre.toLowerCase().includes(cleanQuery) ||
                     t.codigo.includes(cleanQuery)
                 );
             }
-            
+
             if (currentMatches.length > 0) {
                 renderDropdownChunk();
                 transDropdown.style.display = 'block';
@@ -4323,7 +4489,7 @@ function initRequestView() {
             if (currentSelectedIndex >= 0 && currentSelectedIndex < items.length) {
                 const activeItem = items[currentSelectedIndex];
                 activeItem.classList.add('active');
-                
+
                 // Mantener visible en scroll
                 const dropdownRect = dropdown.getBoundingClientRect();
                 const itemRect = activeItem.getBoundingClientRect();
@@ -4338,7 +4504,7 @@ function initRequestView() {
         const renderDropdownChunk = () => {
             const chunk = currentMatches.slice(dropdown.children.length, dropdown.children.length + 50);
             if (chunk.length === 0) return;
-            
+
             const fragment = document.createDocumentFragment();
             chunk.forEach(cliente => {
                 const div = document.createElement('div');
@@ -4350,7 +4516,7 @@ function initRequestView() {
                     <div style="font-weight: 600; color: white;">${cliente.nombre}</div>
                     <div style="font-size: 11px; color: var(--text-muted);">CUIT: ${cliente.cuit || 'Sin CUIT'} - Cód: ${cliente.codigo}</div>
                 `;
-                
+
                 div.onmousedown = (e) => {
                     e.preventDefault();
                     seleccionarCliente(cliente);
@@ -4366,24 +4532,24 @@ function initRequestView() {
             dropdown.innerHTML = '';
             dropdown.scrollTop = 0;
             currentSelectedIndex = -1;
-            
+
             const currentUser = getCurrentUser();
             const userVendedorCodigo = currentUser ? currentUser.vendedor_codigo : '';
             let filteredClients = clientesDB;
             if (userVendedorCodigo) {
                 filteredClients = clientesDB.filter(c => c.vendedor_id === userVendedorCodigo || !c.vendedor_id || c.vendedor_id === '');
             }
-            
+
             if (cleanQuery === '') {
                 currentMatches = filteredClients;
             } else {
-                currentMatches = filteredClients.filter(c => 
-                    c.nombre.toLowerCase().includes(cleanQuery) || 
+                currentMatches = filteredClients.filter(c =>
+                    c.nombre.toLowerCase().includes(cleanQuery) ||
                     c.cuit.includes(cleanQuery) ||
                     c.codigo.includes(cleanQuery)
                 );
             }
-            
+
             if (currentMatches.length > 0) {
                 renderDropdownChunk();
                 dropdown.style.display = 'block';
@@ -4454,7 +4620,7 @@ function initRequestView() {
             e.preventDefault();
             const activeEl = document.activeElement;
             const isModalOpen = document.getElementById('modal-overlay') && document.getElementById('modal-overlay').style.display === 'flex';
-            
+
             // Si el foco está en el campo de Proveedor
             if (activeEl && (activeEl.id === 'req-meca-proveedor' || activeEl.id === 'auth-edit-meca-proveedor')) {
                 abrirRobotProveedores();
@@ -4530,7 +4696,7 @@ function initRequestView() {
             if (currentSelectedIndex >= 0 && currentSelectedIndex < items.length) {
                 const activeItem = items[currentSelectedIndex];
                 activeItem.classList.add('active');
-                
+
                 // Mantener visible en scroll
                 const dropdownRect = prodDropdown.getBoundingClientRect();
                 const itemRect = activeItem.getBoundingClientRect();
@@ -4552,7 +4718,7 @@ function initRequestView() {
                 div.style.padding = '8px 12px';
                 div.style.cursor = 'pointer';
                 div.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                
+
                 const isOutOfStock = parseFloat(prod.stock || 0) <= 0;
                 const stockColor = isOutOfStock ? 'var(--danger)' : 'var(--text-muted)';
                 const stockLabel = isOutOfStock ? ' - <span style="color:var(--danger); font-weight:bold;">[STOCK 0]</span>' : '';
@@ -4578,17 +4744,17 @@ function initRequestView() {
             prodDropdown.innerHTML = '';
             prodDropdown.scrollTop = 0;
             currentSelectedIndex = -1;
-            
+
             const activeCatalog = getActiveStockCatalog();
             if (cleanQuery === '') {
                 currentMatches = activeCatalog.slice(0, 100);
             } else {
-                currentMatches = activeCatalog.filter(p => 
-                    (p.detalle || '').toLowerCase().includes(cleanQuery) || 
+                currentMatches = activeCatalog.filter(p =>
+                    (p.detalle || '').toLowerCase().includes(cleanQuery) ||
                     String(p.codigo || '').toLowerCase().includes(cleanQuery)
                 );
             }
-            
+
             if (currentMatches.length > 0) {
                 renderDropdownChunk();
                 prodDropdown.style.display = 'block';
@@ -4743,7 +4909,7 @@ function initRequestView() {
     if (fiEl && !fiEl.value) fiEl.value = todayStr;
     const ffEl = document.getElementById('req-meca-fecha-fin');
     if (ffEl && !ffEl.value) ffEl.value = futureDateStr;
-    
+
     if (window.setValidezOfertaValue) {
         const valEl = document.getElementById('req-meca-validez');
         if (!valEl || !valEl.value) window.setValidezOfertaValue('5 días');
@@ -4764,7 +4930,7 @@ function initRequestView() {
 window.onOcStateRadioChange = function(state) {
     const isSinOc = (state === 'Enviado sin OC' || state === 'Aprobado sin OC');
     const isConOc = (state === 'Aprobado con OC');
-    
+
     const dateGroup = document.getElementById('oc-date-group');
     if (dateGroup) {
         dateGroup.style.display = isSinOc ? 'flex' : 'none';
@@ -4777,7 +4943,7 @@ window.onOcStateRadioChange = function(state) {
             }
         }
     }
-    
+
     const ocNumGroup = document.getElementById('oc-number-group');
     if (ocNumGroup) {
         ocNumGroup.style.display = isConOc ? 'flex' : 'none';
@@ -4895,14 +5061,14 @@ window.goToRequestStep = function(step) {
             }
         }
     }
-    
+
     // Validaciones al intentar avanzar al paso 3 (Resumen/Confirmación)
     if (step === 3) {
         if (pedidoItems.length === 0) {
             showToast('Debe agregar al menos un artículo al detalle antes de continuar', 'error');
             return;
         }
-        
+
         // Toggle standard vs mechanical summary panels
         const isExcelFlow = reqTipoPresupuesto === 'Mecánico' || reqTipoPresupuesto === 'Eléctrico';
         const isElec = reqTipoPresupuesto === 'Eléctrico';
@@ -4961,12 +5127,12 @@ window.goToRequestStep = function(step) {
             if (sFecha) sFecha.innerText = (valFecha && valFecha.value.trim()) ? valFecha.value.trim() : '-';
             if (sVal) sVal.innerText = (valValidez && valValidez.value.trim()) ? valValidez.value.trim() : '-';
             if (sPlanta) sPlanta.innerText = (valPlanta && valPlanta.value.trim()) ? valPlanta.value.trim() : '-';
-            
+
             const sOc = document.getElementById('summary-meca-nro-oc');
             if (sOc) sOc.innerText = (valOc && valOc.value.trim()) ? valOc.value.trim() : '-';
             const sOt = document.getElementById('summary-meca-nro-ot');
             if (sOt) sOt.innerText = (valOt && valOt.value.trim()) ? valOt.value.trim() : '-';
-            
+
             if (sIni) sIni.innerText = (valInicio && valInicio.value.trim()) ? valInicio.value.trim() : '-';
             if (sDur) {
                 if (isElec && valOt && valOt.value.trim()) {
@@ -5046,7 +5212,7 @@ window.goToRequestStep = function(step) {
             summaryTotal.innerText = `$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         }
     }
-    
+
     // Ocultar todos los contenedores de paso
     const c1 = document.getElementById('step-container-1');
     const c2 = document.getElementById('step-container-2');
@@ -5054,7 +5220,7 @@ window.goToRequestStep = function(step) {
     if (c1) c1.style.display = 'none';
     if (c2) c2.style.display = 'none';
     if (c3) c3.style.display = 'none';
-    
+
     // Mostrar el contenedor del paso actual
     const targetContainer = document.getElementById(`step-container-${step}`);
     if (targetContainer) targetContainer.style.display = 'flex';
@@ -5072,16 +5238,16 @@ window.goToRequestStep = function(step) {
             }
         }
     }
-    
+
     // Actualizar nodos visuales del step indicator
     for (let i = 1; i <= 3; i++) {
         const node = document.getElementById(`step-node-${i}`);
         if (!node) continue;
-        
+
         const circle = node.querySelector('.step-circle');
         const label = node.querySelector('span');
         if (!circle || !label) continue;
-        
+
         if (i < step) {
             // Paso completado exitosamente (Verde)
             circle.style.background = 'var(--success)';
@@ -5108,7 +5274,7 @@ window.goToRequestStep = function(step) {
             label.style.color = 'var(--text-muted)';
         }
     }
-    
+
     // Actualizar barra de progreso que conecta los nodos
     const progressLine = document.getElementById('step-line-progress');
     if (progressLine) {
@@ -5157,29 +5323,29 @@ window.onEncabezadoNext = function() {
 
 window.abrirDatosAdicionales = function() {
     openModal('tpl-modal-datos-adicionales');
-    
+
     // Obtener los valores actuales de los campos ocultos
     const isComisionista = document.getElementById('req-is-comisionista').checked;
     const tipoNvLabel = document.getElementById('req-tipo-nv-val').value;
     const tipoEntregaLabel = document.getElementById('req-tipo-entrega-val').value;
     const formaPagoLabel = document.getElementById('req-forma-pago-val').value;
-    
+
     // Sincronizar hacia los elementos del modal
     const comisionistaModal = document.getElementById('modal-req-is-comisionista');
     if (comisionistaModal) comisionistaModal.checked = isComisionista;
-    
+
     const radiosNv = document.getElementsByName('modal-req-tipo-nv');
     radiosNv.forEach(r => {
         const rLabel = r.parentElement.innerText.trim();
         if (rLabel === tipoNvLabel) r.checked = true;
     });
-    
+
     const radiosEntrega = document.getElementsByName('modal-req-tipo-entrega');
     radiosEntrega.forEach(r => {
         const rLabel = r.parentElement.innerText.trim();
         if (rLabel === tipoEntregaLabel) r.checked = true;
     });
-    
+
     const radiosPago = document.getElementsByName('modal-req-forma-pago');
     radiosPago.forEach(r => {
         const rLabel = r.parentElement.innerText.trim();
@@ -5191,22 +5357,22 @@ window.confirmarDatosAdicionales = function() {
     // Leer valores desde el modal
     const comisionistaModal = document.getElementById('modal-req-is-comisionista');
     const isComisionista = comisionistaModal ? comisionistaModal.checked : false;
-    
+
     const tipoNvEl = document.querySelector('input[name="modal-req-tipo-nv"]:checked');
     const tipoNvLabel = tipoNvEl ? tipoNvEl.parentElement.innerText.trim() : 'Presupuesto Consignacion';
-    
+
     const tipoEntregaEl = document.querySelector('input[name="modal-req-tipo-entrega"]:checked');
     const tipoEntregaLabel = tipoEntregaEl ? tipoEntregaEl.parentElement.innerText.trim() : 'Retira Cliente';
-    
+
     const formaPagoEl = document.querySelector('input[name="modal-req-forma-pago"]:checked');
     const formaPagoLabel = formaPagoEl ? formaPagoEl.parentElement.innerText.trim() : 'Pago Cheque';
-    
+
     // Guardar en campos ocultos del formulario principal
     document.getElementById('req-is-comisionista').checked = isComisionista;
     document.getElementById('req-tipo-nv-val').value = tipoNvLabel;
     document.getElementById('req-tipo-entrega-val').value = tipoEntregaLabel;
     document.getElementById('req-forma-pago-val').value = formaPagoLabel;
-    
+
     // Cerrar el modal y avanzar al Paso 2 (Artículos)
     closeModal();
     goToRequestStep(2);
@@ -5271,8 +5437,8 @@ window.agregarArticuloDetalle = function() {
         existing.precio = price;
         existing.subtotal = existing.cantidad * existing.precio;
     } else {
-        const itemSubr = (productoSeleccionado && productoSeleccionado.subrubro) 
-            ? productoSeleccionado.subrubro 
+        const itemSubr = (productoSeleccionado && productoSeleccionado.subrubro)
+            ? productoSeleccionado.subrubro
             : (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(productoSeleccionado, reqTipoPresupuesto) : 'Materiales y Equipos');
 
         pedidoItems.push({
@@ -5346,7 +5512,7 @@ window.actualizarTablaItemsRequerimiento = function() {
                 </td>
             </tr>
         `;
-        
+
         // Mantener el input de importe total en 0.00 y de solo lectura
         const reqAmtInput = document.getElementById('req-amount');
         if (reqAmtInput) {
@@ -5367,8 +5533,8 @@ window.actualizarTablaItemsRequerimiento = function() {
 
     const canEditPrices = window.canUserEditUnitPrices ? window.canUserEditUnitPrices() : false;
     const priceDisabledAttr = canEditPrices ? '' : 'disabled readonly';
-    const priceInputStyle = canEditPrices 
-        ? 'width: 90px; text-align: right; background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--glass-border); border-radius: 4px; padding: 2px 5px;' 
+    const priceInputStyle = canEditPrices
+        ? 'width: 90px; text-align: right; background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--glass-border); border-radius: 4px; padding: 2px 5px;'
         : 'width: 90px; text-align: right; background: rgba(255,255,255,0.02); color: #94a3b8; border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 2px 5px; opacity: 0.6; pointer-events: none;';
 
     pedidoItems.forEach(item => {
@@ -5378,15 +5544,15 @@ window.actualizarTablaItemsRequerimiento = function() {
                 <td style="font-family: monospace; vertical-align: middle;">${item.codigo}</td>
                 <td style="vertical-align: middle;"><strong>${item.detalle}</strong></td>
                 <td style="text-align: right; font-family: monospace; vertical-align: middle;">
-                    <input type="number" value="${item.precio.toFixed(2)}" min="0" step="any" 
+                    <input type="number" value="${item.precio.toFixed(2)}" min="0" step="any"
                         ${priceDisabledAttr}
                         title="${canEditPrices ? '' : 'No tiene permisos para modificar precios unitarios'}"
-                        style="${priceInputStyle}" 
+                        style="${priceInputStyle}"
                         onchange="actualizarItemFila('${item.codigo}', null, this.value)">
                 </td>
                 <td style="text-align: right; font-family: monospace; vertical-align: middle;">
-                    <input type="number" value="${item.cantidad}" min="0.01" step="any" 
-                        style="width: 70px; text-align: right; background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--glass-border); border-radius: 4px; padding: 2px 5px;" 
+                    <input type="number" value="${item.cantidad}" min="0.01" step="any"
+                        style="width: 70px; text-align: right; background: rgba(255,255,255,0.05); color: white; border: 1px solid var(--glass-border); border-radius: 4px; padding: 2px 5px;"
                         onchange="actualizarItemFila('${item.codigo}', this.value, null)">
                 </td>
                 <td style="text-align: right; font-family: monospace; font-weight: bold; vertical-align: middle;">$${item.subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
@@ -5439,7 +5605,7 @@ window.abrirRobotStock = function() {
         const rubro = rubroFilter ? rubroFilter.value : '';
 
         let filtered = catalog;
-        
+
         // Filtrar por planta
         const reqPlantaSelect = document.getElementById('req-meca-planta');
         if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect) {
@@ -5452,7 +5618,7 @@ window.abrirRobotStock = function() {
             } else if (curPlanta === 'APA') {
                 curPlanta = 'APS'; // Fallback
             }
-            
+
             if (curPlanta) {
                 const grouped = {};
                 filtered.forEach(s => {
@@ -5484,8 +5650,8 @@ window.abrirRobotStock = function() {
             filtered = filtered.filter(s => s.rubro === rubro);
         }
         if (query) {
-            filtered = filtered.filter(s => 
-                (s.detalle || '').toLowerCase().includes(query) || 
+            filtered = filtered.filter(s =>
+                (s.detalle || '').toLowerCase().includes(query) ||
                 String(s.codigo || '').toLowerCase().includes(query)
             );
         }
@@ -5493,13 +5659,13 @@ window.abrirRobotStock = function() {
         // Paginación a 100 resultados para no colgar la UI
         const limit = 100;
         const sliced = filtered.slice(0, limit);
-        
+
         resultsCount.innerText = `Mostrando ${sliced.length} de ${filtered.length} productos`;
 
         sliced.forEach(s => {
             const tr = document.createElement('tr');
             tr.style.cursor = 'pointer';
-            
+
             const stockColor = s.stock > 0 ? 'var(--success)' : 'var(--danger)';
             const stockBold = s.stock > 0 ? 'bold' : 'normal';
 
@@ -5531,7 +5697,7 @@ let clienteSeleccionado = null;
 function seleccionarCliente(cliente) {
     if (!cliente) return;
     clienteSeleccionado = cliente;
-    
+
     // Asignar en Presupuestos Mecánicos / Eléctricos (Paso 1)
     const reqMecaClient = document.getElementById('req-meca-cliente');
     if (reqMecaClient) {
@@ -5543,7 +5709,7 @@ function seleccionarCliente(cliente) {
     if (reqClientInput) {
         reqClientInput.value = cliente.id || cliente.codigo;
     }
-    
+
     // Asignar en Modal de Modificación / Detalle
     const authEditClient = document.getElementById('auth-edit-meca-cliente');
     if (authEditClient) {
@@ -5581,7 +5747,7 @@ function seleccionarCliente(cliente) {
 
         if (typeof saveTempEdits === 'function') saveTempEdits();
     }
-    
+
     // Cargar condición del cliente por defecto
     const rawCondId = (cliente.condicion_id && String(cliente.condicion_id) !== '0') ? String(cliente.condicion_id) : '1';
     const foundCond = typeof condicionesDB !== 'undefined' ? condicionesDB.find(c => String(c.codigo) === rawCondId) : null;
@@ -5596,7 +5762,7 @@ function seleccionarCliente(cliente) {
     // Cargar transporte del cliente por defecto
     const foundTrans = typeof transportesDB !== 'undefined' ? transportesDB.find(t => t.codigo === cliente.transporte_id) : null;
     seleccionarTransporte(foundTrans || (cliente.transporte_id ? { codigo: cliente.transporte_id, nombre: cliente.transporte_nombre } : null));
-    
+
     const clientDropdown = document.getElementById('req-client-dropdown');
     if (clientDropdown) clientDropdown.style.display = 'none';
 
@@ -5618,7 +5784,7 @@ window.abrirRobotProveedores = function() {
     openModal('tpl-modal-robot-proveedores');
     const proveedores = ['SG MONTAJES SRL', 'ACOSTA SERVICIO'];
     let selectedProvIdx = 0;
-    
+
     const updateProvHighlight = () => {
         const cardSg = document.getElementById('prov-card-sg');
         const cardAcosta = document.getElementById('prov-card-acosta');
@@ -5667,20 +5833,20 @@ window.seleccionarProveedor = function(nombre) {
     if (!nombre) return;
     const mecaProv = document.getElementById('req-meca-proveedor');
     if (mecaProv) mecaProv.value = nombre;
-    
+
     const editMecaProv = document.getElementById('auth-edit-meca-proveedor');
     if (editMecaProv) editMecaProv.value = nombre;
-    
+
     const authMecaProvVal = document.getElementById('auth-meca-proveedor-val');
     if (authMecaProvVal && viewMode !== 'Modificacion') {
         authMecaProvVal.innerText = nombre;
     }
-    
+
     if (pedidoActivo) {
         pedidoActivo.meca_proveedor = nombre;
         if (typeof saveTempEdits === 'function') saveTempEdits();
     }
-    
+
     closeModal();
     showToast(`Proveedor seleccionado: ${nombre}`, 'success');
 
@@ -5702,7 +5868,7 @@ window.abrirRobotF6 = function() {
     const resultsCount = document.getElementById('robot-results-count');
     const resultsTable = document.getElementById('robot-results-table');
     const scrollContainer = resultsTable ? resultsTable.closest('.table-responsive') : null;
-    
+
     let currentRobotMatches = [];
     let selectedIndex = 0;
 
@@ -5720,26 +5886,26 @@ window.abrirRobotF6 = function() {
             }
         });
     };
-    
+
     const renderRobotResultsChunk = () => {
         const renderedCount = resultsList.children.length;
         const chunk = currentRobotMatches.slice(renderedCount, renderedCount + 50);
         if (chunk.length === 0) return;
-        
+
         const fragment = document.createDocumentFragment();
         chunk.forEach((c, idx) => {
             const actualIndex = renderedCount + idx;
             const tr = document.createElement('tr');
             tr.style.cursor = 'pointer';
             tr.setAttribute('data-idx', actualIndex);
-            
+
             tr.innerHTML = `
                 <td style="font-family: monospace; font-weight: 700; color: #22d3ee;">${c.codigo}</td>
                 <td><strong style="color: #ffffff;">${c.nombre}</strong><div style="font-size:11px; color:var(--text-muted);">${c.domicilio || ''} - ${c.localidad || ''}</div></td>
                 <td>${c.cuit || '-'}</td>
                 <td>${c.localidad || '-'}</td>
             `;
-            
+
             tr.onclick = () => {
                 seleccionarCliente(c);
                 closeModal();
@@ -5762,25 +5928,25 @@ window.abrirRobotF6 = function() {
         selectedIndex = 0;
         if (scrollContainer) scrollContainer.scrollTop = 0;
         const cleanQuery = (query || '').toLowerCase().trim();
-        
+
         const currentUser = getCurrentUser();
         const userVendedorCodigo = currentUser ? currentUser.vendedor_codigo : '';
         let filteredClients = clientesDB;
         if (userVendedorCodigo) {
             filteredClients = clientesDB.filter(c => c.vendedor_id === userVendedorCodigo || !c.vendedor_id || c.vendedor_id === '');
         }
-        
+
         if (cleanQuery === '') {
             currentRobotMatches = filteredClients;
         } else {
-            currentRobotMatches = filteredClients.filter(c => 
-                c.nombre.toLowerCase().includes(cleanQuery) || 
+            currentRobotMatches = filteredClients.filter(c =>
+                c.nombre.toLowerCase().includes(cleanQuery) ||
                 c.cuit.includes(cleanQuery) ||
                 c.codigo.includes(cleanQuery) ||
                 (c.localidad || '').toLowerCase().includes(cleanQuery)
             );
         }
-        
+
         resultsCount.innerText = `Mostrando ${currentRobotMatches.length} clientes`;
         renderRobotResultsChunk();
     };
@@ -5844,7 +6010,7 @@ window.crearPresupuestoBasadoEnActual = function(id) {
     window.pedidoEnEdicionId = null; // Para que sea un presupuesto NUEVO
     window.pedidoEnReutilizacion = true;
     reqTipoPresupuesto = p.tipo_presupuesto || 'Eléctrico';
-    
+
     // Cambiar navegación a Gestión de Presupuestos en el sidebar
     document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
     const menuItem = document.getElementById('menu-ingresar');
@@ -5921,7 +6087,7 @@ window.cargarPresupuestoParaModificacion = function(id) {
     window.pedidoEnEdicionId = p.id;
     window.pedidoEnReutilizacion = false;
     reqTipoPresupuesto = p.tipo_presupuesto || 'Eléctrico';
-    
+
     // Switch to Ingreso de Presupuesto menu & template
     document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
     const menuItem = document.getElementById('menu-ingresar');
@@ -5981,8 +6147,8 @@ function confirmarPedido() {
         try { window.recalcMecaExcelAll(); } catch(e) {}
     }
     if (!clienteSeleccionado) {
-        const clientVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) || 
-                          (document.getElementById('req-client') && document.getElementById('req-client').value) || 
+        const clientVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) ||
+                          (document.getElementById('req-client') && document.getElementById('req-client').value) ||
                           'CARGILL SACI';
         clienteSeleccionado = {
             codigo: '3',
@@ -6004,13 +6170,13 @@ function confirmarPedido() {
 
 window.confirmarConTipoReporte = function(tipoReporte) {
     closeModal();
-    
+
     try {
         if (typeof window.recalcMecaExcelAll === 'function') {
             try { window.recalcMecaExcelAll(); } catch(e) {}
         }
 
-        const amount = Array.isArray(pedidoItems) 
+        const amount = Array.isArray(pedidoItems)
             ? pedidoItems.reduce((sum, item) => sum + (parseFloat(item.subtotal) || ((parseFloat(item.cantidad) || 0) * (parseFloat(item.precio) || 0)) || 0), 0)
             : 0;
 
@@ -6025,10 +6191,10 @@ window.confirmarConTipoReporte = function(tipoReporte) {
         const finalCondNombre = cleanConditionName(conditionObj ? conditionObj.nombre : (condCode && condCode !== '0' ? `Condición ${condCode}` : 'CONTADO'));
         const depositoObj = depositoSeleccionado;
         const transporteObj = transporteSeleccionado;
-        
+
         if (!clienteSeleccionado) {
-            const clientVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) || 
-                              (document.getElementById('req-client') && document.getElementById('req-client').value) || 
+            const clientVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) ||
+                              (document.getElementById('req-client') && document.getElementById('req-client').value) ||
                               'CARGILL SACI';
             const matchedCli = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
                 ? window.clientesDB.find(c => c.nombre.toUpperCase().includes(clientVal.trim().toUpperCase()) || clientVal.trim().toUpperCase().includes(c.nombre.toUpperCase()) || c.codigo === clientVal.trim())
@@ -6110,7 +6276,7 @@ window.confirmarConTipoReporte = function(tipoReporte) {
                 cantidad_original: item.cantidad,
                 estado: 'Pendiente'
             }));
-            
+
             window.pedidoEnEdicionId = null;
             try { saveData(); } catch(e) {}
             if (typeof window.guardarPresupuestoEnSupabase === 'function') {
@@ -6149,8 +6315,8 @@ window.confirmarConTipoReporte = function(tipoReporte) {
                 finalItemState = 'Autorizado';
             }
 
-            const plantaSeleccionada = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value) 
-                ? document.getElementById('req-meca-planta').value 
+            const plantaSeleccionada = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value)
+                ? document.getElementById('req-meca-planta').value
                 : ((clienteSeleccionado && clienteSeleccionado.localidad && clienteSeleccionado.localidad.toUpperCase().includes('SAN MARTIN')) ? 'PGSM' : 'VGG');
 
             const newPedido = {
@@ -6226,7 +6392,7 @@ window.confirmarConTipoReporte = function(tipoReporte) {
 
             // Cerrar el selector de reporte
             if (typeof closeModal === 'function') closeModal();
-            
+
             // Resetear el formulario en segundo plano para que quede listo en el paso 1
             viewMode = 'Ingreso';
             if (typeof window.resetRequestFormComplete === 'function') {
@@ -6274,7 +6440,7 @@ window.resetRequestFormComplete = function() {
     window.pedidoEnReutilizacion = false;
     const formReq = document.getElementById('form-request-ped');
     if (formReq) formReq.reset();
-    
+
     // Limpiar todos los campos de Paso 1 y Paso 3
     const idsToClear = [
         'req-meca-denominacion', 'req-meca-cliente', 'req-meca-proveedor',
@@ -6308,7 +6474,7 @@ window.resetRequestFormComplete = function() {
 
     const chkCom = document.getElementById('req-is-comisionista');
     if (chkCom) chkCom.checked = false;
-    
+
     clienteSeleccionado = null;
     depositoSeleccionado = null;
     transporteSeleccionado = null;
@@ -6324,7 +6490,7 @@ window.resetRequestFormComplete = function() {
     if (mecaStep2Container) {
         mecaStep2Container.innerHTML = '';
     }
-    
+
     if (typeof window.goToRequestStep === 'function') {
         window.goToRequestStep(1);
     }
@@ -6334,20 +6500,20 @@ window.resetRequestFormComplete = function() {
 window.descargarPedidoCSV = function(id) {
     const pedido = appData.pedidos.find(p => p.id === id);
     if (!pedido) return;
-    
+
     // --- 1. Generar CABECERA (cabeceras_pedidos) ---
     let cabeceraHeaders = [
-        "ID_PEDIDO", "FECHA", "CLIENTE_CODIGO", "CLIENTE_NOMBRE", "CUIT", 
-        "NUMERO_OC", "MONEDA_ID", "COTIZACION", "CONDICION_ID", "DEPOSITO_ID", "TRANSPORTE_ID", 
-        "VENDEDOR_ID", "VENDEDOR_NOMBRE", "IS_COMISIONISTA", "TIPO_NV", 
+        "ID_PEDIDO", "FECHA", "CLIENTE_CODIGO", "CLIENTE_NOMBRE", "CUIT",
+        "NUMERO_OC", "MONEDA_ID", "COTIZACION", "CONDICION_ID", "DEPOSITO_ID", "TRANSPORTE_ID",
+        "VENDEDOR_ID", "VENDEDOR_NOMBRE", "IS_COMISIONISTA", "TIPO_NV",
         "TIPO_ENTREGA", "FORMA_PAGO", "IMPORTE", "OBSERVACIONES", "OPERADOR", "ESTADO"
     ];
-    
+
     const isComisionistaText = pedido.is_comisionista ? "SI" : "NO";
     const cotizStr = (pedido.cotizacion || 1.0).toString().replace('.', ',');
     const importeStr = (pedido.importe || 0.0).toString().replace('.', ',');
     const observacionesEscaped = `"${(pedido.motivo || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`;
-    
+
     let cabeceraRow = [
         pedido.id,
         pedido.fecha,
@@ -6371,15 +6537,15 @@ window.descargarPedidoCSV = function(id) {
         pedido.operador || '',
         pedido.estado || ''
     ];
-    
+
     let csvCabecera = cabeceraHeaders.join(';') + '\n' + cabeceraRow.join(';');
-    
+
     // --- 2. Generar DETALLE (detalles_pedidos) ---
     let detalleHeaders = [
-        "ID_PEDIDO", "PRODUCTO_CODIGO", "PRODUCTO_DETALLE", 
+        "ID_PEDIDO", "PRODUCTO_CODIGO", "PRODUCTO_DETALLE",
         "CANTIDAD", "PRECIO_UNITARIO", "SUBTOTAL", "ESTADO_ARTICULO"
     ];
-    
+
     let detailRows = [];
     if (Array.isArray(pedido.items) && pedido.items.length > 0) {
         pedido.items.forEach(item => {
@@ -6387,7 +6553,7 @@ window.descargarPedidoCSV = function(id) {
             const precioVal = item.precio || 0;
             const subtotalVal = item.subtotal || 0;
             const est = item.estado || (pedido.estado === 'Aprobado' || pedido.estado === 'Autorizado' ? 'Autorizado' : 'Pendiente');
-            
+
             const detailRow = [
                 pedido.id,
                 item.codigo,
@@ -6400,9 +6566,9 @@ window.descargarPedidoCSV = function(id) {
             detailRows.push(detailRow.join(';'));
         });
     }
-    
+
     let csvDetalle = detalleHeaders.join(';') + '\n' + detailRows.join('\n');
-    
+
     // --- 3. Descargar Cabecera ---
     const blobCabecera = new Blob(['\uFEFF' + csvCabecera], { type: 'text/csv;charset=utf-8;' });
     const urlCabecera = URL.createObjectURL(blobCabecera);
@@ -6412,7 +6578,7 @@ window.descargarPedidoCSV = function(id) {
     document.body.appendChild(linkCabecera);
     linkCabecera.click();
     document.body.removeChild(linkCabecera);
-    
+
     // --- 4. Descargar Detalle ---
     setTimeout(() => {
         const blobDetalle = new Blob(['\uFEFF' + csvDetalle], { type: 'text/csv;charset=utf-8;' });
@@ -6423,7 +6589,7 @@ window.descargarPedidoCSV = function(id) {
         document.body.appendChild(linkDetalle);
         linkDetalle.click();
         document.body.removeChild(linkDetalle);
-        
+
         showToast("Archivos Cabecera y Detalle listos para Presea", "success");
     }, 200);
 };
@@ -6435,13 +6601,13 @@ window.applyPresetDateFilter = function(preset) {
     const dtTo = document.getElementById('filter-date-to');
     const dtFrom = document.getElementById('filter-date-from');
     if (!dtTo || !dtFrom) return;
-    
+
     const today = new Date();
-    
+
     const formatDate = (date) => {
         return getLocalDateStr(date);
     };
-    
+
     if (preset === 'today') {
         const d = formatDate(today);
         dtFrom.value = d;
@@ -6469,20 +6635,20 @@ window.applyPresetDateFilter = function(preset) {
         dtFrom.value = formatDate(firstDayPrev);
         dtTo.value = formatDate(lastDayPrev);
     }
-    
+
     renderAssignmentsTable();
 };
 
 function initAssignmentsView(mode) {
     viewMode = mode;
-    
+
     if (typeof updateTipoPresupuestoBadge === 'function') {
         updateTipoPresupuestoBadge();
     }
-    
+
     const titleEl = document.getElementById('assignments-title');
     const subtitleEl = document.getElementById('assignments-subtitle');
-    
+
     if (mode === 'Autorizador') {
         titleEl.innerText = "📥 Autorización de Presupuestos";
         subtitleEl.innerText = "Asignaciones pendientes de autorización comercial.";
@@ -6521,13 +6687,13 @@ function initAssignmentsView(mode) {
     // Configurar fechas filtro por defecto (últimos 30 días)
     const dtTo = document.getElementById('filter-date-to');
     const dtFrom = document.getElementById('filter-date-from');
-    
+
     if (dtTo && !dtTo.value) {
         const today = getLocalDateStr(new Date());
         const past30 = getLocalDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
         dtTo.value = today;
         dtFrom.value = past30;
-        
+
         const presetSelect = document.getElementById('preset-date-filter');
         if (presetSelect) presetSelect.value = 'last30';
     }
@@ -6537,7 +6703,7 @@ function initAssignmentsView(mode) {
         if (presetSelect) presetSelect.value = 'custom';
         renderAssignmentsTable();
     };
-    
+
     if (dtTo) dtTo.onchange = filterHandler;
     if (dtFrom) dtFrom.onchange = filterHandler;
     const searchFilter = document.getElementById('search-filter');
@@ -6548,7 +6714,7 @@ function initAssignmentsView(mode) {
 
 window.getBudgetStatusBadgeHtml = function(estado, fechaAlerta = '') {
     let est = estado || 'Enviado sin OC';
-    
+
     // Normalizar estados legacy o equivalentes
     if (est === 'Cargado sin orden de compra' || est === 'Pendiente de Autorización' || est === 'Pendiente') {
         est = 'Enviado sin OC';
@@ -6645,21 +6811,241 @@ window.renderEditableStatusDropdown = function(p) {
         `;
     }
 
+    let btnOcHtml = '';
+    const hasOcData = !!(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc);
+    if (currentEst === 'Aprobado con OC' || hasOcData) {
+        let moVal = p.oc_mano_obra || '';
+        let matVal = p.oc_materiales || '';
+        if (!moVal && !matVal && (p.meca_nro_oc || p.nro_oc)) {
+            const raw = p.meca_nro_oc || p.nro_oc || '';
+            if (raw.includes(' / ')) {
+                const parts = raw.split(' / ');
+                moVal = parts[0] || '';
+                matVal = parts[1] || '';
+            } else {
+                moVal = raw;
+            }
+        }
+
+        let ocDetailsHtml = '';
+        if (moVal || matVal) {
+            ocDetailsHtml = `
+                <div style="margin-top: 4px; padding: 4px 6px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 5px; font-size: 9.5px; text-align: left; line-height: 1.35;">
+                    <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="OC Mano de Obra: ${moVal || '-'}">
+                        <span style="color: #38bdf8; font-weight: 800;">MO:</span> <span style="color: #f8fafc;">${moVal || '<em style="color:#94a3b8; font-size: 9px;">(Sin OC)</em>'}</span>
+                    </div>
+                    <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="OC Materiales: ${matVal || '-'}">
+                        <span style="color: #34d399; font-weight: 800;">MAT:</span> <span style="color: #f8fafc;">${matVal || '<em style="color:#94a3b8; font-size: 9px;">(Sin OC)</em>'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        btnOcHtml = `
+            ${ocDetailsHtml}
+            <div style="margin-top: 4px;">
+                <button type="button" class="btn btn-sm" onclick="event.stopPropagation(); window.editarOrdenesDeCompra('${p.id}')"
+                        style="background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid #38bdf8; font-size: 10px; padding: 3px 6px; border-radius: 4px; font-weight: 800; cursor: pointer; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 4px; transition: all 0.2s;"
+                        title="Modificar o cargar OC de Mano de Obra y Materiales">
+                    <i class="fa-solid fa-pen-to-square"></i> Cargar/Editar OC
+                </button>
+            </div>
+        `;
+    }
+
     return `
         <div onclick="event.stopPropagation()" style="display: inline-block; text-align: center; width: 100%; max-width: 140px;">
-            <select onchange="cambiarEstadoPresupuesto('${p.id}', this.value)" 
+            <select onchange="cambiarEstadoPresupuesto('${p.id}', this.value)"
                     title="Haga clic aquí para modificar el estado de este presupuesto"
                     style="background: ${matched.bg}; color: ${matched.color}; border: 1.5px solid ${matched.border}; padding: 4px 6px; border-radius: 20px; font-size: 11px; font-weight: 800; text-transform: uppercase; cursor: pointer; outline: none; transition: all 0.2s ease; box-shadow: 0 0 8px rgba(0,0,0,0.3); width: 100%;">
                 ${optsHtml}
             </select>
+            ${btnOcHtml}
             ${btnFacturadoHtml}
         </div>
     `;
 };
 
+window.editarOrdenesDeCompra = async function(id) {
+    const orderIdx = (typeof window.findPedidoIndex === 'function')
+        ? window.findPedidoIndex(id)
+        : appData.pedidos.findIndex(p => p && (p.id === id || String(p.id) === String(id)));
+    if (orderIdx === -1) {
+        showToast('Presupuesto no encontrado.', 'error');
+        return false;
+    }
+    const p = appData.pedidos[orderIdx];
+    const previousState = p.estado;
+
+    let currentOcMo = p.oc_mano_obra || '';
+    let currentOcMat = p.oc_materiales || '';
+    if (!currentOcMo && !currentOcMat && (p.meca_nro_oc || p.nro_oc)) {
+        const raw = p.meca_nro_oc || p.nro_oc || '';
+        if (raw.includes(' / ')) {
+            const parts = raw.split(' / ');
+            currentOcMo = parts[0] || '';
+            currentOcMat = parts[1] || '';
+        } else {
+            currentOcMo = raw;
+        }
+    }
+
+    if (typeof Swal === 'undefined') {
+        const inputMo = prompt(`Presupuesto #${p.id}\nIngrese OC Mano de Obra:`, currentOcMo);
+        if (inputMo === null) return false;
+        const inputMat = prompt(`Presupuesto #${p.id}\nIngrese OC Materiales:`, currentOcMat);
+        if (inputMat === null) return false;
+        const cleanMo = inputMo.trim();
+        const cleanMat = inputMat.trim();
+        if (!cleanMo && !cleanMat) {
+            showToast('Debe ingresar al menos una orden de compra.', 'error');
+            return false;
+        }
+        const unifiedOc = (cleanMo && cleanMat) ? (cleanMo + ' / ' + cleanMat) : (cleanMo || cleanMat);
+        p.oc_mano_obra = cleanMo;
+        p.oc_materiales = cleanMat;
+        p.meca_nro_oc = unifiedOc;
+        p.nro_oc = unifiedOc;
+        if (p.estado !== 'Aprobado con OC' && p.estado !== 'Facturado Parcial' && p.estado !== 'Facturado Total') {
+            p.estado = 'Aprobado con OC';
+            p.fecha_resolucion = new Date().toLocaleDateString('es-AR');
+        }
+        saveData();
+        showToast(`✅ Órdenes de Compra guardadas: MO: ${cleanMo || '-'} | MAT: ${cleanMat || '-'}`, 'success');
+        if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+        return true;
+    }
+
+    const { value: formValues, isDismissed } = await Swal.fire({
+        title: '<div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #38bdf8; font-size: 18px; font-weight: 800;"><i class="fa-solid fa-file-invoice"></i> Órdenes de Compra (OC)</div>',
+        background: '#1e293b',
+        color: '#f8fafc',
+        width: '430px',
+        customClass: { popup: 'glass-panel' },
+        html: `
+            <div style="text-align:left; margin-top: 14px; margin-bottom: 12px;">
+                <label style="font-size: 12.5px; color: #cbd5e1; font-weight: 700; display: block; margin-bottom: 5px;">
+                    <i class="fa-solid fa-hard-hat" style="color: #38bdf8;"></i> OC Mano de Obra:
+                </label>
+                <input id="swal-input-oc-mo-edit" class="swal2-input"
+                       style="box-sizing: border-box; height: 38px; padding: 6px 12px; font-size: 13.5px; width: 100%; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(56, 189, 248, 0.5); border-radius: 6px; margin: 0; outline: none; font-weight: 600;"
+                       value="${currentOcMo}" placeholder="Ej: OC-MO-45012">
+            </div>
+            <div style="text-align:left; margin-bottom: 12px;">
+                <label style="font-size: 12.5px; color: #cbd5e1; font-weight: 700; display: block; margin-bottom: 5px;">
+                    <i class="fa-solid fa-boxes-stacked" style="color: #34d399;"></i> OC Materiales:
+                </label>
+                <input id="swal-input-oc-mat-edit" class="swal2-input"
+                       style="box-sizing: border-box; height: 38px; padding: 6px 12px; font-size: 13.5px; width: 100%; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(52, 211, 153, 0.5); border-radius: 6px; margin: 0; outline: none; font-weight: 600;"
+                       value="${currentOcMat}" placeholder="Ej: OC-MAT-98234">
+            </div>
+            <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); font-size: 11px; color: #94a3b8; text-align: left;">
+                💡 Puede cargar o editar una o ambas órdenes de compra. Si ya ingresó la de Mano de Obra, complete aquí la de Materiales.
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        cancelButtonText: 'Cancelar',
+        confirmButtonText: '<i class="fa-solid fa-save"></i> Guardar OC',
+        confirmButtonColor: '#0ea5e9',
+        cancelButtonColor: '#64748b',
+        didOpen: () => {
+            const moInput = document.getElementById('swal-input-oc-mo-edit');
+            const matInput = document.getElementById('swal-input-oc-mat-edit');
+            if (moInput && matInput) {
+                if (currentOcMo && !currentOcMat) {
+                    matInput.focus();
+                } else {
+                    moInput.focus();
+                }
+                const onEnter = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        Swal.clickConfirm();
+                    }
+                };
+                moInput.addEventListener('keydown', onEnter);
+                matInput.addEventListener('keydown', onEnter);
+            }
+        },
+        preConfirm: () => {
+            const mo = (document.getElementById('swal-input-oc-mo-edit')?.value || '').trim();
+            const mat = (document.getElementById('swal-input-oc-mat-edit')?.value || '').trim();
+            if (!mo && !mat) {
+                Swal.showValidationMessage('Debe completar al menos una orden de compra (Mano de Obra o Materiales).');
+                return false;
+            }
+            return { mo, mat };
+        }
+    });
+
+    if (isDismissed || !formValues) {
+        if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+        return false;
+    }
+
+    const cleanMo = formValues.mo;
+    const cleanMat = formValues.mat;
+    const unifiedOc = (cleanMo && cleanMat) ? (cleanMo + ' / ' + cleanMat) : (cleanMo || cleanMat);
+
+    p.oc_mano_obra = cleanMo;
+    p.oc_materiales = cleanMat;
+    p.meca_nro_oc = unifiedOc;
+    p.nro_oc = unifiedOc;
+
+    const previousWasApprovedConOc = (previousState === 'Aprobado con OC' || previousState === 'Facturado Parcial' || previousState === 'Facturado Total');
+    if (!previousWasApprovedConOc) {
+        p.estado = 'Aprobado con OC';
+        p.fecha_resolucion = new Date().toLocaleDateString('es-AR');
+    }
+
+    if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(p.id)) {
+        pedidoActivo.oc_mano_obra = cleanMo;
+        pedidoActivo.oc_materiales = cleanMat;
+        pedidoActivo.meca_nro_oc = unifiedOc;
+        pedidoActivo.nro_oc = unifiedOc;
+        if (!previousWasApprovedConOc) {
+            pedidoActivo.estado = 'Aprobado con OC';
+        }
+
+        const authOcEl = document.getElementById('auth-meca-nro-oc-val');
+        if (authOcEl) authOcEl.innerText = unifiedOc;
+        const authHeaderOcMo = document.getElementById('auth-header-nro-oc-mo-val');
+        const authHeaderOcMat = document.getElementById('auth-header-nro-oc-mat-val');
+        if (authHeaderOcMo) authHeaderOcMo.innerText = cleanMo || '-';
+        if (authHeaderOcMat) authHeaderOcMat.innerText = cleanMat || '-';
+
+        const statusSelect = document.getElementById('modal-change-status-select');
+        if (statusSelect) statusSelect.value = pedidoActivo.estado;
+        const badgeContainer = document.getElementById('modal-status-badge-container');
+        if (badgeContainer) {
+            let factBtnHtml = `
+                <button type="button" class="btn btn-sm" onclick="closeModal(); if(window.showView){ showView('tpl-facturacion'); if(window.renderFacturacionTable) window.renderFacturacionTable(); }" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-left: 10px;" title="Pasar a Registrar Facturación para este comprobante">
+                    <i class="fa-solid fa-file-invoice-dollar"></i> Ir a Registrar Facturación
+                </button>
+                <button type="button" class="btn btn-sm" onclick="window.editarOrdenesDeCompra(pedidoActivo.id)" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-left: 6px;" title="Modificar Orden de Compra de Mano de Obra o Materiales">
+                    <i class="fa-solid fa-pen"></i> Editar OC
+                </button>
+            `;
+            badgeContainer.innerHTML = `<div style="display: flex; align-items: center; gap: 8px;">${getBudgetStatusBadgeHtml(pedidoActivo.estado, pedidoActivo.oc_limite_fecha)}${factBtnHtml}</div>`;
+        }
+    }
+
+    saveData();
+    showToast(`✅ Órdenes de Compra guardadas: MO: ${cleanMo || '-'} | MAT: ${cleanMat || '-'}`, 'success');
+
+    if (!previousWasApprovedConOc && typeof window.notificarAprobacionEquipo === 'function') {
+        window.notificarAprobacionEquipo(p, 'Aprobado con OC');
+    }
+
+    if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+    if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+    return true;
+};
+
 window.modificarPorcentajeFacturado = function(id) {
-    const orderIdx = (typeof window.findPedidoIndex === 'function') 
-        ? window.findPedidoIndex(id) 
+    const orderIdx = (typeof window.findPedidoIndex === 'function')
+        ? window.findPedidoIndex(id)
         : appData.pedidos.findIndex(p => p && (p.id === id || String(p.id) === String(id)));
     if (orderIdx === -1) return;
     const p = appData.pedidos[orderIdx];
@@ -6730,9 +7116,9 @@ window.notificarAprobacionEquipo = async function(p, nuevoEstado) {
     const cliente = p.meca_denominacion || p.cliente_nombre || 'Cliente';
     const importeStr = p.importe ? `$${p.importe.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : '$0,00';
     const nroOcStr = (p.meca_nro_oc || p.nro_oc) ? ` | OC: ${p.meca_nro_oc || p.nro_oc}` : '';
-    
+
     const notifMsg = `🔔 ALERTA DE ESTADO: El Presupuesto ${nroPresupuesto} (${cliente}) cambió a "${nuevoEstado}" (${importeStr}${nroOcStr}).`;
-    
+
     // Lista de usuarios para notificaciones internas
     const targetUsers = (appData.users && appData.users.length > 0) ? appData.users : [
         { id: '1', username: 'mel', email: 'melanidaiana28@gmail.com' }
@@ -6800,10 +7186,10 @@ window.notificarAprobacionEquipo = async function(p, nuevoEstado) {
 };
 
 window.cambiarEstadoPresupuesto = async function(id, nuevoEstado) {
-    const orderIdx = (typeof window.findPedidoIndex === 'function') 
-        ? window.findPedidoIndex(id) 
+    const orderIdx = (typeof window.findPedidoIndex === 'function')
+        ? window.findPedidoIndex(id)
         : appData.pedidos.findIndex(p => p && (p.id === id || String(p.id) === String(id)));
-    
+
     if (orderIdx === -1) {
         console.error("Presupuesto no encontrado para cambiar estado:", id);
         showToast('Error al localizar el presupuesto.', 'error');
@@ -6825,74 +7211,51 @@ window.cambiarEstadoPresupuesto = async function(id, nuevoEstado) {
     }
 
     if (nuevoEstado === 'Aprobado con OC') {
-        const currentOcMo = pTarget.oc_mano_obra || pTarget.meca_nro_oc || pTarget.nro_oc || '';
-        const currentOcMat = pTarget.oc_materiales || '';
-        
-        const { value: formValues, isDismissed } = await Swal.fire({
-            title: '<h3 style="color: #f8fafc; font-size: 18px; margin: 0;">Ingresar Órdenes de Compra</h3>',
-            background: 'rgba(30, 41, 59, 0.95)',
-            color: '#f8fafc',
-            width: '360px',
-            customClass: { popup: 'glass-panel' },
-            html:
-                '<div style="text-align:left; margin-bottom: 10px;">' +
-                '<label style="font-size: 12px; color: #94a3b8; font-weight: bold;">OC Mano de Obra:</label>' +
-                '<input id="swal-input-oc-mo" class="swal2-input" style="height: 36px; padding: 5px 10px; font-size: 13px; width: 90%; background: rgba(15, 23, 42, 0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); margin: 5px auto; display: block;" value="' + currentOcMo + '">' +
-                '</div><div style="text-align:left;">' +
-                '<label style="font-size: 12px; color: #94a3b8; font-weight: bold;">OC Materiales:</label>' +
-                '<input id="swal-input-oc-mat" class="swal2-input" style="height: 36px; padding: 5px 10px; font-size: 13px; width: 90%; background: rgba(15, 23, 42, 0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); margin: 5px auto; display: block;" value="' + currentOcMat + '">' +
-                '</div>',
-            focusConfirm: false,
-            showCancelButton: true,
-            cancelButtonText: 'Cancelar',
-            confirmButtonText: 'Confirmar',
-            confirmButtonColor: '#0ea5e9',
-            cancelButtonColor: '#64748b',
-            preConfirm: () => {
-                const mo = document.getElementById('swal-input-oc-mo').value;
-                const mat = document.getElementById('swal-input-oc-mat').value;
-                if (!mo && !mat) {
-                    Swal.showValidationMessage('Debe completar al menos una orden de compra (Mano de Obra o Materiales).');
-                }
-                return { mo: mo, mat: mat };
-            }
-        });
-
-        if (isDismissed || !formValues) {
-            // Restaurar select visual si estuviera en la planilla
+        const ok = await window.editarOrdenesDeCompra(pTarget.id);
+        if (!ok) {
+            // Si canceló o no completó, restaurar el selector al estado anterior
             if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(pTarget.id)) {
                 const statusSelect = document.getElementById('modal-change-status-select');
                 if (statusSelect) statusSelect.value = currentEstNorm;
             }
             if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-            return;
         }
-
-        const cleanMo = formValues.mo.trim();
-        const cleanMat = formValues.mat.trim();
-        pTarget.oc_mano_obra = cleanMo;
-        pTarget.oc_materiales = cleanMat;
-        pTarget.meca_nro_oc = cleanMo;
-        pTarget.nro_oc = cleanMo;
-        
-        if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(pTarget.id)) {
-            pedidoActivo.oc_mano_obra = cleanMo;
-            pedidoActivo.oc_materiales = cleanMat;
-            pedidoActivo.meca_nro_oc = cleanMo;
-            pedidoActivo.nro_oc = cleanMo;
-        }
+        return;
     } else if (nuevoEstado === 'Rechazado' && !pTarget.motivo_rechazo) {
         let reason;
         if (typeof Swal !== 'undefined') {
             const { value, isDismissed } = await Swal.fire({
-                title: 'Motivo de rechazo',
-                input: 'text',
-                inputLabel: 'Ingrese el motivo obligatorio del rechazo del presupuesto:',
+                title: '<div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #f43f5e; font-size: 18px; font-weight: 800;"><i class="fa-solid fa-circle-xmark"></i> Motivo de Rechazo</div>',
+                html: `
+                    <div style="text-align: left; margin-top: 10px;">
+                        <label style="font-size: 13px; color: #f8fafc; font-weight: 700; display: block; margin-bottom: 6px;">
+                            Ingrese el motivo obligatorio del rechazo del presupuesto:
+                        </label>
+                        <textarea id="swal-motivo-rechazo-input" rows="3"
+                            placeholder="Especifique la razón por la cual se rechaza el presupuesto..."
+                            style="width: 100%; box-sizing: border-box; background: #ffffff !important; color: #0f172a !important; border: 2px solid #f43f5e !important; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 600; font-family: inherit; resize: vertical; outline: none;"></textarea>
+                    </div>
+                `,
+                background: '#1e293b',
+                color: '#ffffff',
+                width: '450px',
                 showCancelButton: true,
-                inputValidator: (val) => {
+                cancelButtonText: 'Cancelar',
+                confirmButtonText: 'Confirmar Rechazo',
+                confirmButtonColor: '#f43f5e',
+                cancelButtonColor: '#64748b',
+                focusConfirm: false,
+                didOpen: () => {
+                    const el = document.getElementById('swal-motivo-rechazo-input');
+                    if (el) el.focus();
+                },
+                preConfirm: () => {
+                    const val = document.getElementById('swal-motivo-rechazo-input')?.value;
                     if (!val || !val.trim()) {
-                        return 'El motivo de rechazo es obligatorio';
+                        Swal.showValidationMessage('El motivo de rechazo es obligatorio.');
+                        return false;
                     }
+                    return val.trim();
                 }
             });
             if (isDismissed || !value) {
@@ -6922,7 +7285,7 @@ window.cambiarEstadoPresupuesto = async function(id, nuevoEstado) {
     if (typeof window.notificarAprobacionEquipo === 'function') {
         window.notificarAprobacionEquipo(pTarget, nuevoEstado);
     }
-    
+
     // Si la planilla está abierta, actualizar badge, selector y número de OC en el comprobante
     if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(pTarget.id)) {
         pedidoActivo.estado = nuevoEstado;
@@ -6947,7 +7310,7 @@ window.cambiarEstadoPresupuesto = async function(id, nuevoEstado) {
         if (authHeaderOcMo) authHeaderOcMo.innerText = pedidoActivo.oc_mano_obra || pedidoActivo.meca_nro_oc || pedidoActivo.nro_oc || '-';
         if (authHeaderOcMat) authHeaderOcMat.innerText = pedidoActivo.oc_materiales || '-';
     }
-    
+
     if (typeof renderAssignmentsTable === 'function') {
         renderAssignmentsTable();
     }
@@ -7103,13 +7466,13 @@ window.onAvancePorcentajeInput = function(pctVal) {
 
     const inputPct = document.getElementById('avance-input-pct');
     let rawStr = String(pctVal || '').trim();
-    
+
     // Prohibir punto (.) y convertirlo automáticamente a coma (,)
     if (rawStr.includes('.')) {
         rawStr = rawStr.replace(/\./g, ',');
         if (inputPct) inputPct.value = rawStr;
     }
-    
+
     // Solo permitir dígitos y una única coma
     const parts = rawStr.split(',');
     if (parts.length > 2) {
@@ -7330,13 +7693,13 @@ window.abrirComprobanteAvance = function(pedidoId, avanceId) {
 window.imprimirComprobanteAvance = function() {
     const area = document.getElementById('print-comprobante-avance-area');
     if (!area) return;
-    
+
     const printWindow = window.open('', '_blank', 'width=800,height=880');
     if (!printWindow) {
         window.print();
         return;
     }
-    
+
     printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -7420,7 +7783,7 @@ window.notificarEmailFacturacionAvance = function(p, avance) {
     }
 
     const targetEmailList = Array.from(new Set([emailFacturacion, 'melanidaiana28@gmail.com', 'grandijuanluis@gmail.com', 'cotizaciones@sgmontajes.com.ar']));
-    
+
     if (typeof window.enviarEmailBackend === 'function') {
         window.enviarEmailBackend({
             to: targetEmailList,
@@ -7459,89 +7822,73 @@ function getSLABadge(p) {
     if (p.estado === 'Rechazado' || p.estado === 'Aprobado con OC' || p.estado === 'Facturado Parcial' || p.estado === 'Facturado Total' || p.estado === 'Aprobado' || p.estado === 'Autorizado' || p.estado === 'Cargado con orden de compra') {
         return `<span class="sla-badge resolved"><i class="fa-solid fa-circle-check"></i> Resuelto</span>`;
     }
-    
+
     // Normalizar la fecha reemplazando el espacio por T para evitar problemas de parsing entre navegadores
     const createdDate = new Date(p.fecha.replace(' ', 'T'));
     const timeElapsedMs = Date.now() - createdDate.getTime();
-    
+
     // Si la fecha es inválida o en el futuro por desincronización, mostrar 0
     const finalElapsedMs = Math.max(0, timeElapsedMs);
-    
+
     const hoursElapsed = Math.floor(finalElapsedMs / (1000 * 60 * 60));
     const minsElapsed = Math.floor((finalElapsedMs % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     // Retornamos un badge neutral con la clase .info que muestra el tiempo transcurrido en cola sin fecha de vencimiento
     return `<span class="sla-badge info"><i class="fa-solid fa-clock"></i> Hace ${hoursElapsed}h ${minsElapsed}m</span>`;
 }
 
 window.cambiarEstadoPresupuestoDirecto = async function(id, nuevoEstado) {
-    const orderIdx = (typeof window.findPedidoIndex === 'function') 
-        ? window.findPedidoIndex(id) 
+    const orderIdx = (typeof window.findPedidoIndex === 'function')
+        ? window.findPedidoIndex(id)
         : appData.pedidos.findIndex(p => p && (p.id === id || String(p.id) === String(id)));
-    
+
     if (orderIdx === -1) {
         console.error("Presupuesto no encontrado para cambiar estado directo:", id);
         return;
     }
     const p = appData.pedidos[orderIdx];
-    
+
     if (nuevoEstado === 'Aprobado con OC') {
-        const currentOcMo = p.oc_mano_obra || p.meca_nro_oc || p.nro_oc || '';
-        const currentOcMat = p.oc_materiales || '';
-        
-        const { value: formValues, isDismissed } = await Swal.fire({
-            title: '<h3 style="color: #f8fafc; font-size: 18px; margin: 0;">Ingresar Órdenes de Compra</h3>',
-            background: 'rgba(30, 41, 59, 0.95)',
-            color: '#f8fafc',
-            width: '360px',
-            customClass: { popup: 'glass-panel' },
-            html:
-                '<div style="text-align:left; margin-bottom: 10px;">' +
-                '<label style="font-size: 12px; color: #94a3b8; font-weight: bold;">OC Mano de Obra:</label>' +
-                '<input id="swal-input-oc-mo2" class="swal2-input" style="height: 36px; padding: 5px 10px; font-size: 13px; width: 90%; background: rgba(15, 23, 42, 0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); margin: 5px auto; display: block;" value="' + currentOcMo + '">' +
-                '</div><div style="text-align:left;">' +
-                '<label style="font-size: 12px; color: #94a3b8; font-weight: bold;">OC Materiales:</label>' +
-                '<input id="swal-input-oc-mat2" class="swal2-input" style="height: 36px; padding: 5px 10px; font-size: 13px; width: 90%; background: rgba(15, 23, 42, 0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); margin: 5px auto; display: block;" value="' + currentOcMat + '">' +
-                '</div>',
-            focusConfirm: false,
-            showCancelButton: true,
-            cancelButtonText: 'Cancelar',
-            confirmButtonText: 'Confirmar',
-            confirmButtonColor: '#0ea5e9',
-            cancelButtonColor: '#64748b',
-            preConfirm: () => {
-                const mo = document.getElementById('swal-input-oc-mo2').value;
-                const mat = document.getElementById('swal-input-oc-mat2').value;
-                if (!mo && !mat) {
-                    Swal.showValidationMessage('Debe completar al menos una orden de compra (Mano de Obra o Materiales).');
-                }
-                return { mo: mo, mat: mat };
-            }
-        });
-
-        if (isDismissed || !formValues) {
+        const ok = await window.editarOrdenesDeCompra(p.id);
+        if (!ok) {
             if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-            return;
         }
-
-        const cleanMo = formValues.mo.trim();
-        const cleanMat = formValues.mat.trim();
-        p.oc_mano_obra = cleanMo;
-        p.oc_materiales = cleanMat;
-        p.meca_nro_oc = cleanMo;
-        p.nro_oc = cleanMo;
+        return;
     } else if (nuevoEstado === 'Rechazado' && !p.motivo_rechazo) {
         let reason;
         if (typeof Swal !== 'undefined') {
             const { value, isDismissed } = await Swal.fire({
-                title: 'Motivo de rechazo',
-                input: 'text',
-                inputLabel: 'Ingrese el motivo obligatorio del rechazo del presupuesto:',
+                title: '<div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #f43f5e; font-size: 18px; font-weight: 800;"><i class="fa-solid fa-circle-xmark"></i> Motivo de Rechazo</div>',
+                html: `
+                    <div style="text-align: left; margin-top: 10px;">
+                        <label style="font-size: 13px; color: #f8fafc; font-weight: 700; display: block; margin-bottom: 6px;">
+                            Ingrese el motivo obligatorio del rechazo del presupuesto:
+                        </label>
+                        <textarea id="swal-motivo-rechazo-input" rows="3"
+                            placeholder="Especifique la razón por la cual se rechaza el presupuesto..."
+                            style="width: 100%; box-sizing: border-box; background: #ffffff !important; color: #0f172a !important; border: 2px solid #f43f5e !important; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 600; font-family: inherit; resize: vertical; outline: none;"></textarea>
+                    </div>
+                `,
+                background: '#1e293b',
+                color: '#ffffff',
+                width: '450px',
                 showCancelButton: true,
-                inputValidator: (val) => {
+                cancelButtonText: 'Cancelar',
+                confirmButtonText: 'Confirmar Rechazo',
+                confirmButtonColor: '#f43f5e',
+                cancelButtonColor: '#64748b',
+                focusConfirm: false,
+                didOpen: () => {
+                    const el = document.getElementById('swal-motivo-rechazo-input');
+                    if (el) el.focus();
+                },
+                preConfirm: () => {
+                    const val = document.getElementById('swal-motivo-rechazo-input')?.value;
                     if (!val || !val.trim()) {
-                        return 'El motivo de rechazo es obligatorio';
+                        Swal.showValidationMessage('El motivo de rechazo es obligatorio.');
+                        return false;
                     }
+                    return val.trim();
                 }
             });
             if (isDismissed || !value) {
@@ -7601,19 +7948,19 @@ window.cambiarEstadoPresupuestoDirecto = async function(id, nuevoEstado) {
 };
 
 window.autorizarPedidoRapido = function(id) {
-    const orderIdx = (typeof window.findPedidoIndex === 'function') 
-        ? window.findPedidoIndex(id) 
+    const orderIdx = (typeof window.findPedidoIndex === 'function')
+        ? window.findPedidoIndex(id)
         : appData.pedidos.findIndex(p => p && (p.id === id || String(p.id) === String(id)));
-    
+
     if (orderIdx === -1) return;
     const p = appData.pedidos[orderIdx];
-    
+
     let nroOc = p.meca_nro_oc || p.nro_oc || '';
     const ocPrompt = prompt(`✅ AUTORIZAR Presupuesto #${p.id}
 
 Si el cliente ya emitió Orden de Compra (OC), ingrese el número (opcional):`, nroOc);
     if (ocPrompt === null) return;
-    
+
     const trimmedOc = ocPrompt.trim();
     if (trimmedOc) {
         p.meca_nro_oc = trimmedOc;
@@ -7660,23 +8007,65 @@ Si el cliente ya emitió Orden de Compra (OC), ingrese el número (opcional):`, 
     }
 };
 
-window.rechazarPedidoRapido = function(id) {
+window.rechazarPedidoRapido = async function(id) {
     const p = appData.pedidos.find(x => x.id === id);
     if (!p) return;
-    
-    const motivo = prompt(`❌ RECHAZAR Presupuesto #${p.id}\n\nPor favor ingrese el motivo obligatorio del rechazo:`);
-    if (motivo === null) return; // Canceló
-    if (!motivo.trim()) {
-        showToast('El motivo de rechazo es obligatorio.', 'error');
-        return;
+
+    let motivo;
+    if (typeof Swal !== 'undefined') {
+        const { value, isDismissed } = await Swal.fire({
+            title: `<div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #f43f5e; font-size: 18px; font-weight: 800;"><i class="fa-solid fa-circle-xmark"></i> Rechazar Presupuesto #${p.id}</div>`,
+            html: `
+                <div style="text-align: left; margin-top: 10px;">
+                    <label style="font-size: 13px; color: #f8fafc; font-weight: 700; display: block; margin-bottom: 6px;">
+                        Ingrese el motivo obligatorio del rechazo:
+                    </label>
+                    <textarea id="swal-motivo-rechazo-rapido-input" rows="3"
+                        placeholder="Especifique la razón por la cual se rechaza el presupuesto..."
+                        style="width: 100%; box-sizing: border-box; background: #ffffff !important; color: #0f172a !important; border: 2px solid #f43f5e !important; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-weight: 600; font-family: inherit; resize: vertical; outline: none;"></textarea>
+                </div>
+            `,
+            background: '#1e293b',
+            color: '#ffffff',
+            width: '450px',
+            showCancelButton: true,
+            cancelButtonText: 'Cancelar',
+            confirmButtonText: 'Confirmar Rechazo',
+            confirmButtonColor: '#f43f5e',
+            cancelButtonColor: '#64748b',
+            focusConfirm: false,
+            didOpen: () => {
+                const el = document.getElementById('swal-motivo-rechazo-rapido-input');
+                if (el) el.focus();
+            },
+            preConfirm: () => {
+                const val = document.getElementById('swal-motivo-rechazo-rapido-input')?.value;
+                if (!val || !val.trim()) {
+                    Swal.showValidationMessage('El motivo de rechazo es obligatorio.');
+                    return false;
+                }
+                return val.trim();
+            }
+        });
+        if (isDismissed || !value) return;
+        motivo = value;
+    } else {
+        motivo = prompt(`❌ RECHAZAR Presupuesto #${p.id}\n\nPor favor ingrese el motivo obligatorio del rechazo:`);
+        if (motivo === null) return; // Canceló
+        if (!motivo.trim()) {
+            showToast('El motivo de rechazo es obligatorio.', 'error');
+            return;
+        }
     }
-    
+
     p.estado = 'Rechazado';
     p.motivo_rechazo = motivo.trim();
     p.fecha_resolucion = new Date().toLocaleDateString('es-AR');
     saveData();
     showToast(`❌ Presupuesto #${p.id} fue RECHAZADO.`, 'danger');
-    window.notificarAprobacionEquipo(p, 'Rechazado');
+    if (typeof window.notificarAprobacionEquipo === 'function') {
+        window.notificarAprobacionEquipo(p, 'Rechazado');
+    }
     renderAssignmentsTable();
 };
 
@@ -7684,7 +8073,7 @@ function formatFechaCorta(fechaStr) {
     if (!fechaStr) return '-';
     const cleanStr = String(fechaStr).trim();
     const datePart = cleanStr.split(/[ T]/)[0];
-    
+
     if (datePart.includes('-')) {
         const parts = datePart.split('-');
         if (parts.length === 3) {
@@ -7787,7 +8176,7 @@ window.seleccionarVista = function(viewId) {
 
     currentActiveViewId = viewId;
     tableGroupBy = v.groupBy || '';
-    
+
     // Si la vista define un filtro de estado, aplicarlo
     const statusSelect = document.getElementById('status-filter');
     if (statusSelect && v.statusFilter !== undefined) {
@@ -7842,7 +8231,7 @@ window.guardarNuevaVistaPersonalizada = function() {
 
     currentActiveViewId = newViewId;
     tableGroupBy = agrup;
-    
+
     const statusSelect = document.getElementById('status-filter');
     if (statusSelect && estado) {
         statusSelect.value = estado;
@@ -7973,7 +8362,7 @@ function renderTableHeaderRow() {
         th.className = 'draggable-col';
         th.setAttribute('data-col', colKey);
         th.setAttribute('draggable', 'true');
-        
+
         let colWidth = def.width || 'auto';
         th.style.width = colWidth;
         if (colWidth !== 'auto' && !colWidth.includes('%')) {
@@ -8048,9 +8437,9 @@ function renderAssignmentsTable() {
     const statusVal = statusFilterEl ? statusFilterEl.value : '';
     const dateFrom = document.getElementById('filter-date-from') ? document.getElementById('filter-date-from').value : '';
     const dateTo = document.getElementById('filter-date-to') ? document.getElementById('filter-date-to').value : '';
-    
+
     listBody.innerHTML = '';
-    
+
     let filtered = (appData.pedidos || []).filter(p => {
         // 1. Filtro estricto por Rubro activo (Eléctrico / Mecánico)
         const curRubro = reqTipoPresupuesto || (typeof getCurrentUser === 'function' && getCurrentUser() && getCurrentUser().rubro_defecto) || 'Eléctrico';
@@ -8070,22 +8459,22 @@ function renderAssignmentsTable() {
             else if (pEstNorm === 'Cargado con orden de compra' || pEstNorm === 'Autorizado' || pEstNorm === 'Aprobado') pEstNorm = 'Aprobado con OC';
             if (pEstNorm !== statusVal) return false;
         }
-        
+
         const pDate = p.fecha ? p.fecha.substring(0, 10) : '';
         if (dateFrom && pDate && pDate < dateFrom) return false;
         if (dateTo && pDate && pDate > dateTo) return false;
-        
+
         if (searchVal) {
-            const matchesText = (p.cliente_nombre || '').toLowerCase().includes(searchVal) || 
+            const matchesText = (p.cliente_nombre || '').toLowerCase().includes(searchVal) ||
                                 (p.meca_denominacion || '').toLowerCase().includes(searchVal) ||
                                 (p.motivo || '').toLowerCase().includes(searchVal) ||
                                 (p.meca_planta || '').toLowerCase().includes(searchVal) ||
-                                (p.cuit || '').includes(searchVal) || 
+                                (p.cuit || '').includes(searchVal) ||
                                 String(p.id || '').toLowerCase().includes(searchVal) ||
                                 (p.estado || '').toLowerCase().includes(searchVal);
             if (!matchesText) return false;
         }
-        
+
         return true;
     });
 
@@ -8262,7 +8651,7 @@ function renderAssignmentsTable() {
         }
 
         const isItemMec = (p.tipo_presupuesto === 'Mecánico' || (p.id && (String(p.id).startsWith('101') || String(p.id).toUpperCase().includes('MEC'))));
-        const tipoPresBadge = isItemMec 
+        const tipoPresBadge = isItemMec
             ? `<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: #22d3ee; font-size: 10px; padding: 2px 7px; border: 1px solid rgba(6, 182, 212, 0.4); margin-left: 6px; border-radius: 4px; font-weight: 800; white-space: nowrap;">⚙️ Mecánico</span>`
             : `<span class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-size: 10px; padding: 2px 7px; border: 1px solid rgba(234, 179, 8, 0.4); margin-left: 6px; border-radius: 4px; font-weight: 800; white-space: nowrap;">⚡ Eléctrico</span>`;
 
@@ -8407,7 +8796,7 @@ function renderAssignmentsTable() {
         }).join('');
 
         tr.innerHTML = cellsHtml;
-        
+
         const handleOpenPedido = (e) => {
             if (e && e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON' || e.target.closest('button') || e.target.closest('select') || e.target.closest('.status-select-container') || e.target.closest('.detalle-expandable-box'))) {
                 return;
@@ -8483,7 +8872,7 @@ let pedidoEdicionTemp = null;
 
 window.saveTempEdits = function() {
     if (!pedidoActivo) return;
-    
+
     // Save header identification fields
     const getEditVal = (id) => {
         const el = document.getElementById(id);
@@ -8497,15 +8886,13 @@ window.saveTempEdits = function() {
     if (getEditVal('auth-edit-meca-cuit') !== null) pedidoActivo.cuit = getEditVal('auth-edit-meca-cuit');
     if (getEditVal('auth-edit-meca-entrega') !== null) pedidoActivo.fecha_entrega = getEditVal('auth-edit-meca-entrega');
     if (getEditVal('auth-edit-meca-oc-mo') !== null) {
-        const valOc = getEditVal('auth-edit-meca-oc-mo');
+        const valOc = getEditVal('auth-edit-meca-oc-mo').trim();
         pedidoActivo.oc_mano_obra = valOc;
-        pedidoActivo.meca_nro_oc = valOc;
-        pedidoActivo.nro_oc = valOc;
         const authHeaderOcMo = document.getElementById('auth-header-nro-oc-mo-val');
         if (authHeaderOcMo) authHeaderOcMo.innerText = valOc || '-';
     }
     if (getEditVal('auth-edit-meca-oc-mat') !== null) {
-        const valOcMat = getEditVal('auth-edit-meca-oc-mat');
+        const valOcMat = getEditVal('auth-edit-meca-oc-mat').trim();
         pedidoActivo.oc_materiales = valOcMat;
         const authHeaderOcMat = document.getElementById('auth-header-nro-oc-mat-val');
         if (authHeaderOcMat) authHeaderOcMat.innerText = valOcMat || '-';
@@ -8519,13 +8906,16 @@ window.saveTempEdits = function() {
         pedidoActivo.planta = editedPlanta;
     }
     if (getEditVal('auth-edit-meca-nro-oc') !== null) {
-        const valOc = getEditVal('auth-edit-meca-nro-oc');
-        pedidoActivo.oc_mano_obra = valOc;
-        pedidoActivo.meca_nro_oc = valOc;
-        pedidoActivo.nro_oc = valOc;
+        const valOc = getEditVal('auth-edit-meca-nro-oc').trim();
+        if (!pedidoActivo.oc_mano_obra) pedidoActivo.oc_mano_obra = valOc;
         const authHeaderOcMo = document.getElementById('auth-header-nro-oc-mo-val');
-        if (authHeaderOcMo) authHeaderOcMo.innerText = valOc || '-';
+        if (authHeaderOcMo) authHeaderOcMo.innerText = pedidoActivo.oc_mano_obra || '-';
     }
+    const combinedOc = (pedidoActivo.oc_mano_obra && pedidoActivo.oc_materiales)
+        ? (pedidoActivo.oc_mano_obra + ' / ' + pedidoActivo.oc_materiales)
+        : (pedidoActivo.oc_mano_obra || pedidoActivo.oc_materiales || '');
+    pedidoActivo.meca_nro_oc = combinedOc;
+    pedidoActivo.nro_oc = combinedOc;
     if (getEditVal('auth-edit-meca-nro-ot') !== null) pedidoActivo.meca_nro_ot = getEditVal('auth-edit-meca-nro-ot');
     if (getEditVal('auth-edit-meca-inicio') !== null) pedidoActivo.meca_fecha_inicio = getEditVal('auth-edit-meca-inicio');
     if (getEditVal('auth-edit-meca-duracion') !== null) pedidoActivo.meca_duracion = getEditVal('auth-edit-meca-duracion');
@@ -8539,7 +8929,7 @@ window.saveTempEdits = function() {
     if (reasonInput) {
         pedidoActivo.motivo = reasonInput.value;
     }
-    
+
     // Save condition
     const condSelect = document.getElementById('auth-condition-select');
     if (condSelect) {
@@ -8556,7 +8946,7 @@ window.saveTempEdits = function() {
         pedidoActivo.condicion_nombre = cleanName;
         pedidoActivo.condicion_venta = cleanName;
     }
-    
+
     // Save currency and exchange rate
     const currSelect = document.getElementById('auth-currency-select');
     const cotizInput = document.getElementById('auth-exchange-rate-input');
@@ -8571,13 +8961,13 @@ window.saveTempEdits = function() {
             pedidoActivo.cotizacion = 1.0;
         }
     }
-    
+
     // Save status
     const statusSelect = document.getElementById('modal-change-status-select');
     if (statusSelect) {
         pedidoActivo.estado = statusSelect.value;
     }
-    
+
     // Save items from Excel grid if active
     if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
         pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
@@ -8595,17 +8985,17 @@ window.saveTempEdits = function() {
     // Save items quantities and status from legacy checks if present
     const checks = document.querySelectorAll('.auth-item-check');
     const qtys = document.querySelectorAll('.auth-item-qty');
-    
+
     if (pedidoActivo.items && checks.length > 0) {
         pedidoActivo.items.forEach((item, idx) => {
             const chk = Array.from(checks).find(c => parseInt(c.getAttribute('data-idx')) === idx);
             const qtyInput = Array.from(qtys).find(q => parseInt(q.getAttribute('data-idx')) === idx);
-            
+
             if (chk && qtyInput) {
                 const isChecked = chk.checked;
                 const qty = parseFloat(String(qtyInput.value || '0').replace(',', '.'));
                 const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
-                
+
                 item.estado = isChecked ? 'Pendiente' : 'Rechazado';
                 item.cantidad = isNaN(qty) || qty <= 0 ? 0.01 : qty;
                 item.subtotal = item.cantidad * pr;
@@ -8618,7 +9008,7 @@ window.onAuthCurrencyChange = function() {
     const currencySelect = document.getElementById('auth-currency-select');
     const rateContainer = document.getElementById('auth-exchange-rate-container');
     const rateInput = document.getElementById('auth-exchange-rate-input');
-    
+
     if (currencySelect) {
         const val = parseInt(currencySelect.value);
         if (rateContainer) {
@@ -8644,7 +9034,7 @@ window.abrirRobotDepositosEdicion = function() {
     const searchInput = document.getElementById('robot-dep-search-input');
     const resultsList = document.getElementById('robot-dep-results-list');
     const resultsCount = document.getElementById('robot-dep-results-count');
-    
+
     const renderResults = (query) => {
         resultsList.innerHTML = '';
         const cleanQuery = (query || '').toLowerCase().trim();
@@ -8652,8 +9042,8 @@ window.abrirRobotDepositosEdicion = function() {
         if (cleanQuery === '') {
             filtered = depositosDB.slice(0, 100);
         } else {
-            filtered = depositosDB.filter(d => 
-                d.nombre.toLowerCase().includes(cleanQuery) || 
+            filtered = depositosDB.filter(d =>
+                d.nombre.toLowerCase().includes(cleanQuery) ||
                 d.codigo.includes(cleanQuery)
             );
         }
@@ -8691,7 +9081,7 @@ window.abrirRobotTransportesEdicion = function() {
     const searchInput = document.getElementById('robot-trans-search-input');
     const resultsList = document.getElementById('robot-trans-results-list');
     const resultsCount = document.getElementById('robot-trans-results-count');
-    
+
     const renderResults = (query) => {
         resultsList.innerHTML = '';
         const cleanQuery = (query || '').toLowerCase().trim();
@@ -8699,8 +9089,8 @@ window.abrirRobotTransportesEdicion = function() {
         if (cleanQuery === '') {
             filtered = transportesDB.slice(0, 100);
         } else {
-            filtered = transportesDB.filter(t => 
-                t.nombre.toLowerCase().includes(cleanQuery) || 
+            filtered = transportesDB.filter(t =>
+                t.nombre.toLowerCase().includes(cleanQuery) ||
                 t.codigo.includes(cleanQuery)
             );
         }
@@ -8734,9 +9124,9 @@ window.abrirRobotTransportesEdicion = function() {
 
 window.guardarModificacionesPedido = function() {
     if (!pedidoActivo) return;
-    
+
     saveTempEdits();
-    
+
     // Validaciones de campos obligatorios para Presupuestos Mecánicos/Eléctricos
     const tipoStr = (pedidoActivo.tipo_presupuesto || '').toLowerCase();
     const isExcel = tipoStr.includes('mecánico') || tipoStr.includes('mecanico') || tipoStr.includes('eléctrico') || tipoStr.includes('electrico');
@@ -8804,14 +9194,14 @@ window.guardarModificacionesPedido = function() {
         showToast('Debe dejar al menos un artículo activo en el presupuesto.', 'error');
         return;
     }
-    
+
     const orderIdx = appData.pedidos.findIndex(p => p.id === pedidoActivo.id);
     if (orderIdx === -1) {
         showToast('No se encontró el pedido a modificar.', 'error');
         return;
     }
     const realOrder = appData.pedidos[orderIdx];
-    
+
     const newAmount = activeItems.reduce((sum, item) => {
         const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
         const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
@@ -8852,7 +9242,7 @@ window.guardarModificacionesPedido = function() {
     realOrder.motivo = pedidoActivo.motivo;
     realOrder.moneda_id = pedidoActivo.moneda_id;
     realOrder.cotizacion = pedidoActivo.cotizacion;
-    
+
     realOrder.items = pedidoActivo.items.map(item => {
         const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
         const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
@@ -8868,20 +9258,20 @@ window.guardarModificacionesPedido = function() {
             subtotal: sub
         };
     });
-    
+
     realOrder.importe = newAmount;
     realOrder.importe_original = newAmount;
     realOrder.estado = pedidoActivo.estado;
-    
+
     saveData();
     if (typeof window.guardarPresupuestoEnSupabase === 'function') {
         window.guardarPresupuestoEnSupabase(realOrder);
     }
     pedidoEdicionTemp = null;
-    
+
     showToast(`Presupuesto ${pedidoActivo.id} modificado y actualizado con éxito.`, 'success');
     closeModal();
-    
+
     if (typeof renderAssignmentsTable === 'function') {
         renderAssignmentsTable();
     }
@@ -8962,7 +9352,7 @@ window.abrirRobotStockEdicion = function() {
         const rubro = rubroFilter ? rubroFilter.value : '';
 
         let filtered = activeCatalog;
-        
+
         // Filtrar por planta SOLO SI ES MECÁNICO
         let curPlanta = '';
         const reqPlantaSelect = document.getElementById('req-meca-planta');
@@ -8975,7 +9365,7 @@ window.abrirRobotStockEdicion = function() {
             if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
 }
         }
-            
+
         // Regla Dinámica: Mirar en plantasRules a ver si usa la lista de otra planta
         if (curPlanta === 'PPA') curPlanta = 'APS';
             if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
@@ -8986,14 +9376,14 @@ window.abrirRobotStockEdicion = function() {
 
         if (curPlanta) {
             const grouped = {};
-            
+
             // 1. Registrar todos los códigos existentes en cualquier planta o genérico
             filtered.forEach(s => {
                 if (!grouped[s.codigo] && (!(s.planta || '').trim() || (s.planta || '').trim().toUpperCase() === curPlanta)) {
                     grouped[s.codigo] = { ...s, precio: 0, precio_unitario: 0, planta: curPlanta };
                 }
             });
-            
+
             // 2. Pisar con el precio genérico (si existe)
             filtered.forEach(s => {
                 if (!(s.planta || '').trim()) {
@@ -9002,7 +9392,7 @@ window.abrirRobotStockEdicion = function() {
                     grouped[s.codigo].detalle = s.detalle;
                 }
             });
-            
+
             // 3. Pisar con el precio específico de la planta seleccionada (si existe)
             filtered.forEach(s => {
                 if ((s.planta || '').trim().toUpperCase() === curPlanta) {
@@ -9011,7 +9401,7 @@ window.abrirRobotStockEdicion = function() {
                     grouped[s.codigo].detalle = s.detalle;
                 }
             });
-            
+
             filtered = Object.values(grouped);
         }
 
@@ -9025,15 +9415,15 @@ window.abrirRobotStockEdicion = function() {
             filtered = filtered.filter(s => (s.subrubro || s.rubro || 'Tarifario') === rubro);
         }
         if (query) {
-            filtered = filtered.filter(s => 
-                (s.detalle || '').toLowerCase().includes(query) || 
+            filtered = filtered.filter(s =>
+                (s.detalle || '').toLowerCase().includes(query) ||
                 (s.codigo || '').toLowerCase().includes(query)
             );
         }
 
         const limit = 100;
         const sliced = filtered.slice(0, limit);
-        
+
         resultsCount.innerText = `Mostrando ${sliced.length} de ${filtered.length} ítems / horas del tarifario`;
 
         sliced.forEach(s => {
@@ -9171,11 +9561,11 @@ window.formatPresupuestoCodigo = function(p) {
     }
     const isMec = (p.tipo_presupuesto === 'Mecánico' || (p.id && String(p.id).startsWith('101')));
     const rubroPrefix = isMec ? '101-MEC' : '102-ELEC';
-    
+
     if (p.id && (String(p.id).startsWith('101-') || String(p.id).startsWith('102-'))) {
         return p.id;
     }
-    
+
     const cleanNum = String(p.id || '').replace(/\D/g, '');
     const seqStr = cleanNum ? String(cleanNum.slice(-4)).padStart(4, '0') : '0001';
     return `${rubroPrefix}-${seqStr}`;
@@ -9185,13 +9575,13 @@ window.verDetallePedido = function(id, explicitMode) {
     console.log('%c🔥 verDetallePedido v170 EJECUTÁNDOSE — id=' + id, 'background: red; color: white; font-size: 16px; padding: 4px 8px;');
     const pedido = appData.pedidos.find(p => p.id === id);
     if (!pedido) return;
-    
+
     const segPerms = typeof window.getUserSeguimientoPermissions === 'function' ? window.getUserSeguimientoPermissions(getCurrentUser()) : { canEdit: true, canViewComprobante: true };
-    
+
     // Determinar si la apertura es en modo edición o solo consulta/historial (Separación estricta Ver vs Editar)
     const isEditRequested = (explicitMode === 'editar');
     const isEditingAllowed = isEditRequested && segPerms.canEdit && pedido.estado !== 'Rechazado' && viewMode !== 'EstadoPresupuesto' && viewMode !== 'Rechazados' && viewMode !== 'Autorizador';
-    
+
     if (isEditingAllowed) {
         if (!pedidoEdicionTemp || pedidoEdicionTemp.id !== id) {
             pedidoEdicionTemp = JSON.parse(JSON.stringify(pedido));
@@ -9201,7 +9591,7 @@ window.verDetallePedido = function(id, explicitMode) {
         pedidoActivo = pedido;
     }
     window.pedidoActivo = pedidoActivo;
-    
+
     const p = pedidoActivo;
     reqTipoPresupuesto = (p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'));
     if (isEditingAllowed) {
@@ -9338,7 +9728,7 @@ window.verDetallePedido = function(id, explicitMode) {
             }
         }
     })();
-    
+
     // Formatear fecha a DD/MM/YYYY
     let formattedDate = p.fecha || '';
     if (p.fecha && String(p.fecha).includes(' ')) {
@@ -9348,9 +9738,21 @@ window.verDetallePedido = function(id, explicitMode) {
         }
     }
     setElemText('auth-date-val', formattedDate);
-    setElemText('auth-header-nro-oc-mo-val', p.oc_mano_obra || p.meca_nro_oc || p.nro_oc || '-');
-    setElemText('auth-header-nro-oc-mat-val', p.oc_materiales || '-');
-    
+    let curMo = p.oc_mano_obra || '';
+    let curMat = p.oc_materiales || '';
+    if (!curMo && !curMat && (p.meca_nro_oc || p.nro_oc)) {
+        const raw = p.meca_nro_oc || p.nro_oc || '';
+        if (raw.includes(' / ')) {
+            const parts = raw.split(' / ');
+            curMo = parts[0] || '';
+            curMat = parts[1] || '';
+        } else {
+            curMo = raw;
+        }
+    }
+    setElemText('auth-header-nro-oc-mo-val', curMo || '-');
+    setElemText('auth-header-nro-oc-mat-val', curMat || '-');
+
     const cleanVal = (val, fallback) => {
         if (val === undefined || val === null) return (fallback !== undefined && fallback !== null && fallback !== '-') ? fallback : '-';
         const s = String(val).trim();
@@ -9360,8 +9762,8 @@ window.verDetallePedido = function(id, explicitMode) {
         return s;
     };
 
-    const rawClient = (typeof clientesDB !== 'undefined' && Array.isArray(clientesDB)) 
-        ? clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (p.cliente_nombre && c.nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase())) 
+    const rawClient = (typeof clientesDB !== 'undefined' && Array.isArray(clientesDB))
+        ? clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (p.cliente_nombre && c.nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
         : null;
 
     const formatDisplayDate = (val) => {
@@ -9390,9 +9792,20 @@ window.verDetallePedido = function(id, explicitMode) {
     const rawCliIva = cleanVal(p.condicion_iva, rawClient ? rawClient.condicion_iva : 'RESPONSABLE INSCRIPTO').toUpperCase();
     const rawCliCuit = formatCuitDisplay(cleanVal(p.cuit, rawClient ? rawClient.cuit : '-'));
     const rawCliCond = cleanConditionName(cleanVal(p.condicion_nombre, rawClient ? rawClient.condicion_nombre : (p.forma_pago || 'CONTADO'))).toUpperCase();
-    const rawCliEnt = formatDisplayDate(cleanVal(p.fecha_entrega || p.meca_fecha_fin, p.fecha || formattedDate));
-    const rawOcMo = cleanVal(p.meca_nro_oc, p.nro_oc || '-');
-    const rawOcMat = cleanVal(p.oc_materiales, '-');
+    let parsedMo = p.oc_mano_obra || '';
+    let parsedMat = p.oc_materiales || '';
+    if (!parsedMo && !parsedMat && (p.meca_nro_oc || p.nro_oc)) {
+        const rawOcStr = p.meca_nro_oc || p.nro_oc || '';
+        if (rawOcStr.includes(' / ')) {
+            const parts = rawOcStr.split(' / ');
+            parsedMo = parts[0] || '';
+            parsedMat = parts[1] || '';
+        } else {
+            parsedMo = rawOcStr;
+        }
+    }
+    const rawOcMo = cleanVal(parsedMo, '-');
+    const rawOcMat = cleanVal(parsedMat, '-');
     const rawPlanta = cleanVal(p.meca_planta || p.planta, 'VGG').toUpperCase();
     const rawNroPres = formatPresupuestoCodigo(p) || p.id || '-';
 
@@ -9401,7 +9814,7 @@ window.verDetallePedido = function(id, explicitMode) {
     setElemText('auth-localidad-val', rawCliLoc);
     setElemText('auth-cuit-val', rawCliCuit);
     setElemText('auth-iva-val', rawCliIva);
-    
+
     setElemText('auth-comisionista-val', p.is_comisionista ? 'SÍ' : 'NO');
     const isDetailMec = (p.tipo_presupuesto === 'Mecánico' || (p.id && (String(p.id).startsWith('101') || String(p.id).toUpperCase().includes('MEC'))));
     const isElec = !isDetailMec;
@@ -9415,12 +9828,12 @@ window.verDetallePedido = function(id, explicitMode) {
     } else {
         document.body.classList.remove('theme-electrico');
     }
-    
+
     // Ficha y Aclaraciones para Presupuestos Excel (Mecánico y Eléctrico)
     const mecaHeaderBox = document.getElementById('auth-mecanico-header-box');
     const mecaAclaraciones = document.getElementById('auth-mecanico-aclaraciones');
     const customerInfoBox = document.getElementById('auth-customer-info-box');
-    
+
     const tipoStr = (p.tipo_presupuesto || '').toLowerCase();
     const isElectrical = tipoStr.includes('eléctrico') || tipoStr.includes('electrico') || (!tipoStr.includes('mecánico') && !tipoStr.includes('mecanico'));
     const isExcelFlow = true;
@@ -9430,15 +9843,15 @@ window.verDetallePedido = function(id, explicitMode) {
 
     if (mecaHeaderBox) {
         mecaHeaderBox.style.display = 'block';
-        
+
         // Layout unificado para Mecánico y Eléctrico
         if (document.getElementById('lbl-modal-titulo')) document.getElementById('lbl-modal-titulo').innerText = 'Título:';
-        
+
         // La planta es SOLO para Mecánico, la ocultamos en Eléctrico
         if (document.getElementById('modal-row-detalle-planta')) {
             document.getElementById('modal-row-detalle-planta').style.display = 'flex';
         }
-        
+
         if (document.getElementById('modal-col-f6-planta-el')) document.getElementById('modal-col-f6-planta-el').style.display = 'none';
         if (document.getElementById('modal-col-f6-condicion-meca')) document.getElementById('modal-col-f6-condicion-meca').style.display = 'flex';
 
@@ -9496,7 +9909,7 @@ window.verDetallePedido = function(id, explicitMode) {
     if (mecaAclaraciones) {
         mecaAclaraciones.style.display = 'block';
     }
-    
+
     // System footer info
     const sysUser = document.getElementById('auth-sys-user');
     if (sysUser) sysUser.innerText = p.vendedor_id || '1';
@@ -9572,18 +9985,18 @@ window.verDetallePedido = function(id, explicitMode) {
         if (document.getElementById('auth-condition-container')) document.getElementById('auth-condition-container').innerText = cleanConditionName(p.condicion_nombre || 'CONTADO').toUpperCase();
         if (document.getElementById('auth-deposit-container')) document.getElementById('auth-deposit-container').innerText = (p.deposito_nombre || '-').toUpperCase();
         if (document.getElementById('auth-transport-container')) document.getElementById('auth-transport-container').innerText = (p.transporte_nombre || '-').toUpperCase();
-        
+
         let currText = 'PESOS';
         if (p.moneda_id === 2) currText = `DÓLARES (cot. ${(p.cotizacion || 1.0).toFixed(8)})`;
         else if (p.moneda_id === 60) currText = `EUROS (cot. ${(p.cotizacion || 1.0).toFixed(8)})`;
         if (document.getElementById('auth-currency-container')) document.getElementById('auth-currency-container').innerText = currText;
     }
-    
+
     const userValEl = document.getElementById('auth-user-val');
     if (userValEl) userValEl.innerText = (p.operador || 'admin').toUpperCase();
     const slaValEl = document.getElementById('auth-sla-val');
     if (slaValEl) slaValEl.innerHTML = (typeof getSLABadge === 'function') ? getSLABadge(p) : '';
-    
+
     const itemsPanel = document.getElementById('auth-items-panel');
     const itemsListBody = document.getElementById('auth-items-list-body');
     if (itemsPanel) itemsPanel.style.display = 'none';
@@ -9596,8 +10009,8 @@ window.verDetallePedido = function(id, explicitMode) {
         if (!p) return;
         const isRejectedOrder = (p.estado === 'Rechazado' || p.estado === 'Anulado' || viewMode === 'Rechazados');
         const isEditMode = (currentMode === 'detallado_edit' || (currentMode === 'editar' && isEditingAllowed));
-        const activeMode = (currentMode === 'resumido' || currentMode === 'detallado' || currentMode === 'proyecto') 
-            ? currentMode 
+        const activeMode = (currentMode === 'resumido' || currentMode === 'detallado' || currentMode === 'proyecto')
+            ? currentMode
             : (isEditMode ? 'detallado' : (p.tipo_reporte || 'detallado'));
 
         const btnRes = document.getElementById('btn-toggle-report-resumido') || document.getElementById('auth-btn-report-resumido');
@@ -9663,10 +10076,10 @@ window.verDetallePedido = function(id, explicitMode) {
         }
 
         const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
-        const formattedItems = (typeof window.getPresupuestoFormattedItems === 'function') 
-            ? window.getPresupuestoFormattedItems(p, activeMode) 
+        const formattedItems = (typeof window.getPresupuestoFormattedItems === 'function')
+            ? window.getPresupuestoFormattedItems(p, activeMode)
             : [];
-        
+
         let itemsRowsHtml = '';
         let grandTotal = 0;
         let laborTotalARS = 0;
@@ -9698,7 +10111,7 @@ window.verDetallePedido = function(id, explicitMode) {
                 const sVal = parseFloat(r.subtotal) || 0;
                 if (isMat && r.subtotal_usd !== undefined && r.subtotal_usd !== null) {
                     const sUSD = parseFloat(r.subtotal_usd) || 0;
-                    subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + 
+                    subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
                         ` <br><span style="font-size: 10px; opacity: 0.8; font-weight: normal; color: #a5f3fc;">(U$D ${sUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>`;
                 } else {
                     subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -9736,21 +10149,21 @@ window.verDetallePedido = function(id, explicitMode) {
             rawItems.forEach(it => {
                 if (it.estado === 'Rechazado') return;
                 const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-                const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
-                              (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+                const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') ||
+                              (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) ||
                               (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
                 if (isMat) {
-                    const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
-                        ? parseFloat(it.precio_usd) 
+                    const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
+                        ? parseFloat(it.precio_usd)
                         : (parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0);
-                    const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
-                        ? parseFloat(it.subtotal_usd) 
+                    const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd)))
+                        ? parseFloat(it.subtotal_usd)
                         : (q * prUSD);
                     materialsTotalUSD += subUSD;
                 } else {
                     const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
-                    const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) 
-                        ? parseFloat(String(it.subtotal).replace(',', '.')) 
+                    const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.'))))
+                        ? parseFloat(String(it.subtotal).replace(',', '.'))
                         : (q * pr);
                     laborTotalARS += sub;
                 }
@@ -9836,14 +10249,14 @@ window.verDetallePedido = function(id, explicitMode) {
                     const exclus = p.meca_exclusiones || p.exclusiones || '';
                     const obsGeneral = p.observaciones || p.meca_observaciones || '';
                     const tituloObra = p.meca_denominacion || p.denominacion || p.motivo || '';
-                    
+
                     const propRows = [];
                     if (personal.trim()) propRows.push({label: 'SOLICITUD DE SUPERVISOR', value: personal.trim()});
                     if (exclus.trim()) propRows.push({label: 'INDICAR EXCLUSIONES', value: exclus.trim()});
                     if (obsGeneral.trim()) propRows.push({label: 'OBSERVACIONES', value: obsGeneral.trim()});
-                    
+
                     if (propRows.length === 0) return '';
-                    
+
                     let propHtml = '<div class="print-meca-propuesta" style="margin-top: 12px; background: rgba(15, 23, 42, 0.35); border: 1.5px solid rgba(56, 189, 248, 0.25); border-radius: 6px; overflow: hidden; text-align: left;">';
                     propHtml += '<div style="padding: 8px 12px; background: rgba(56, 189, 248, 0.12); border-bottom: 1px solid rgba(56, 189, 248, 0.2); font-size: 12px; font-weight: 800; color: #38bdf8; letter-spacing: 0.5px;"><i class="fas fa-file-contract" style="margin-right: 6px;"></i>PROPUESTA TÉCNICA / COMERCIAL</div>';
 
@@ -9894,12 +10307,15 @@ window.verDetallePedido = function(id, explicitMode) {
         const estStr = String(p.estado || '').toLowerCase();
         const hasOc = !!(p.meca_nro_oc || p.nro_oc || p.oc_numero);
         const isApprovedConOc = (estStr === 'aprobado con oc' || estStr.includes('con oc') || hasOc) && !isRejected;
-        
+
         let factBtnHtml = '';
         if (isApprovedConOc) {
             factBtnHtml = `
                 <button type="button" class="btn btn-sm" onclick="closeModal(); if(window.showView){ showView('tpl-facturacion'); if(window.renderFacturacionTable) window.renderFacturacionTable(); }" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-left: 10px;" title="Pasar a Registrar Facturación para este comprobante">
                     <i class="fa-solid fa-file-invoice-dollar"></i> Ir a Registrar Facturación
+                </button>
+                <button type="button" class="btn btn-sm" onclick="window.editarOrdenesDeCompra(pedidoActivo.id)" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-left: 6px;" title="Modificar Orden de Compra de Mano de Obra o Materiales">
+                    <i class="fa-solid fa-pen"></i> Editar OC
                 </button>
             `;
         }
@@ -9972,7 +10388,7 @@ window.verDetallePedido = function(id, explicitMode) {
             if (currentSelectedIndex >= 0 && currentSelectedIndex < items.length) {
                 const activeItem = items[currentSelectedIndex];
                 activeItem.classList.add('active');
-                
+
                 const dropdownRect = authAddProdDropdown.getBoundingClientRect();
                 const itemRect = activeItem.getBoundingClientRect();
                 if (itemRect.bottom > dropdownRect.bottom) {
@@ -10015,18 +10431,18 @@ window.verDetallePedido = function(id, explicitMode) {
             authAddProdDropdown.innerHTML = '';
             authAddProdDropdown.scrollTop = 0;
             currentSelectedIndex = -1;
-            
+
             const activeCatalog = getActiveStockCatalog();
 
             if (cleanQuery === '') {
                 currentMatches = activeCatalog.slice(0, 100);
             } else {
-                currentMatches = activeCatalog.filter(p => 
-                    p.detalle.toLowerCase().includes(cleanQuery) || 
+                currentMatches = activeCatalog.filter(p =>
+                    p.detalle.toLowerCase().includes(cleanQuery) ||
                     p.codigo.toLowerCase().includes(cleanQuery)
                 );
             }
-            
+
             if (currentMatches.length > 0) {
                 renderDropdownChunk();
                 authAddProdDropdown.style.display = 'block';
@@ -10088,7 +10504,7 @@ window.verDetallePedido = function(id, explicitMode) {
             }, 200);
         });
     }
-    
+
     // Autocomplete para Depósito en edición
     const authDepInput = document.getElementById('auth-deposit-input-edit');
     const authDepDropdown = document.getElementById('auth-deposit-dropdown-edit');
@@ -10136,16 +10552,16 @@ window.verDetallePedido = function(id, explicitMode) {
             authDepDropdown.innerHTML = '';
             authDepDropdown.scrollTop = 0;
             currentSelectedIndex = -1;
-            
+
             if (cleanQuery === '') {
                 currentMatches = depositosDB.slice(0, 100);
             } else {
-                currentMatches = depositosDB.filter(d => 
-                    d.nombre.toLowerCase().includes(cleanQuery) || 
+                currentMatches = depositosDB.filter(d =>
+                    d.nombre.toLowerCase().includes(cleanQuery) ||
                     d.codigo.includes(cleanQuery)
                 );
             }
-            
+
             if (currentMatches.length > 0) {
                 renderDropdownChunk();
                 authDepDropdown.style.display = 'block';
@@ -10258,16 +10674,16 @@ window.verDetallePedido = function(id, explicitMode) {
             authTransDropdown.innerHTML = '';
             authTransDropdown.scrollTop = 0;
             currentSelectedIndex = -1;
-            
+
             if (cleanQuery === '') {
                 currentMatches = transportesDB.slice(0, 100);
             } else {
-                currentMatches = transportesDB.filter(t => 
-                    t.nombre.toLowerCase().includes(cleanQuery) || 
+                currentMatches = transportesDB.filter(t =>
+                    t.nombre.toLowerCase().includes(cleanQuery) ||
                     t.codigo.includes(cleanQuery)
                 );
             }
-            
+
             if (currentMatches.length > 0) {
                 renderDropdownChunk();
                 authTransDropdown.style.display = 'block';
@@ -10343,7 +10759,7 @@ window.verDetallePedido = function(id, explicitMode) {
             }
         });
     }
-    
+
     const transContainer = document.getElementById('auth-transport-container');
     if (transContainer) {
         transContainer.addEventListener('click', (e) => {
@@ -10373,7 +10789,7 @@ window.imprimirPresupuestoModal = function() {
         if (typeof saveTempEdits === 'function') {
             saveTempEdits();
         }
-        
+
         if (pedidoActivo) {
             // Asignar el nombre del documento para que el PDF se guarde como "Presupuesto + cliente + numero"
             const docTitle = window.getBudgetDocTitle(pedidoActivo);
@@ -10406,8 +10822,8 @@ window.imprimirPresupuestoModal = function() {
                 if (el) el.innerText = (val !== null && val !== undefined && String(val).trim() !== '') ? String(val) : '-';
             };
 
-            const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) 
-                ? window.clientesDB.find(c => (c.codigo && pedidoActivo.cliente_id && String(c.codigo).trim() === String(pedidoActivo.cliente_id).trim()) || (c.nombre && pedidoActivo.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(pedidoActivo.cliente_nombre).trim().toUpperCase())) 
+            const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
+                ? window.clientesDB.find(c => (c.codigo && pedidoActivo.cliente_id && String(c.codigo).trim() === String(pedidoActivo.cliente_id).trim()) || (c.nombre && pedidoActivo.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(pedidoActivo.cliente_nombre).trim().toUpperCase()))
                 : null;
 
             const rawCliName = (pedidoActivo.cliente_nombre || (rawClient ? rawClient.nombre : '-') || '-').toUpperCase();
@@ -10444,7 +10860,7 @@ window.imprimirPresupuestoModal = function() {
     } catch(err) {
         console.error('Error preparando impresión:', err);
     }
-    
+
     setTimeout(() => {
         window.print();
     }, 150);
@@ -10485,7 +10901,7 @@ window.onReqCurrencyChange = function() {
     const currencySelect = document.getElementById('req-currency');
     const rateContainer = document.getElementById('req-exchange-rate-container');
     const rateInput = document.getElementById('req-exchange-rate');
-    
+
     if (currencySelect) {
         const val = parseInt(currencySelect.value);
         if (rateContainer) {
@@ -10530,7 +10946,7 @@ window.confirmarResolucion = function() {
 
 window.resolveOrder = function(accion) {
     if (!pedidoActivo) return;
-    
+
     const commentInput = document.getElementById('auth-reject-reason-input');
     const motivo = commentInput ? commentInput.value.trim() : '';
 
@@ -10550,11 +10966,11 @@ window.resolveOrder = function(accion) {
         // Capturar los ítems autorizados si existen
         let totalAmt = 0;
         let pendingCount = 0;
-        
+
         if (Array.isArray(pedidoActivo.items) && pedidoActivo.items.length > 0) {
             const checks = document.querySelectorAll('.auth-item-check');
             const qtys = document.querySelectorAll('.auth-item-qty');
-            
+
             pedidoActivo.items.forEach((item, idx) => {
                 // Si ya estaba resuelto en pasos anteriores, mantenerlo y sumar al total
                 if (item.estado === 'Autorizado') {
@@ -10564,18 +10980,18 @@ window.resolveOrder = function(accion) {
                 if (item.estado === 'Rechazado') {
                     return;
                 }
-                
+
                 // Buscar controles para ítems que están pendientes en pantalla
                 const chk = Array.from(checks).find(c => parseInt(c.getAttribute('data-idx')) === idx);
                 const qtyInput = Array.from(qtys).find(q => parseInt(q.getAttribute('data-idx')) === idx);
-                
+
                 if (chk && item) {
                     const isChecked = chk.checked;
                     const maxQty = item.cantidad_original || item.cantidad;
                     let qty = parseFloat(qtyInput ? qtyInput.value : item.cantidad);
                     if (isNaN(qty) || qty < 0) qty = 0;
                     if (qty > maxQty) qty = maxQty;
-                    
+
                     if (isChecked) {
                         if (qty > 0) {
                             item.estado = 'Autorizado';
@@ -10600,14 +11016,14 @@ window.resolveOrder = function(accion) {
                     pendingCount++;
                 }
             });
-            
+
             // Validar que al menos un ítem esté autorizado en total
             const hasAnyAuthorized = pedidoActivo.items.some(i => i.estado === 'Autorizado' && i.cantidad > 0);
             if (!hasAnyAuthorized) {
                 showToast('Debe autorizar al menos un artículo. Si desea rechazar todo el pedido, seleccione "Rechazado" en las opciones.', 'error');
                 return;
             }
-            
+
             appData.pedidos[orderIdx].items = pedidoActivo.items;
             appData.pedidos[orderIdx].importe = totalAmt;
             appData.pedidos[orderIdx].importe_original = originalImporte;
@@ -10631,7 +11047,7 @@ window.resolveOrder = function(accion) {
         // Rechazar — solo se rechazan los ítems que aún están Pendientes,
         // los que ya fueron Autorizados en una ronda anterior se conservan.
         appData.pedidos[orderIdx].importe_original = originalImporte;
-        
+
         let autorizedImporte = 0;
         if (Array.isArray(appData.pedidos[orderIdx].items)) {
             appData.pedidos[orderIdx].items = appData.pedidos[orderIdx].items.map(item => {
@@ -10653,7 +11069,7 @@ window.resolveOrder = function(accion) {
                 };
             });
         }
-        
+
         // Si quedaron ítems autorizados, el pedido queda como Autorizado Parcial;
         // si no había nada aprobado, queda Rechazado total.
         const stillHasAuthorized = appData.pedidos[orderIdx].items.some(i => i.estado === 'Autorizado');
@@ -10669,7 +11085,7 @@ window.resolveOrder = function(accion) {
             showToast(`Pedido ${pedidoActivo.id} RECHAZADO totalmente.`, 'danger');
         }
     }
-    
+
     appData.pedidos[orderIdx].fecha_resolucion = fechaRes;
 
     // Notificar a las 5 personas del equipo por mail y sistema
@@ -10682,12 +11098,12 @@ window.resolveOrder = function(accion) {
 
 window.recalcAuthTotal = function() {
     if (!pedidoActivo) return;
-    
+
     let totalAmt = 0;
     const checks = document.querySelectorAll('.auth-item-check');
     const qtys = document.querySelectorAll('.auth-item-qty');
     const subtotals = document.querySelectorAll('.auth-item-subtotal-val');
-    
+
     const isPending = pedidoActivo.estado === 'Pendiente de Autorización' || pedidoActivo.estado === 'Cargado con orden de compra' || pedidoActivo.estado === 'Cargado sin orden de compra';
     const isModifying = (typeof viewMode !== 'undefined' && viewMode === 'Modificacion');
 
@@ -10727,15 +11143,15 @@ window.recalcAuthTotal = function() {
                 const idx = parseInt(chk.getAttribute('data-idx'));
                 const qtyInput = Array.from(qtys).find(q => parseInt(q.getAttribute('data-idx')) === idx);
                 const subtotalSpan = Array.from(subtotals).find(s => parseInt(s.getAttribute('data-idx')) === idx);
-                
+
                 const item = pedidoActivo.items[idx];
                 if (!item) return;
-                
+
                 let qty = 0;
                 if (chk.checked && qtyInput) {
                     qty = parseFloat(qtyInput.value);
                     if (isNaN(qty) || qty < 0) qty = 0;
-                    
+
                     // Solo limitamos la cantidad máxima si no estamos en modo modificación
                     if (!isModifying) {
                         const maxQty = item.cantidad_original || item.cantidad;
@@ -10745,32 +11161,32 @@ window.recalcAuthTotal = function() {
                         }
                     }
                 }
-                
+
                 const subtotal = qty * item.precio;
                 if (subtotalSpan) {
                     subtotalSpan.innerText = subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2});
                 }
-                
+
                 totalAmt += subtotal;
             });
         } else {
             totalAmt = parseFloat(pedidoActivo.importe) || 0;
         }
     }
-    
+
     // Calcular SUBTOTAL, NETO, TOTAL (El total es estrictamente Neto sin IVA)
     const subtotal = totalAmt;
     const neto = totalAmt;
     const iva = 0;
     const total = totalAmt;
-    
+
     // Determinar moneda de forma numérica
     let currencyVal = 1; // Default Pesos (1)
     let cotizVal = 1.0;
-    
+
     const currencySelect = document.getElementById('auth-currency-select');
     const cotizInput = document.getElementById('auth-exchange-rate-input');
-    
+
     if (isPending || isModifying) {
         if (currencySelect) {
             currencyVal = parseInt(currencySelect.value);
@@ -10790,27 +11206,27 @@ window.recalcAuthTotal = function() {
         currencyVal = pedidoActivo.moneda_id || (pedidoActivo.importe <= 50000 ? 2 : 1);
         cotizVal = pedidoActivo.cotizacion || (currencyVal === 2 ? 1011.00 : (currencyVal === 60 ? 1100.00 : 1.0));
     }
-    
+
     let currencyName = 'Pesos';
     if (currencyVal === 2) currencyName = 'Dólares';
     else if (currencyVal === 60) currencyName = 'Euros';
-    
+
     // Formatear
     const fmt = (val) => `$${(parseFloat(val) || 0).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-    
+
     // Poblar DOM de totales
     const subtotalEl = document.getElementById('auth-subtotal-val');
     const netoEl = document.getElementById('auth-neto-val');
     const ivaEl = document.getElementById('auth-iva-val-calc');
     const totalEl = document.getElementById('auth-total-val-calc');
     const currencyNameEl = document.getElementById('auth-currency-name');
-    
+
     if (subtotalEl) subtotalEl.innerText = fmt(subtotal);
     if (netoEl) netoEl.innerText = fmt(neto);
     if (ivaEl) ivaEl.innerText = fmt(iva);
     if (totalEl) totalEl.innerText = fmt(total);
     if (currencyNameEl) currencyNameEl.innerText = currencyName;
-    
+
     // Equivalencia en letras / cotización
     const equivEl = document.getElementById('auth-equivalent-text');
     if (equivEl) {
@@ -10822,7 +11238,7 @@ window.recalcAuthTotal = function() {
             equivEl.innerHTML = `${total.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} PESOS cot. 1,00000000<br><span style="font-size: 8.5px; font-weight: normal; color: #475569; display: block; margin-top: 3px;">(${numeroALetras(total, 'PESOS')})</span>`;
         }
     }
-    
+
     // Items Count y Fecha del Sistema
     const itemsCountEl = document.getElementById('auth-sys-items-count');
     if (itemsCountEl) {
@@ -10848,10 +11264,10 @@ window.recalcAuthTotal = function() {
         }
         itemsCountEl.innerText = count;
     }
-    
+
     const sysDateEl = document.getElementById('auth-sys-date');
     const sysUserEl = document.getElementById('auth-sys-user');
-    
+
     if (sysDateEl) {
         let formattedDate = '-';
         if (pedidoActivo.fecha) {
@@ -10887,10 +11303,10 @@ window.applyPresetDateFilterMetrics = function(preset) {
     const dtStart = document.getElementById('filter-date-start');
     const dtEnd = document.getElementById('filter-date-end');
     if (!dtStart || !dtEnd) return;
-    
+
     const today = new Date();
     const formatDate = (date) => getLocalDateStr(date);
-    
+
     if (preset === 'today') {
         const d = formatDate(today);
         dtStart.value = d;
@@ -10927,7 +11343,7 @@ function initMetricsView() {
     const dtEnd = document.getElementById('filter-date-end');
     const sellerSelect = document.getElementById('filter-metrics-seller');
     const rubroSelect = document.getElementById('filter-metrics-rubro');
-    
+
     if (dtStart && !dtStart.value) {
         const today = getLocalDateStr(new Date());
         const past365 = getLocalDateStr(new Date(Date.now() - 365 * 24 * 60 * 60 * 1000));
@@ -10947,7 +11363,7 @@ function initMetricsView() {
         });
         sellerSelect.onchange = renderMetrics;
     }
-    
+
     if (rubroSelect) {
         rubroSelect.onchange = renderMetrics;
     }
@@ -11030,7 +11446,7 @@ function renderMetrics() {
         const amt = parseFloat(p.importe || p.importe_total || 0);
         const facturado = parseFloat(p.monto_facturado_total || p.monto_facturado || 0);
         const pctAvance = parseFloat(p.avance_porcentaje_acumulado || p.facturado_porcentaje || 0);
-        
+
         totalAmt += amt;
         totalFacturadoAmt += facturado;
 
@@ -11268,7 +11684,7 @@ window.descargarReporteEstadisticasCSV = function() {
     const { approvedCnt = 0, pendingCnt = 0, rejectedCnt = 0, approvedAmt = 0, pendingAmt = 0, rejectedAmt = 0, elecTotAmt = 0, elecCnt = 0, mecaTotAmt = 0, mecaCnt = 0, clientDataMap = {}, sellerDataMap = {} } = data;
     const totalAmt = approvedAmt + pendingAmt + rejectedAmt;
     const totalCnt = approvedCnt + pendingCnt + rejectedCnt;
-    
+
     let totalFacturado = 0;
     Object.values(clientDataMap).forEach(c => { totalFacturado += (c.montoFacturado || 0); });
     const saldoPendiente = Math.max(0, totalAmt - totalFacturado);
@@ -11564,7 +11980,7 @@ window.descargarReporteEstadisticasCSV = function() {
     const blob = new Blob([excelHTML], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const link = document.createElement('a');
     const filename = `SG_Montajes_Reporte_Gerencial_${new Date().toISOString().substring(0, 10)}.xls`;
-    
+
     if (navigator.msSaveBlob) {
         navigator.msSaveBlob(blob, filename);
     } else {
@@ -11636,7 +12052,7 @@ function renderMetricsCharts(isPrint = false) {
                 datasets: [{
                     label: 'Monto Total ($)',
                     data: [approvedAmt, pendingAmt, rejectedAmt],
-                    backgroundColor: isLight 
+                    backgroundColor: isLight
                         ? ['#10b981', '#f59e0b', '#ef4444']
                         : ['rgba(16, 185, 129, 0.8)', 'rgba(245, 158, 11, 0.8)', 'rgba(239, 68, 68, 0.8)'],
                     borderColor: ['#059669', '#d97706', '#dc2626'],
@@ -11810,17 +12226,17 @@ window.imprimirReporteEstadisticas = function() {
     if (elOperador) elOperador.innerText = `${sellerVal} • Rubro: ${rubroVal}`;
 
     // 2. Llenar Tarjetas de KPIs Consolidados
-    const { 
-        approvedCnt = 0, pendingCnt = 0, rejectedCnt = 0, 
-        approvedAmt = 0, pendingAmt = 0, rejectedAmt = 0, 
-        elecTotAmt = 0, elecCnt = 0, mecaTotAmt = 0, mecaCnt = 0, 
+    const {
+        approvedCnt = 0, pendingCnt = 0, rejectedCnt = 0,
+        approvedAmt = 0, pendingAmt = 0, rejectedAmt = 0,
+        elecTotAmt = 0, elecCnt = 0, mecaTotAmt = 0, mecaCnt = 0,
         facturadoMesAmt = 0, facturadoAnioAmt = 0,
         curMonthName = 'Mes Actual', curYear = new Date().getFullYear(),
-        clientDataMap = {}, sellerDataMap = {}, filtered = [] 
+        clientDataMap = {}, sellerDataMap = {}, filtered = []
     } = data;
     const totalAmt = approvedAmt + pendingAmt + rejectedAmt;
     const totalCnt = approvedCnt + pendingCnt + rejectedCnt;
-    
+
     let totalFacturado = 0;
     Object.values(clientDataMap).forEach(c => { totalFacturado += (c.montoFacturado || 0); });
     const saldoPendiente = Math.max(0, totalAmt - totalFacturado);
@@ -11996,24 +12412,24 @@ window.imprimirReporteEstadisticas = function() {
 
 window.abrirModalMetricaVendedor = function(metricaTipo) {
     openModal('tpl-modal-vendedor-metrics');
-    
+
     const searchInput = document.getElementById('modal-metric-search-input');
     const resultsList = document.getElementById('modal-metric-results-list');
     const resultsCount = document.getElementById('modal-metric-results-count');
     const titleEl = document.getElementById('modal-metric-title');
-    
+
     let titleText = "Desglose por Vendedor - Pedidos";
     if (metricaTipo === 'total') titleText = "Desglose por Vendedor - Pedidos Ingresados";
     else if (metricaTipo === 'approved') titleText = "Desglose por Vendedor - Pedidos Aprobados";
     else if (metricaTipo === 'pending') titleText = "Desglose por Vendedor - Pendientes de Autorización";
     else if (metricaTipo === 'rejected') titleText = "Desglose por Vendedor - Pedidos Rechazados";
-    
+
     if (titleEl) titleEl.innerText = titleText;
-    
+
     const dateStart = document.getElementById('filter-date-start') ? document.getElementById('filter-date-start').value : '';
     const dateEnd = document.getElementById('filter-date-end') ? document.getElementById('filter-date-end').value : '';
     const currentUser = getCurrentUser();
-    
+
     // Primero filtrar por fechas
     let dateFiltered = appData.pedidos.filter(p => {
         const pDate = p.fecha.substring(0, 10);
@@ -12023,11 +12439,11 @@ window.abrirModalMetricaVendedor = function(metricaTipo) {
     });
 
     // Todos los usuarios pueden ver el listado completo de presupuestos sin restricción por vendedor
-    
+
     const sellerStats = {};
     let overallCount = 0;
     let overallAmount = 0.0;
-    
+
     // Inicializar todos los vendedores para que figuren
     if (typeof vendedoresDB !== 'undefined') {
         vendedoresDB.forEach(v => {
@@ -12039,23 +12455,23 @@ window.abrirModalMetricaVendedor = function(metricaTipo) {
             };
         });
     }
-    
+
     dateFiltered.forEach(p => {
         let matchState = false;
         if (metricaTipo === 'total') matchState = true;
         else if (metricaTipo === 'approved') matchState = (p.estado === 'Aprobado' || p.estado === 'Autorizado');
         else if (metricaTipo === 'pending') matchState = (p.estado === 'Pendiente de Autorización' || p.estado === 'Cargado con orden de compra' || p.estado === 'Cargado sin orden de compra');
         else if (metricaTipo === 'rejected') matchState = (p.estado === 'Rechazado');
-        
+
         if (!matchState) return;
-        
+
         let pSeller = p.vendedor_nombre || p.operador_vendedor_nombre;
         if (!pSeller && p.cliente_id && typeof clientesDB !== 'undefined') {
             const cli = clientesDB.find(c => c.codigo === p.cliente_id);
             if (cli) pSeller = cli.vendedor_nombre;
         }
         if (!pSeller) pSeller = "Sin Vendedor";
-        
+
         if (!sellerStats[pSeller]) {
             sellerStats[pSeller] = {
                 vendedor: pSeller,
@@ -12064,39 +12480,39 @@ window.abrirModalMetricaVendedor = function(metricaTipo) {
                 monto: 0.0
             };
         }
-        
+
         const amt = parseFloat(p.importe || 0.0);
         sellerStats[pSeller].cantidad++;
         sellerStats[pSeller].monto += amt;
-        
+
         overallCount++;
         overallAmount += amt;
     });
-    
+
     const listSellers = Object.values(sellerStats);
-    
+
     const renderTable = (query) => {
         if (!resultsList) return;
         resultsList.innerHTML = '';
         const cleanQuery = (query || '').toLowerCase().trim();
-        
+
         const filtered = listSellers.filter(s => s.vendedor.toLowerCase().includes(cleanQuery));
         // Ordenar descendente por monto
         filtered.sort((a, b) => b.monto - a.monto);
-        
+
         if (filtered.length === 0) {
             resultsList.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:20px;">No se encontraron vendedores</td></tr>`;
             if (resultsCount) resultsCount.innerText = "Mostrando 0 vendedores";
             return;
         }
-        
+
         const fragment = document.createDocumentFragment();
         filtered.forEach(s => {
             const tr = document.createElement('tr');
-            
+
             const pct = overallAmount > 0 ? ((s.monto / overallAmount) * 100).toFixed(1) : '0.0';
             const sellerDisplay = s.codigo ? `<strong>${s.vendedor}</strong> <span style="font-size:10px; color:var(--text-muted); font-family:monospace;">(Cód: ${s.codigo})</span>` : `<strong>${s.vendedor}</strong>`;
-            
+
             tr.innerHTML = `
                 <td>${sellerDisplay}</td>
                 <td style="text-align: right; font-family: monospace;">${s.cantidad}</td>
@@ -12108,9 +12524,9 @@ window.abrirModalMetricaVendedor = function(metricaTipo) {
         resultsList.appendChild(fragment);
         if (resultsCount) resultsCount.innerText = `Mostrando ${filtered.length} vendedores`;
     };
-    
+
     renderTable('');
-    
+
     if (searchInput) {
         searchInput.oninput = (e) => renderTable(e.target.value);
     }
@@ -12121,12 +12537,12 @@ window.abrirModalMetricaVendedor = function(metricaTipo) {
 window.onPermisoCheckboxChange = function() {
     let activeCount = 0;
     const totalCount = document.querySelectorAll('.perm-checkbox').length || 6;
-    
+
     document.querySelectorAll('.perm-checkbox').forEach(cb => {
         const val = cb.value;
         const card = document.getElementById(`card-perm-${val}`);
         const badge = document.getElementById(`badge-perm-${val}`);
-        
+
         if (cb.checked) {
             activeCount++;
             if (card) {
@@ -12200,7 +12616,7 @@ window.onPermisoCheckboxChange = function() {
             cardPrice.style.background = 'rgba(0, 0, 0, 0.25)';
         }
     }
-    
+
     const countBadge = document.getElementById('summary-perm-count-badge');
     if (countBadge) {
         countBadge.innerText = `⚡ ${activeCount} de ${totalCount} Módulos Habilitados`;
@@ -12219,7 +12635,7 @@ window.onSeguimientoMasterChange = function() {
     const cbVer = document.getElementById('perm-menu-all-ver');
     const cbEdit = document.getElementById('perm-menu-all-edit');
     if (!master) return;
-    
+
     if (master.checked) {
         if (cbVer && !cbVer.checked && cbEdit && !cbEdit.checked) {
             cbVer.checked = true;
@@ -12229,7 +12645,7 @@ window.onSeguimientoMasterChange = function() {
         if (cbVer) cbVer.checked = false;
         if (cbEdit) cbEdit.checked = false;
     }
-    
+
     window.onPermisoCheckboxChange();
 };
 
@@ -12237,12 +12653,12 @@ window.onSeguimientoSubPermChange = function() {
     const master = document.getElementById('perm-menu-all');
     const cbVer = document.getElementById('perm-menu-all-ver');
     const cbEdit = document.getElementById('perm-menu-all-edit');
-    
+
     const anyChecked = (cbVer && cbVer.checked) || (cbEdit && cbEdit.checked);
     if (master) {
         master.checked = anyChecked;
     }
-    
+
     window.onPermisoCheckboxChange();
 };
 
@@ -12253,7 +12669,7 @@ window.cargarPermisosParaUsuario = function(username) {
         if (sel && sel.value) username = sel.value;
         else username = (appData && appData.users && appData.users[0]) ? appData.users[0].username : 'mel';
     }
-    
+
     const feedbackBanner = document.getElementById('permisos-save-feedback-banner');
     if (feedbackBanner) feedbackBanner.style.display = 'none';
 
@@ -12261,13 +12677,13 @@ window.cargarPermisosParaUsuario = function(username) {
     const nameEl = document.getElementById('summary-perm-username');
     const rubroEl = document.getElementById('summary-perm-rubro');
     const emailEl = document.getElementById('summary-perm-email');
-    
+
     if (nameEl) nameEl.innerText = username || '-';
     if (rubroEl) rubroEl.innerText = (u && u.rubro_defecto === 'Mecánico') ? '⚙️ Mecánico' : '⚡ Eléctrico';
     if (emailEl) emailEl.innerText = u ? (u.email || 'Sin email') : '-';
 
     let perms = getUserEffectivePermissions(username, u ? u.role : 'Solicitante');
-    
+
     // Si tenía menu-all pero ninguno de los subpermisos explícitos (datos legacy), activar ambos
     if (perms.includes('menu-all') && !perms.includes('menu-all-ver') && !perms.includes('menu-all-edit')) {
         perms = [...perms, 'menu-all-ver', 'menu-all-edit'];
@@ -12283,7 +12699,7 @@ window.cargarPermisosParaUsuario = function(username) {
     if (cbEdit) cbEdit.checked = perms.includes('menu-all-edit');
 
     const cbPrice = document.getElementById('perm-menu-ingresar-edit-price');
-    if (cbPrice) cbPrice.checked = perms.includes('menu-ingresar-edit-price') || perms.includes('edit-precios') || perms.includes('edit_prices');
+    if (cbPrice) cbPrice.checked = perms.includes('menu-ingresar-edit-price') || perms.includes('edit-precios') || perms.includes('edit_prices') || (u && u.can_edit_prices === true);
 
     if (typeof window.onPermisoCheckboxChange === 'function') {
         window.onPermisoCheckboxChange();
@@ -12325,9 +12741,17 @@ window.guardarPermisosUsuarioActual = function() {
     if (cbEdit && cbEdit.checked && !selected.includes('menu-all-edit')) selected.push('menu-all-edit');
 
     const cbPrice = document.getElementById('perm-menu-ingresar-edit-price');
-    if (cbPrice && cbPrice.checked) {
+    const canEditPrices = !!(cbPrice && cbPrice.checked);
+    if (canEditPrices) {
         if (!selected.includes('menu-ingresar-edit-price')) selected.push('menu-ingresar-edit-price');
         if (!selected.includes('edit-precios')) selected.push('edit-precios');
+    } else {
+        // Remover de la lista si fue desmarcado
+        for (let i = selected.length - 1; i >= 0; i--) {
+            if (selected[i] === 'menu-ingresar-edit-price' || selected[i] === 'edit-precios' || selected[i] === 'edit-price' || selected[i] === 'modificar-precios') {
+                selected.splice(i, 1);
+            }
+        }
     }
 
     const cleanKey = String(username).trim().toLowerCase();
@@ -12337,10 +12761,43 @@ window.guardarPermisosUsuarioActual = function() {
     const uTarget = (appData.users || []).find(x => String(x.username).trim().toLowerCase() === cleanKey);
     if (uTarget) {
         uTarget.permissions = selected;
-        uTarget.can_edit_prices = selected.includes('menu-ingresar-edit-price') || selected.includes('edit-precios');
+        uTarget.permisos = selected;
+        uTarget.can_edit_prices = canEditPrices;
     }
 
     saveData();
+
+    // Actualizar directamente en la base de datos de Supabase (tabla 'usuarios' y 'app_state')
+    const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+    if (client) {
+        // 1. Guardar en tabla usuarios (fuente de verdad permanente)
+        client.from('usuarios').update({
+            permisos: selected,
+            can_edit_prices: canEditPrices
+        }).ilike('username', cleanKey).then(function(res) {
+            if (res && res.error) {
+                console.warn("Aviso al guardar permisos en tabla usuarios:", res.error);
+            } else {
+                console.log("☁️ Supabase: Permisos de '" + cleanKey + "' guardados directamente en tabla usuarios.");
+            }
+        }).catch(function(e) {
+            console.warn("Aviso update usuarios:", e);
+        });
+
+        // 2. Actualizar app_state de forma inmediata para sincronización en vivo
+        client.from('app_state').update({
+            user_permissions: appData.userPermissions,
+            updated_at: new Date().toISOString()
+        }).eq('id', 'globalData').then(function(asRes) {
+            if (asRes && asRes.error) {
+                client.from('app_state').upsert({
+                    id: 'globalData',
+                    user_permissions: appData.userPermissions,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'id' });
+            }
+        }).catch(function() {});
+    }
 
     // Actualizar barra de navegación inmediatamente si el usuario logueado es el modificado
     const currentUser = getCurrentUser();
@@ -12376,7 +12833,7 @@ window.guardarPermisosUsuarioActual = function() {
 
     // 3. Notificación Toast global
     showToast(`¡Permisos guardados con éxito para "${username}"!`, 'success');
-    
+
     if (typeof window.onPermisoCheckboxChange === 'function') {
         window.onPermisoCheckboxChange();
     }
@@ -12392,7 +12849,7 @@ window.renderConfigUsersTable = function() {
 
     tbody.innerHTML = appData.users.map((u, idx) => {
         const isFrozen = (u.role === 'Congelado');
-        const estadoBadge = isFrozen 
+        const estadoBadge = isFrozen
             ? `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); font-size: 11px;">⛔ Congelado</span>`
             : `<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); font-size: 11px;">✅ Activo</span>`;
 
@@ -12448,11 +12905,11 @@ function initAdminView() {
     const deleteUserName = document.getElementById('delete-user-name');
     const btnFreeze = document.getElementById('btn-freeze-user');
     const btnDelete = document.getElementById('btn-delete-user');
-    
+
     function renderUsers() {
         if (editSelect) editSelect.innerHTML = '<option value="">Seleccione un empleado...</option>';
         if (deleteSelect) deleteSelect.innerHTML = '<option value="">Seleccione un empleado...</option>';
-        
+
         const currentU = getCurrentUser();
         const currentUserId = currentU ? currentU.id : '';
         if (appData && Array.isArray(appData.users)) {
@@ -12526,7 +12983,7 @@ function initAdminView() {
         deleteSelect.onchange = (e) => {
             const userId = e.target.value;
             const user = (appData && Array.isArray(appData.users)) ? appData.users.find(u => u.id === userId) : null;
-            
+
             if (user) {
                 if (deleteUserName) deleteUserName.textContent = user.username;
                 if (deleteWarning) deleteWarning.style.display = 'block';
@@ -12538,7 +12995,7 @@ function initAdminView() {
                     } else {
                         btnFreeze.innerHTML = '<i class="fa-solid fa-snowflake"></i> Congelar';
                     }
-                    
+
                     btnFreeze.onclick = () => {
                         user.role = (user.role === 'Congelado') ? 'Solicitante' : 'Congelado';
                         saveData();
@@ -12548,7 +13005,7 @@ function initAdminView() {
                         if (deleteSelect.onchange) deleteSelect.onchange({ target: { value: '' }});
                     };
                 }
-                
+
                 if (btnDelete) {
                     btnDelete.style.opacity = '1';
                     btnDelete.style.pointerEvents = 'auto';
@@ -12596,7 +13053,7 @@ function initAdminView() {
             e.preventDefault();
             const userId = editSelect ? editSelect.value : '';
             if (!userId) return;
-            
+
             const userIdx = appData.users.findIndex(u => u.id === userId);
             if (userIdx === -1) return;
 
@@ -12634,6 +13091,11 @@ function initAdminView() {
                 if (!selectedPerms.includes('menu-all-edit')) selectedPerms.push('menu-all-edit');
             }
 
+            const canEditPrices = selectedPerms.includes('menu-ingresar-edit-price') || selectedPerms.includes('edit-precios');
+            appData.users[userIdx].permissions = selectedPerms;
+            appData.users[userIdx].permisos = selectedPerms;
+            appData.users[userIdx].can_edit_prices = canEditPrices;
+
             if (!appData.userPermissions) appData.userPermissions = {};
             if (oldUsername && oldUsername !== newUsername && appData.userPermissions[oldUsername]) {
                 delete appData.userPermissions[oldUsername];
@@ -12644,7 +13106,7 @@ function initAdminView() {
 
             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
             if (client) {
-                client.from('usuarios').upsert([{
+                const userRow = {
                     id: String(appData.users[userIdx].id),
                     username: newUsername,
                     email: email,
@@ -12652,11 +13114,23 @@ function initAdminView() {
                     role: appData.users[userIdx].role || 'Solicitante',
                     rubro_defecto: rubro_defecto,
                     vendedor_codigo: appData.users[userIdx].vendedor_codigo || '',
-                    vendedor_nombre: appData.users[userIdx].vendedor_nombre || ''
-                }], { onConflict: 'username' }).then(function(res) {
-                    if (res && res.error) console.warn("⚠️ Supabase edit user warning:", res.error);
-                    else console.log("☁️ Supabase: Usuario " + newUsername + " actualizado en tabla usuarios.");
-                }).catch(function() {});
+                    vendedor_nombre: appData.users[userIdx].vendedor_nombre || '',
+                    permisos: selectedPerms,
+                    can_edit_prices: canEditPrices
+                };
+                client.from('usuarios').upsert([userRow], { onConflict: 'username' }).then(function(res) {
+                    if (res && res.error) {
+                        delete userRow.permisos;
+                        delete userRow.can_edit_prices;
+                        client.from('usuarios').upsert([userRow], { onConflict: 'username' });
+                    } else {
+                        console.log("☁️ Supabase: Usuario " + newUsername + " actualizado con permisos en tabla usuarios.");
+                    }
+                }).catch(function() {
+                    delete userRow.permisos;
+                    delete userRow.can_edit_prices;
+                    client.from('usuarios').upsert([userRow], { onConflict: 'username' });
+                });
             }
 
             showToast('Credenciales y vistas actualizadas exitosamente.', 'success');
@@ -12689,19 +13163,6 @@ function initAdminView() {
                 return;
             }
 
-            const newUser = {
-                id: generateId(),
-                username,
-                password,
-                email,
-                role: 'Solicitante',
-                rubro_defecto,
-                vendedor_codigo: '',
-                vendedor_nombre: ''
-            };
-
-            appData.users.push(newUser);
-            
             // Extraer vistas seleccionadas para el nuevo usuario
             const selectedPerms = [];
             document.querySelectorAll('.new-user-perm-cb').forEach(cb => {
@@ -12711,15 +13172,33 @@ function initAdminView() {
                 if (!selectedPerms.includes('menu-all-ver')) selectedPerms.push('menu-all-ver');
                 if (!selectedPerms.includes('menu-all-edit')) selectedPerms.push('menu-all-edit');
             }
+            const finalPerms = selectedPerms.length > 0 ? selectedPerms : ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit'];
+            const canEditPrices = finalPerms.includes('menu-ingresar-edit-price') || finalPerms.includes('edit-precios');
+
+            const newUser = {
+                id: generateId(),
+                username,
+                password,
+                email,
+                role: 'Solicitante',
+                rubro_defecto,
+                vendedor_codigo: '',
+                vendedor_nombre: '',
+                permisos: finalPerms,
+                permissions: finalPerms,
+                can_edit_prices: canEditPrices
+            };
+
+            appData.users.push(newUser);
 
             if (!appData.userPermissions) appData.userPermissions = {};
-            appData.userPermissions[username] = selectedPerms.length > 0 ? selectedPerms : ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit'];
+            appData.userPermissions[username] = finalPerms;
 
             saveData();
 
             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
             if (client) {
-                client.from('usuarios').upsert([{
+                const newRow = {
                     id: String(newUser.id),
                     username: newUser.username,
                     password: newUser.password,
@@ -12728,11 +13207,23 @@ function initAdminView() {
                     rubro_defecto: newUser.rubro_defecto,
                     vendedor_codigo: '',
                     vendedor_nombre: '',
-                    empresa: 'SG MONTAJES SRL'
-                }], { onConflict: 'username' }).then(function(res) {
-                    if (res && res.error) console.warn("⚠️ Supabase create user warning:", res.error);
-                    else console.log("☁️ Supabase: Usuario " + newUser.username + " registrado exitosamente en tabla usuarios.");
-                }).catch(function() {});
+                    empresa: 'SG MONTAJES SRL',
+                    permisos: finalPerms,
+                    can_edit_prices: canEditPrices
+                };
+                client.from('usuarios').upsert([newRow], { onConflict: 'username' }).then(function(res) {
+                    if (res && res.error) {
+                        delete newRow.permisos;
+                        delete newRow.can_edit_prices;
+                        client.from('usuarios').upsert([newRow], { onConflict: 'username' });
+                    } else {
+                        console.log("☁️ Supabase: Usuario " + newUser.username + " registrado con permisos en tabla usuarios.");
+                    }
+                }).catch(function() {
+                    delete newRow.permisos;
+                    delete newRow.can_edit_prices;
+                    client.from('usuarios').upsert([newRow], { onConflict: 'username' });
+                });
             }
 
             showToast(`Usuario ${username} creado exitosamente (${rubro_defecto}).`, 'success');
@@ -12751,28 +13242,28 @@ window.switchConfigMainTab = function(tabName) {
     const secSys = document.getElementById('config-section-sistema');
 
     if (tabName === 'usuarios') {
-        if (btnUsers) { 
-            btnUsers.style.background = '#0284c7'; 
-            btnUsers.style.color = 'white'; 
+        if (btnUsers) {
+            btnUsers.style.background = '#0284c7';
+            btnUsers.style.color = 'white';
         }
-        if (btnSys) { 
-            btnSys.style.background = 'rgba(30, 41, 59, 0.6)'; 
-            btnSys.style.color = 'var(--text-muted)'; 
+        if (btnSys) {
+            btnSys.style.background = 'rgba(30, 41, 59, 0.6)';
+            btnSys.style.color = 'var(--text-muted)';
         }
         if (secUsers) secUsers.style.display = 'block';
         if (secSys) secSys.style.display = 'none';
     } else {
-        if (btnUsers) { 
-            btnUsers.style.background = 'rgba(30, 41, 59, 0.6)'; 
-            btnUsers.style.color = 'var(--text-muted)'; 
+        if (btnUsers) {
+            btnUsers.style.background = 'rgba(30, 41, 59, 0.6)';
+            btnUsers.style.color = 'var(--text-muted)';
         }
-        if (btnSys) { 
-            btnSys.style.background = '#0284c7'; 
-            btnSys.style.color = 'white'; 
+        if (btnSys) {
+            btnSys.style.background = '#0284c7';
+            btnSys.style.color = 'white';
         }
         if (secUsers) secUsers.style.display = 'none';
         if (secSys) secSys.style.display = 'block';
-        
+
         if (typeof window.fillPermissionsUserSelect === 'function') {
             window.fillPermissionsUserSelect();
         }
@@ -12788,14 +13279,14 @@ window.switchAdminTab = function(tabId) {
     document.querySelectorAll('.admin-tab-content').forEach(content => {
         content.style.display = 'none';
     });
-    
+
     const activeBtn = document.querySelector(`button[onclick="switchAdminTab('${tabId}')"]`);
     if(activeBtn) {
         activeBtn.classList.add('active');
         activeBtn.style.color = 'var(--text-main)';
         activeBtn.style.borderBottomColor = 'var(--primary)';
     }
-    
+
     const activeContent = document.getElementById(tabId);
     if(activeContent) activeContent.style.display = 'block';
 
@@ -12862,7 +13353,7 @@ window.exportarBaseDeDatosBackup = function() {
         a.style.top = '-9999px';
         document.body.appendChild(a);
         a.click();
-        
+
         setTimeout(() => {
             if (a && a.parentNode) {
                 a.parentNode.removeChild(a);
@@ -13027,7 +13518,7 @@ window.ejecutarLoginDirecto = function(e) {
 
         showToast('¡Bienvenido, ' + found.username + '!', 'success');
         switchView('main');
-        
+
         try {
             buildSidebar();
         } catch(sbErr) {
@@ -13139,12 +13630,12 @@ function startApp() {
     }
 
     appData.currentUserId = null;
-    
+
     var userInput = document.getElementById('username');
     var passInput = document.getElementById('password');
     if (userInput) userInput.value = '';
     if (passInput) passInput.value = '';
-    
+
     switchView('login');
 
     var loginForm = document.getElementById('login-form');
@@ -13192,7 +13683,7 @@ async function purgarPresupuestosDePrueba(silencioso = false) {
                 // custom_prices: (typeof appData !== 'undefined' && appData && appData.customPrices) ? appData.customPrices : {},
                 updated_at: new Date().toISOString()
             }, { onConflict: 'id' });
-            
+
             if (res && res.error) {
                 alert("Error al vaciar estado global: " + res.error.message);
             }
@@ -13204,7 +13695,7 @@ async function purgarPresupuestosDePrueba(silencioso = false) {
             await client.from('presupuesto_items').delete().neq('id', '___ROOT_DUMMY___');
             await client.from('avances_obra').delete().neq('id', '___ROOT_DUMMY___');
             await client.from('notificaciones').delete().neq('id', '___ROOT_DUMMY___');
-            
+
             if (!silencioso) {
                 showToast("Base de datos limpiada con éxito.", "success");
             }
@@ -13313,8 +13804,8 @@ function renderStockTable() {
         filtered = filtered.filter(s => s.estado === stockQueryEstadoFilter);
     }
     if (stockQuerySearchVal) {
-        filtered = filtered.filter(s => 
-            s.detalle.toLowerCase().includes(stockQuerySearchVal) || 
+        filtered = filtered.filter(s =>
+            s.detalle.toLowerCase().includes(stockQuerySearchVal) ||
             s.codigo.includes(stockQuerySearchVal)
         );
     }
@@ -13344,11 +13835,11 @@ function renderStockTable() {
     // Limitamos la cantidad en pantalla si es muy grande o paginamos para evitar ralentizar.
     const limit = 200;
     const sliced = filtered.slice(0, limit);
-    
+
     sliced.forEach(s => {
         const badgeClass = s.stock > 0 ? 'status-auth' : 'status-rej';
         const badgeText = s.stock > 0 ? 'Disponible' : 'Agotado';
-        
+
         html += `
             <tr>
                 <td style="font-family: monospace;">${s.codigo}</td>
@@ -13372,7 +13863,7 @@ function renderStockTable() {
     });
 
     listBody.innerHTML = html;
-    
+
     if (filtered.length > limit) {
         resultsCount.innerText = `Mostrando primeros ${limit} de ${filtered.length} productos (refine su búsqueda)`;
     }
@@ -13398,7 +13889,7 @@ window.selectDatePresetFromContextMenu = function(preset) {
             applyPresetDateFilter(preset);
         }
     }
-    
+
     // Ocultar menú
     const menu = document.getElementById('date-context-menu');
     if (menu) menu.style.display = 'none';
@@ -13409,34 +13900,34 @@ document.addEventListener('contextmenu', function(e) {
     const target = e.target;
     if (target && (target.id === 'filter-date-from' || target.id === 'filter-date-to' || target.id === 'filter-date-start' || target.id === 'filter-date-end')) {
         e.preventDefault();
-        
+
         // Determinar qué vista es según el id
         const isMetrics = target.id === 'filter-date-start' || target.id === 'filter-date-end';
         window.currentDateContextMenuTarget = isMetrics ? 'metrics' : 'assignments';
-        
+
         const menu = document.getElementById('date-context-menu');
         if (menu) {
             // Mostrar para poder medir su offsetWidth/offsetHeight
             menu.style.display = 'block';
-            
+
             const menuWidth = menu.offsetWidth || 180;
             const menuHeight = menu.offsetHeight || 220;
-            
+
             let left = e.clientX;
             let top = e.clientY;
-            
+
             // Si sobresale de la derecha de la pantalla, mover a la izquierda
             if (left + menuWidth > window.innerWidth) {
                 left = window.innerWidth - menuWidth - 10;
             }
             if (left < 10) left = 10;
-            
+
             // Si sobresale de abajo de la pantalla, mover hacia arriba
             if (top + menuHeight > window.innerHeight) {
                 top = window.innerHeight - menuHeight - 10;
             }
             if (top < 10) top = 10;
-            
+
             menu.style.left = `${left}px`;
             menu.style.top = `${top}px`;
         }
@@ -13497,7 +13988,7 @@ window.compartirWhatsAppPedido = function(id) {
     const nro = formatPresupuestoCodigo(p);
     const cliente = p.cliente_nombre ? p.cliente_nombre.toUpperCase() : 'CONSUMIDOR FINAL';
     const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
-    
+
     let laborARS = 0;
     let matUSD = 0;
 
@@ -13512,23 +14003,23 @@ window.compartirWhatsAppPedido = function(id) {
         p.items.forEach(it => {
             if (it.estado === 'Rechazado') return;
             const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-            const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
-                          (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+            const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') ||
+                          (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) ||
                           (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
             if (isMat) {
-                const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
-                    ? parseFloat(it.precio_usd) 
+                const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
+                    ? parseFloat(it.precio_usd)
                     : (parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0);
-                const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
-                    ? parseFloat(it.subtotal_usd) 
+                const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd)))
+                    ? parseFloat(it.subtotal_usd)
                     : (q * prUSD);
                 matUSD += subUSD;
                 const subPesos = subUSD * cotizMat;
                 msg += `• [MAT] ${it.codigo} - ${it.detalle} (x${q} @ U$D ${prUSD.toLocaleString('es-AR', {minimumFractionDigits: 2})}) = $${subPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})} (U$D ${subUSD.toLocaleString('es-AR', {minimumFractionDigits: 2})})\n`;
             } else {
                 const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
-                const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) 
-                    ? parseFloat(String(it.subtotal).replace(',', '.')) 
+                const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.'))))
+                    ? parseFloat(String(it.subtotal).replace(',', '.'))
                     : (q * pr);
                 laborARS += sub;
                 msg += `• ${it.codigo} - ${it.detalle} (x${q}) = $${sub.toLocaleString('es-AR', {minimumFractionDigits: 2})}\n`;
@@ -13574,8 +14065,8 @@ window.switchMecaTab = function(idx) {
     }
     const priceTh = document.getElementById('meca-excel-th-price');
     if (priceTh) {
-        priceTh.innerHTML = (idx === 0) 
-            ? 'Precio unitario <span style="color:#38bdf8;font-size:11px;font-weight:bold;">(U$D)</span>' 
+        priceTh.innerHTML = (idx === 0)
+            ? 'Precio unitario <span style="color:#38bdf8;font-size:11px;font-weight:bold;">(U$D)</span>'
             : 'Precio unitario <span style="color:#34d399;font-size:11px;font-weight:bold;">($ ARS)</span>';
     }
 };
@@ -13584,7 +14075,7 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
     if (!container) return;
 
     let catalog = getActiveStockCatalog();
-    
+
     // Si estamos en un presupuesto mecánico, filtramos y agrupamos el catálogo según la planta seleccionada
     if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
         const reqPlantaSelect = document.getElementById('req-meca-planta');
@@ -13592,50 +14083,89 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
             let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
             if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
 if (curPlanta === 'APA') curPlanta = 'APS';
-            
+
             // Regla dinámica (solo aplicable a PPA u otras, nunca mezclar APS y APG)
             if (curPlanta === 'PPA') curPlanta = 'APS';
             if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
                 curPlanta = window.appData.plantasRules[curPlanta];
             }
-            
+
             const grouped = {};
+            // 1. Asegurar que TODOS los códigos existan en grouped
             catalog.forEach(s => {
-                if (!grouped[s.codigo] && (!(s.planta || '').trim() || (s.planta || '').trim().toUpperCase() === curPlanta)) grouped[s.codigo] = { ...s, precio: 0, precio_unitario: 0, planta: curPlanta };
+                if (!grouped[s.codigo]) {
+                    grouped[s.codigo] = { ...s, precio: s.precio || 0, precio_unitario: s.precio_unitario || s.precio || 0, planta: curPlanta };
+                }
             });
+            // 2. Si hay precio genérico (sin planta), usarlo de base
             catalog.forEach(s => {
                 if (!(s.planta || '').trim()) {
-                    if (s.precio > 0 || grouped[s.codigo].precio === 0) {
-                        grouped[s.codigo].precio = s.precio;
-                        grouped[s.codigo].precio_unitario = s.precio_unitario;
-                        grouped[s.codigo].detalle = s.detalle;
+                    if (grouped[s.codigo]) {
+                        if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                            grouped[s.codigo].precio = s.precio;
+                            grouped[s.codigo].precio_unitario = s.precio_unitario || s.precio;
+                            grouped[s.codigo].detalle = s.detalle || grouped[s.codigo].detalle;
+                        }
                     }
                 }
             });
-            catalog.forEach(s => {
-                if ((s.planta || '').trim().toUpperCase() === curPlanta) {
-                    if (s.precio > 0 || grouped[s.codigo].precio === 0) {
-                        grouped[s.codigo].precio = s.precio;
-                        grouped[s.codigo].precio_unitario = s.precio_unitario;
-                        grouped[s.codigo].detalle = s.detalle;
+            // 3. Si hay precio específico para la planta actual, sobreescribir con máxima prioridad
+            if (curPlanta) {
+                catalog.forEach(s => {
+                    if ((s.planta || '').trim().toUpperCase() === curPlanta) {
+                        if (grouped[s.codigo]) {
+                            if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                                grouped[s.codigo].precio = s.precio;
+                                grouped[s.codigo].precio_unitario = s.precio_unitario || s.precio;
+                                grouped[s.codigo].detalle = s.detalle || grouped[s.codigo].detalle;
+                            }
+                        }
                     }
-                }
-            });
+                });
+            }
             catalog = Object.values(grouped);
         }
     }
-    
-    // Group catalog by subrubro
+
+    // Normalizador para búsqueda insensible a mayúsculas/minúsculas
+    const norm = s => String(s || '').trim().toLowerCase();
+
+    // Group catalog by subrubro (robusto e insensible a mayúsculas)
     const sections = [
-        { 
-            name: "Materiales y Equipos", 
-            items: catalog.filter(i => i.subrubro === "Materiales y Equipos" || i.subrubro === "Materiales") 
+        {
+            name: "Materiales y Equipos",
+            items: catalog.filter(i => norm(i.subrubro).includes("material") || norm(i.subrubro).includes("equipo"))
         },
-        { name: "Mano de Obra EN TALLER", note: "VALOR HORA INCLUYE COPA", items: catalog.filter(i => i.subrubro === "Mano de Obra EN TALLER") },
-        { name: "Mano de Obra MANTENIMIENTO", items: catalog.filter(i => i.subrubro && i.subrubro.includes("MANTENIMIENTO") && !i.subrubro.includes("EMERGENCIA")) },
-        { name: "Mano de Obra PARADA DE PLANTA", note: "VALOR HORA INCLUYE COPA", items: catalog.filter(i => i.subrubro && (i.subrubro.includes("PARADA DE PLANTA") || i.subrubro.includes("PARADA PLANTA"))) },
-        { name: "Mano de Obra EMERGENCIA MANTENIMIENTO", items: catalog.filter(i => i.subrubro && i.subrubro.includes("EMERGENCIA")) }
+        {
+            name: "Mano de Obra EN TALLER",
+            note: "VALOR HORA INCLUYE COPA",
+            items: catalog.filter(i => norm(i.subrubro).includes("taller"))
+        },
+        {
+            name: "Mano de Obra MANTENIMIENTO",
+            items: catalog.filter(i => norm(i.subrubro).includes("mantenimiento") && !norm(i.subrubro).includes("emergencia"))
+        },
+        {
+            name: "Mano de Obra PARADA DE PLANTA",
+            note: "VALOR HORA INCLUYE COPA",
+            items: catalog.filter(i => norm(i.subrubro).includes("parada"))
+        },
+        {
+            name: "Mano de Obra EMERGENCIA MANTENIMIENTO",
+            items: catalog.filter(i => norm(i.subrubro).includes("emergencia"))
+        }
     ];
+
+    // Catch-all: Asegurar que ningún ítem quede oculto por nombre de subrubro no coincidente
+    const categorized = new Set();
+    sections.forEach(sec => sec.items.forEach(it => categorized.add(it.codigo)));
+    const uncategorized = catalog.filter(it => !categorized.has(it.codigo));
+    if (uncategorized.length > 0) {
+        sections.push({
+            name: "Otros Conceptos",
+            items: uncategorized
+        });
+    }
 
     // Find first visible tab index
     let firstVisibleTab = -1;
@@ -13661,14 +14191,14 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                         <span style="font-size: 11px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 5px;">
                             <i class="fas fa-dollar-sign"></i> Cotiz. U$D (Solo Mat):
                         </span>
-                        <input type="text" 
-                               id="grid-cotizacion-materiales" 
-                               inputmode="decimal" 
-                               value="${(window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450).toString().replace(/\./g, ',')}" 
+                        <input type="text"
+                               id="grid-cotizacion-materiales"
+                               inputmode="decimal"
+                               value="${(window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450).toString().replace(/\./g, ',')}"
                                ${isEditable ? '' : 'disabled'}
                                onkeydown="onMecaPriceKeyDown(event, this)"
                                oninput="window.onGridCotizacionMaterialesChange ? window.onGridCotizacionMaterialesChange(this) : null"
-                               style="width: 85px; text-align: right; background: rgba(0,0,0,0.45); border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 4px; color: #38bdf8; font-family: monospace; font-weight: 900; font-size: 12px; padding: 3px 6px;" 
+                               style="width: 85px; text-align: right; background: rgba(0,0,0,0.45); border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 4px; color: #38bdf8; font-family: monospace; font-weight: 900; font-size: 12px; padding: 3px 6px;"
                                title="Cotización oficial aplicada EXCLUSIVAMENTE a Materiales y Equipos">
                     </div>
                     <button type="button" class="btn btn-sm" onclick="abrirModalNuevoItemTarifario()" style="background: #10b981; color: white; border: 1px solid #059669; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" title="Agregar nuevo ítem al tarifario en orden correlativo">
@@ -13688,7 +14218,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         const isSelected = window.activeMecaTab === idx;
         const tabNumber = hasItems ? visibleTabNumber++ : '';
         html += `
-            <button type="button" id="meca-tab-${idx}" onclick="switchMecaTab(${idx})" 
+            <button type="button" id="meca-tab-${idx}" onclick="switchMecaTab(${idx})"
                 style="display: ${displayStyle}; padding: 10px 16px; border: 1px solid ${isSelected ? '#0891b2' : 'rgba(255, 255, 255, 0.1)'}; border-bottom: none; border-radius: 8px 8px 0 0; background: ${isSelected ? '#0891b2' : 'rgba(30, 41, 59, 0.6)'}; color: ${isSelected ? '#ffffff' : 'var(--text-muted)'}; font-weight: ${isSelected ? '800' : '700'}; font-size: 12px; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease;">
                 ${tabNumber ? `${tabNumber}. ` : ''}${sec.name.replace('Mano de Obra', 'MO')}
             </button>
@@ -13697,7 +14227,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
 
     html += `
             </div>
-            
+
             <div style="overflow-x: auto; padding: 10px; background: transparent;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: var(--text-main); background: transparent;">
                     <thead>
@@ -13738,11 +14268,11 @@ if (curPlanta === 'APA') curPlanta = 'APS';
             const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
             const isMat = (window.isMaterialItem ? window.isMaterialItem(item, reqTipoPresupuesto) : false) || (secIdx === 0);
             const numItemPrice = (item.precio !== undefined && item.precio !== null) ? item.precio : 0;
-            const initialSubtotalPesos = existing 
+            const initialSubtotalPesos = existing
                 ? (isMat ? (existing.cantidad * numItemPrice * cotizMat) : (existing.cantidad * numItemPrice))
                 : 0;
             const initialSubtotalUSD = isMat && existing ? (existing.cantidad * numItemPrice) : 0;
-            
+
             // Subheaders and section banners for Eléctrico budget
             if (reqTipoPresupuesto === 'Eléctrico') {
                 if (secIdx === 2) { // Mano de Obra MANTENIMIENTO
@@ -13810,7 +14340,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                     }
                 }
             }
-            
+
             const disabledAttr = isEditable ? '' : 'disabled';
             const canEditPrices = window.canUserEditUnitPrices ? window.canUserEditUnitPrices() : true;
             const priceDisabledAttr = (isEditable && canEditPrices) ? '' : 'disabled';
@@ -13830,13 +14360,13 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                         </div>
                     </td>
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 6px; text-align: center;">
-                        <input type="text" 
+                        <input type="text"
                                inputmode="numeric"
-                               class="meca-excel-input" 
-                               data-code="${item.codigo}" 
-                               data-price="${item.precio}" 
+                               class="meca-excel-input"
+                               data-code="${item.codigo}"
+                               data-price="${item.precio}"
                                data-sec="${secIdx}"
-                               value="${formattedQty}" 
+                               value="${formattedQty}"
                                placeholder="0"
                                ${disabledAttr}
                                style="width: 90%; text-align: right; background: ${inputBg} !important; border: 1.5px solid ${inputBorder} !important; border-radius: 6px; padding: 6px 10px; font-weight: 800 !important; color: ${inputColor} !important; font-family: monospace; font-size: 13px !important; opacity: 1 !important;"
@@ -13847,13 +14377,13 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 6px; text-align: right;">
                         <div style="display: flex; align-items: center; justify-content: flex-end; gap: 3px;">
                             <span style="font-weight: 800; color: ${isMat ? '#38bdf8' : '#34d399'} !important; font-size: 11px;">${isMat ? 'U$D' : '$'}</span>
-                            <input type="text" 
+                            <input type="text"
                                    inputmode="decimal"
-                                   class="meca-excel-price-input" 
-                                   data-code="${item.codigo}" 
+                                   class="meca-excel-price-input"
+                                   data-code="${item.codigo}"
                                    data-sec="${secIdx}"
                                    data-is-material="${isMat ? '1' : '0'}"
-                                   value="${formattedPrice}" 
+                                   value="${formattedPrice}"
                                    ${priceDisabledAttr}
                                    title="${canEditPrices ? '' : 'No tiene permisos para modificar precios unitarios'}"
                                    style="width: 105px; text-align: right; background: rgba(15, 23, 42, 0.6) !important; border: 1.5px solid ${isMat ? 'rgba(56, 189, 248, 0.5)' : 'rgba(6, 182, 212, 0.4)'} !important; border-radius: 6px; padding: 5px 8px; font-weight: 700 !important; color: #ffffff !important; font-family: monospace; font-size: 12px !important; opacity: ${canEditPrices ? '1' : '0.65'} !important;"
@@ -13978,14 +14508,14 @@ window.onMecaPriceInputChange = function(input) {
         return;
     }
     const code = input.getAttribute('data-code');
-    
+
     // Mejor manejo de puntos y comas:
     let cleanVal = input.value;
-    
+
     // Si contiene múltiples puntos (ej. 1.500.000), son separadores de miles, los eliminamos.
     if ((cleanVal.match(/\./g) || []).length > 1) {
         cleanVal = cleanVal.replace(/\./g, '');
-    } 
+    }
     // Si contiene un punto Y una coma (ej. 1.500,50), el punto es de mil, lo eliminamos.
     else if (cleanVal.includes('.') && cleanVal.includes(',')) {
         cleanVal = cleanVal.replace(/\./g, '');
@@ -13994,22 +14524,22 @@ window.onMecaPriceInputChange = function(input) {
     else if (cleanVal.includes('.') && !cleanVal.includes(',')) {
         cleanVal = cleanVal.replace(/\./g, ',');
     }
-    
+
     // Filtrar caracteres inválidos (solo dejamos números y coma)
     cleanVal = cleanVal.replace(/[^0-9,]/g, '');
-    
+
     // Asegurar que solo exista como máximo una sola coma
     const parts = cleanVal.split(',');
     if (parts.length > 2) {
         cleanVal = parts[0] + ',' + parts.slice(1).join('');
     }
-    
+
     if (input.value !== cleanVal) {
         input.value = cleanVal;
     }
 
     const newPrice = window.parseArgNumber(input.value);
-    
+
     // Buscar detalles del item original
     let subr = null, det = null, u = null;
     if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems)) {
@@ -14058,7 +14588,7 @@ window.onMecaPriceInputBlur = function(input) {
     const vParts = cleanVal.split(',');
     vParts[0] = vParts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     input.value = vParts.join(',');
-    
+
     // Guardar en Supabase y DB local de forma segura solo al perder el foco (blur)
     const newPrice = window.parseArgNumber(cleanVal);
     const code = input.getAttribute('data-code');
@@ -14134,7 +14664,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
             if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
                 curPlanta = window.appData.plantasRules[curPlanta];
             }
-            
+
             const grouped = {};
             catalog.forEach(s => {
                 if (!grouped[s.codigo] && (!(s.planta || '').trim() || (s.planta || '').trim().toUpperCase() === curPlanta)) grouped[s.codigo] = { ...s, precio: 0, precio_unitario: 0, planta: curPlanta };
@@ -14169,8 +14699,8 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         const secIdx = parseInt(input.getAttribute('data-sec')) || 0;
 
         const itemObj = catalog.find(i => i.codigo === code);
-        const isMat = (priceInput && priceInput.getAttribute('data-is-material') === '1') || 
-                      (window.isMaterialItem ? window.isMaterialItem(itemObj || { codigo: code, subrubro: (secIdx === 0 ? 'Materiales y Equipos' : '') }, reqTipoPresupuesto) : false) || 
+        const isMat = (priceInput && priceInput.getAttribute('data-is-material') === '1') ||
+                      (window.isMaterialItem ? window.isMaterialItem(itemObj || { codigo: code, subrubro: (secIdx === 0 ? 'Materiales y Equipos' : '') }, reqTipoPresupuesto) : false) ||
                       (secIdx === 0);
 
         // Update individual item total column display
@@ -14211,8 +14741,8 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                 "Mano de Obra PARADA DE PLANTA",
                 "Mano de Obra EMERGENCIA MANTENIMIENTO"
             ];
-            const resolvedSubr = (itemObj && itemObj.subrubro) 
-                ? itemObj.subrubro 
+            const resolvedSubr = (itemObj && itemObj.subrubro)
+                ? itemObj.subrubro
                 : (secNames[secIdx] || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro({ codigo: code, detalle: itemObj ? itemObj.detalle : '' }, reqTipoPresupuesto) : 'Materiales y Equipos'));
 
             pedidoItems.push({
@@ -14245,7 +14775,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         if (subMatBottom) subMatBottom.innerText = `$${materialsTotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         if (subMatRow) subMatRow.innerText = `$${materialsTotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         if (subLab) subLab.innerText = `$${laborTotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        
+
         const elecGrandVal = materialsTotalPesos + laborTotalPesos;
         if (subElecGrand) {
             subElecGrand.innerText = `$${elecGrandVal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
@@ -14294,26 +14824,26 @@ window.checkScheduledOcAlerts = function() {
     if (!appData || !appData.pedidos) return;
     const todayStr = new Date().toISOString().substring(0, 10);
     let alertsSent = 0;
-    
+
     appData.pedidos.forEach(p => {
         if (p.estado === 'Cargado sin orden de compra' && p.oc_limite_fecha) {
             if (todayStr >= p.oc_limite_fecha) {
                 if (!p.oc_alerta_enviada) {
                     p.oc_alerta_enviada = true;
                     alertsSent++;
-                    
+
                     const msgText = `⚠️ ALERTA O.C.: El Presupuesto ${p.id} de ${p.cliente_nombre} superó la fecha límite (${p.oc_limite_fecha}) sin recibir Orden de Compra. Correo recordatorio enviado a ${p.email || 'cliente'}.`;
-                    
+
                     appData.users.forEach(u => {
                         addNotification(u.id, msgText, p.id);
                     });
-                    
+
                     console.log(`[EMAIL SEND] Para: ${p.email || 'cliente@empresa.com'} - Presupuesto ${p.id} sin orden de compra.`);
                 }
             }
         }
     });
-    
+
     if (alertsSent > 0) {
         saveData();
         showToast(`Se enviaron ${alertsSent} alertas de orden de compra vencidas por correo electrónico.`, 'warning');
@@ -14337,20 +14867,20 @@ window.abrirClienteCorreoMailto = function({ to, cc, subject, body, pdfBlob, fil
             }, 1000);
         } catch(e) {}
     }
-    
+
     const toArr = Array.isArray(to) ? to : (to ? [to] : []);
     const ccArr = Array.isArray(cc) ? cc : (cc ? [cc] : []);
     const toClean = toArr.map(x => String(x).trim()).filter(Boolean).join(',');
     const ccClean = ccArr.map(x => String(x).trim()).filter(Boolean).join(',');
-    
+
     const parts = [];
     if (ccClean) parts.push(`cc=${encodeURIComponent(ccClean)}`);
     if (subject) parts.push(`subject=${encodeURIComponent(subject)}`);
     if (body) parts.push(`body=${encodeURIComponent(body)}`);
-    
+
     const mailtoUrl = `mailto:${encodeURIComponent(toClean)}${parts.length > 0 ? '?' + parts.join('&') : ''}`;
     window.location.href = mailtoUrl;
-    
+
     if (typeof showToast === 'function') {
         showToast('✉️ Se abrió tu cliente de correo (Outlook/Gmail) y se descargó el PDF oficial para adjuntar.', 'success');
     }
@@ -14385,7 +14915,7 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
 
             if (!qErr) {
                 console.log("⏳ Email encolado en Supabase (cola_emails):", mailId, ". Verificando entrega...");
-                
+
                 // Esperar a que el worker procese el correo (hasta 10 segundos)
                 let pollAttempts = 0;
                 while (pollAttempts < 7) {
@@ -14433,10 +14963,10 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
     }
 
     const customBackend = localStorage.getItem('sg_backend_url') || window.SG_BACKEND_URL;
-    
+
     const endpoints = [];
     if (customBackend) endpoints.push(`${customBackend.replace(/\/+$/, '')}/api/send-email`);
-    
+
     // Endpoints locales y cloud relay
     endpoints.push(
         'http://localhost:8000/api/send-email',
@@ -14484,8 +15014,8 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
 
     // Si ningún endpoint respondió
     const finalErr = lastError ? `Fallo en cola Supabase: ${lastError}` : 'No se pudo despachar el correo. Verificá que la tabla cola_emails en Supabase o el servidor estén activos.';
-    return { 
-        success: false, 
+    return {
+        success: false,
         error: finalErr
     };
 };
@@ -14497,7 +15027,7 @@ window.enviarEmailPedido = function(id) {
     } else if (id && typeof window.findPedidoById === 'function') {
         p = window.findPedidoById(id);
     }
-    
+
     if (!p) {
         p = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo || null;
     }
@@ -14518,7 +15048,7 @@ window.enviarEmailPedido = function(id) {
     const cuit = p.cuit || p.meca_cuit || '30-50679216-5';
     const totalAmount = parseFloat(p.importe || 0);
     const totalStr = `$${totalAmount.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-    
+
     const clientEmail = (p.email || p.cliente_email || '').trim();
     const defaultTo = clientEmail || 'melanidaiana28@gmail.com';
     const defaultSubject = `Presupuesto Oficial SG MONTAJES Nro. ${nro} — ${cliente}`;
@@ -14588,7 +15118,7 @@ window.enviarEmailPedido = function(id) {
 
     modalEl.innerHTML = `
         <div style="width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); padding: 22px 24px; color: #f8fafc; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; position: relative;">
-            
+
             <!-- Cabecera -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; border-bottom: 1px solid #1e293b; padding-bottom: 14px;">
                 <div style="display: flex; align-items: center; gap: 12px;">
@@ -14620,7 +15150,7 @@ window.enviarEmailPedido = function(id) {
                     </div>
                 </div>
                 <input type="text" id="dispatch-email-to" value="${defaultTo}" style="width: 100%; box-sizing: border-box; background: #0b1329; border: 1px solid #1e3a8a; border-radius: 7px; padding: 8px 12px; color: #ffffff; font-size: 13px; font-weight: 600; outline: none;">
-                
+
                 <!-- Chips para Destinatarios -->
                 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px;">
                     ${clientEmail ? `
@@ -14655,7 +15185,7 @@ window.enviarEmailPedido = function(id) {
                     </button>
                 </div>
                 <input type="text" id="dispatch-email-cc" placeholder="ej: cotizaciones@sgmontajes.com.ar" style="width: 100%; box-sizing: border-box; background: #0b1329; border: 1px solid #334155; border-radius: 7px; padding: 8px 12px; color: #ffffff; font-size: 13px; outline: none;">
-                
+
                 <!-- Chips para CC -->
                 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px;">
                     <button type="button" class="btn-dispatch-chip-cc" data-email="melanidaiana28@gmail.com" style="background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; color: #cbd5e1; padding: 3px 8px; border-radius: 5px; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
@@ -15225,7 +15755,7 @@ window.abrirModalAvanceProyecto = function(id) {
         p = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo || null;
     }
     if (!p) return;
-    
+
     let modalEl = document.getElementById('modal-avance-proyecto');
     if (!modalEl) {
         modalEl = document.createElement('div');
@@ -15243,18 +15773,18 @@ window.abrirModalAvanceProyecto = function(id) {
         modalEl.style.alignItems = 'center';
         document.body.appendChild(modalEl);
     }
-    
+
     // Calcular totales agrupados para el certificado (ignorando materiales desglosados)
     const formatted = window.getPresupuestoFormattedItems(p, 'proyecto');
     const titles = formatted.filter(f => f.subtotal !== '-');
-    
+
     let rowsHtml = '';
     const prevHistory = p.avances_proyecto || [];
-    
+
     titles.forEach((t, idx) => {
         const titleName = t.detalle;
         const sub = t.subtotal;
-        
+
         let accPct = 0;
         prevHistory.forEach(h => {
             if (h.title === titleName) {
@@ -15263,7 +15793,7 @@ window.abrirModalAvanceProyecto = function(id) {
         });
         const maxAllowed = Math.max(0, parseFloat((100 - accPct).toFixed(2)));
         const isCompleted = accPct >= 99.99;
-        
+
         rowsHtml += `
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(15, 23, 42, 0.5); border-radius: 8px; border: 1.5px solid ${isCompleted ? '#059669' : '#334155'}; margin-bottom: 10px;">
                 <div style="flex: 1;">
@@ -15283,8 +15813,8 @@ window.abrirModalAvanceProyecto = function(id) {
                             </span>
                         ` : `
                             <div style="display: flex; align-items: center; gap: 5px;">
-                                <input type="number" id="avproy-pct-${idx}" min="0" max="${maxAllowed}" step="any" 
-                                       style="width: 75px; background: #1e293b; color: #38bdf8; font-weight: 800; border: 1.5px solid #0284c7; border-radius: 6px; padding: 5px 8px; text-align: right; font-size: 13.5px;" 
+                                <input type="number" id="avproy-pct-${idx}" min="0" max="${maxAllowed}" step="any"
+                                       style="width: 75px; background: #1e293b; color: #38bdf8; font-weight: 800; border: 1.5px solid #0284c7; border-radius: 6px; padding: 5px 8px; text-align: right; font-size: 13.5px;"
                                        placeholder="0">
                                 <span style="color: #38bdf8; font-weight: bold;">%</span>
                             </div>
@@ -15298,7 +15828,7 @@ window.abrirModalAvanceProyecto = function(id) {
             </div>
         `;
     });
-    
+
     let histHtml = '';
     if (p.avances_proyecto_certificados && p.avances_proyecto_certificados.length > 0) {
         histHtml = `
@@ -15349,7 +15879,7 @@ window.abrirModalAvanceProyecto = function(id) {
         </div>
     `;
     modalEl.style.display = 'flex';
-    
+
     // Add event listeners for dynamic recalculation and strict 100% enforcement
     titles.forEach((t, idx) => {
         const inp = document.getElementById(`avproy-pct-${idx}`);
@@ -15369,7 +15899,7 @@ window.abrirModalAvanceProyecto = function(id) {
                     rawVal = 0;
                     this.value = '';
                 }
-                
+
                 // Strict enforcement: cannot exceed maxAllowed and cannot exceed 100%
                 if (rawVal > maxAllowed || (accPct + rawVal) > 100.001) {
                     rawVal = maxAllowed;
@@ -15378,7 +15908,7 @@ window.abrirModalAvanceProyecto = function(id) {
                         showToast(`El porcentaje no puede superar el 100% acumulado. Máximo permitido: ${maxAllowed}%`, 'warning');
                     }
                 }
-                
+
                 const certAmt = (sub * rawVal) / 100;
                 const montoEl = document.getElementById(`avproy-monto-${idx}`);
                 if (montoEl) {
@@ -15386,12 +15916,12 @@ window.abrirModalAvanceProyecto = function(id) {
                     montoEl.dataset.certamt = certAmt;
                     montoEl.textContent = '$' + certAmt.toLocaleString('es-AR', {minimumFractionDigits: 2});
                 }
-                
+
                 let grandTotal = 0;
                 document.querySelectorAll('[id^="avproy-monto-"]').forEach(el => {
                     grandTotal += parseFloat(el.dataset.certamt || 0);
                 });
-                
+
                 const totalEl = document.getElementById('avproy-total-cert');
                 if (totalEl) {
                     totalEl.textContent = '$' + grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2});
@@ -15405,14 +15935,14 @@ window.generarPDFAvanceProyecto = async function(id) {
     let p = (typeof window.findPedidoById === 'function') ? window.findPedidoById(id) : ((typeof appData !== 'undefined' && appData && appData.pedidos) ? appData.pedidos.find(x => x.id === id) : null);
     if (!p) p = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo || null;
     if (!p) return;
-    
+
     if (!p.avances_proyecto) p.avances_proyecto = [];
     if (!p.avances_proyecto_certificados) p.avances_proyecto_certificados = [];
-    
+
     const rows = [];
     let hasValues = false;
     let anyExceeded = false;
-    
+
     document.querySelectorAll('[id^="avproy-monto-"]').forEach(el => {
         const pct = parseFloat(el.dataset.pct || 0);
         const title = el.dataset.title;
@@ -15433,17 +15963,17 @@ window.generarPDFAvanceProyecto = async function(id) {
             });
         }
     });
-    
+
     if (anyExceeded) {
         showToast('Error: El avance acumulado no puede superar el 100% para ningún concepto.', 'error');
         return;
     }
-    
+
     if (!hasValues) {
         showToast('Debe ingresar al menos un porcentaje mayor a 0%', 'warning');
         return;
     }
-    
+
     const nowStr = new Date().toLocaleDateString('es-AR');
     rows.forEach(r => {
         p.avances_proyecto.push({
@@ -15453,14 +15983,14 @@ window.generarPDFAvanceProyecto = async function(id) {
             fecha: nowStr
         });
     });
-    
+
     const totalCert = rows.reduce((s, r) => s + r.certAmt, 0);
     p.avances_proyecto_certificados.push({
         fecha: nowStr,
         rows: rows,
         totalCert: totalCert
     });
-    
+
     // Also sync with general project progress (avances) so the main progress bar reflects it
     const totalPresupuesto = parseFloat(p.importe || 0);
     if (totalPresupuesto > 0) {
@@ -15484,7 +16014,7 @@ window.generarPDFAvanceProyecto = async function(id) {
             p.monto_facturado = (totalPresupuesto * (newTotalAcc / 100));
         }
     }
-    
+
     // Disparar alerta automática de email para facturación en avance de proyecto
     if (typeof window.notificarEmailFacturacionAvance === 'function') {
         const totalAmount = parseFloat(p.importe || 0);
@@ -15504,15 +16034,15 @@ window.generarPDFAvanceProyecto = async function(id) {
         guardarPedidosEnArchivo(false);
     }
     showToast('Avance registrado exitosamente en el historial y sincronizado en tiempo real.', 'success');
-    
+
     const modalProy = document.getElementById('modal-avance-proyecto');
     if (modalProy) modalProy.style.display = 'none';
-    
+
     // Re-render avance obra modal if open
     if (typeof abrirModalAvanceObra === 'function' && window.pedidoAvanceActivoId) {
         abrirModalAvanceObra(window.pedidoAvanceActivoId);
     }
-    
+
     window.generarPDFAvanceProyectoHistorico(id, p.avances_proyecto_certificados.length - 1);
 };
 
@@ -15520,13 +16050,13 @@ window.generarPDFAvanceProyectoHistorico = function(id, certIndex) {
     let p = (typeof window.findPedidoById === 'function') ? window.findPedidoById(id) : ((typeof appData !== 'undefined' && appData && appData.pedidos) ? appData.pedidos.find(x => x.id === id) : null);
     if (!p) p = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo || null;
     if (!p || !p.avances_proyecto_certificados || !p.avances_proyecto_certificados[certIndex]) return;
-    
+
     const cert = p.avances_proyecto_certificados[certIndex];
     const nroPres = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliente = (p.cliente_nombre || p.cliente || 'CARGILL SACI').trim();
     const logoSrc = (window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png';
     const fecha = cert.fecha || new Date().toLocaleDateString('es-AR');
-    
+
     const planta = (p.meca_planta || p.planta || 'VGG').toUpperCase();
     const nroOc = p.meca_nro_oc || p.nro_oc || '-';
     const denominacion = p.meca_denominacion || p.motivo || p.denominacion || 'cambio de iluminacion';
@@ -15591,10 +16121,10 @@ window.generarPDFAvanceProyectoHistorico = function(id, certIndex) {
             </div>
 
             <div style="max-width: 680px; margin: 0 auto;">
-                
+
                 <!-- Contenedor Imprimible del Comprobante (Diseño Oficial de Avance) -->
                 <div style="border: 2px solid #0f766e; border-radius: 8px; padding: 22px; background: #ffffff; position: relative; overflow: hidden;">
-                    
+
                     <!-- Marca de Agua (Gota de agua torcida a -30deg) -->
                     <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.28; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
                         <img src="${logoSrc}" style="width: 68%; object-fit: contain; transform: rotate(-30deg); filter: contrast(1.15);">
@@ -15624,23 +16154,23 @@ window.generarPDFAvanceProyectoHistorico = function(id, certIndex) {
                         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; font-size: 11.5px; line-height: 1.6;">
                             <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px;">
                                 <div>
-                                    <span style="color: #64748b; font-weight: 600;">Presupuesto Ref.:</span> 
+                                    <span style="color: #64748b; font-weight: 600;">Presupuesto Ref.:</span>
                                     <strong style="color: #0284c7; font-family: monospace; font-size: 13px;">${nroPres}</strong>
                                 </div>
                                 <div>
-                                    <span style="color: #64748b; font-weight: 600;">Planta:</span> 
+                                    <span style="color: #64748b; font-weight: 600;">Planta:</span>
                                     <strong style="color: #0f172a;">${planta}</strong>
                                 </div>
                                 <div>
-                                    <span style="color: #64748b; font-weight: 600;">Cliente:</span> 
+                                    <span style="color: #64748b; font-weight: 600;">Cliente:</span>
                                     <strong style="color: #0f172a;">${cliente}</strong>
                                 </div>
                                 <div>
-                                    <span style="color: #64748b; font-weight: 600;">Orden de Compra (OC):</span> 
+                                    <span style="color: #64748b; font-weight: 600;">Orden de Compra (OC):</span>
                                     <strong style="color: #0f172a;">${nroOc}</strong>
                                 </div>
                                 <div style="grid-column: 1 / -1;">
-                                    <span style="color: #64748b; font-weight: 600;">Denominación del Servicio:</span> 
+                                    <span style="color: #64748b; font-weight: 600;">Denominación del Servicio:</span>
                                     <strong style="color: #0f172a;">${denominacion}</strong>
                                 </div>
                             </div>
@@ -15713,7 +16243,7 @@ window.generarPDFAvanceProyectoHistorico = function(id, certIndex) {
         </body>
         </html>
     `;
-    
+
     const printWindow = window.open('', '_blank', 'width=800,height=880');
     if (printWindow) {
         printWindow.document.write(htmlContent);
@@ -15727,29 +16257,29 @@ window.generarPDFAvanceProyectoHistorico = function(id, certIndex) {
 
 
 window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliName, logoSrc, nowStr) {
-    const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) 
+    const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
         ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && (c.nombre === p.cliente_nombre || c.nombre === cliName || String(c.nombre).trim().toUpperCase() === String(cliName || '').trim().toUpperCase() || String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre || '').trim().toUpperCase())))
         : null;
 
     const fechaEmision = p.fecha || nowStr;
     const hora = "10:36:51";
-    const cuitCli = (p.cuit && p.cuit !== '-' && p.cuit.trim() !== '') 
-        ? p.cuit 
+    const cuitCli = (p.cuit && p.cuit !== '-' && p.cuit.trim() !== '')
+        ? p.cuit
         : (rawClient && rawClient.cuit ? rawClient.cuit : "30-50679216-5");
     const oc = p.nro_oc || p.meca_nro_oc || "-";
     const entrega = p.fecha_entrega || p.meca_fecha_fin || "2026-10-14";
-    const domicilio = (p.domicilio && p.domicilio !== '-' && p.domicilio.trim() !== '') 
-        ? p.domicilio.trim().toUpperCase() 
+    const domicilio = (p.domicilio && p.domicilio !== '-' && p.domicilio.trim() !== '')
+        ? p.domicilio.trim().toUpperCase()
         : (rawClient && rawClient.domicilio ? rawClient.domicilio.trim().toUpperCase() : "-");
     const condicion = cleanConditionName(p.condicion_nombre || p.condicion_venta || p.forma_pago || "CONTADO").toUpperCase();
     const planta = (p.meca_planta || p.planta || (rawClient && rawClient.localidad && rawClient.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
     const numOt = p.meca_nro_ot || p.nro_ot || "-";
-    const localidad = (p.localidad && p.localidad !== '-' && p.localidad.trim() !== '') 
-        ? p.localidad.trim().toUpperCase() 
+    const localidad = (p.localidad && p.localidad !== '-' && p.localidad.trim() !== '')
+        ? p.localidad.trim().toUpperCase()
         : (rawClient && rawClient.localidad ? rawClient.localidad.trim().toUpperCase() : "-");
     const detalle = p.meca_denominacion || p.motivo || p.denominacion || "-";
     const codCliente = p.cliente_id || (rawClient ? rawClient.codigo : "2");
-    
+
     // Propuesta tecnica
     const propTecnica = p.meca_propuesta || p.propuesta || detalle || "-";
     const personal = p.meca_personal || p.personal || "-";
@@ -15778,21 +16308,21 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
         rawItems.forEach(it => {
             if (it.estado === 'Rechazado') return;
             const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-            const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
-                          (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+            const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') ||
+                          (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) ||
                           (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
             if (isMat) {
-                const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
-                    ? parseFloat(it.precio_usd) 
+                const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
+                    ? parseFloat(it.precio_usd)
                     : (parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0);
-                const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
-                    ? parseFloat(it.subtotal_usd) 
+                const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd)))
+                    ? parseFloat(it.subtotal_usd)
                     : (q * prUSD);
                 materialsTotalUSD += subUSD;
             } else {
                 const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
-                const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) 
-                    ? parseFloat(String(it.subtotal).replace(',', '.')) 
+                const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.'))))
+                    ? parseFloat(String(it.subtotal).replace(',', '.'))
                     : (q * pr);
                 laborTotalARS += sub;
             }
@@ -15841,7 +16371,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
             const sVal = parseFloat(r.subtotal) || 0;
             if (isMat && r.subtotal_usd !== undefined && r.subtotal_usd !== null) {
                 const sUSD = parseFloat(r.subtotal_usd) || 0;
-                subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + 
+                subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
                     ` <br><span style="font-size: 9.5px; opacity: 0.85; font-weight: normal; color: #0369a1;">(U$D ${sUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>`;
             } else {
                 subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -15893,9 +16423,9 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
             }
         </style>
         <div id="pdf-wrapper-download" style="padding: 20px; font-family: 'Arial', sans-serif; background: #fff; color: #000; width: 800px; margin: 0 auto; position: relative;">
-            
+
             <div style="position: relative; z-index: 1; padding: 20px;">
-                
+
                 <!-- Header -->
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border: 2px solid #000; border-radius: 8px; padding: 15px; background: transparent;">
                     ${_isAcosta ? `
@@ -15915,13 +16445,13 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                             Timbues - Pcia. Santa Fe
                         </div>
                     </div>`}
-                    
+
                     <div style="width: 40%; text-align: center;">
                         <h2 style="margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 1px;">PRESUPUESTO</h2>
                         <div style="display: inline-block; border: 2px solid #000; border-radius: 4px; padding: 2px 12px; font-size: 18px; font-weight: bold; margin-top: 4px; margin-bottom: 4px;">X</div>
                         <div style="font-size: 8px; font-weight: bold;">COMPROBANTE NO<br>VÁLIDO COMO FACTURA</div>
                     </div>
-                    
+
                     <div style="width: 30%; text-align: right; font-size: 10px; line-height: 1.4;">
                         <div style="font-size: 14px; font-weight: bold; margin-bottom: 4px;">Nro. ${nro}</div>
                         <div><strong>Fecha:</strong> ${fechaEmision} ${hora}</div>
@@ -15938,53 +16468,53 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     <div style="display: flex;">
                         <div style="width: 55%; border-right: 1px solid #000; padding: 2px 8px 2px 0;">
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Cliente:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Cliente:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${cliName}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Título:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Título:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${detalle}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Detalle:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Detalle:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; white-space: pre-wrap; background: transparent;">${propTecnica}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Domicilio:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Domicilio:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${domicilio}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">C.U.I.T.:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">C.U.I.T.:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${cuitCli}</strong>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Condición:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Condición:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${condicion}</strong>
                             </div>
                         </div>
                         <div style="width: 45%; padding: 2px 0 2px 8px;">
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Código:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Código:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${codCliente}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Número de OT:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Número de OT:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${numOt}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Planta:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Planta:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${planta}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Localidad:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Localidad:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${localidad}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">F. Entrega:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">F. Entrega:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${entrega}</strong>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Nro Pres.:</span> 
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Nro Pres.:</span>
                                 <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${nro}</strong>
                             </div>
                         </div>
@@ -15997,7 +16527,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: ${_isAcosta ? '0.22' : '0.28'}; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
                         <img src="${_activeWatermark}" style="width: 75%; max-width: 480px; max-height: 90%; object-fit: contain; transform: rotate(-20deg); ${_isAcosta ? 'opacity: 0.9; filter: contrast(0.95);' : 'filter: contrast(1.15);'}">
                     </div>
-                    
+
                     <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; position: relative; z-index: 1; background: transparent;">
                         <thead style="font-size: 11px; background: transparent;">
                             <tr style="border-bottom: 2px solid #000; background: transparent; page-break-inside: avoid;">
@@ -16078,7 +16608,7 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
         const container = document.createElement('div');
         container.innerHTML = htmlContent;
         document.body.appendChild(container);
-        
+
         const opt = {
             margin: [6, 6, 6, 6],
             filename: `Presupuesto_${nro}.pdf`,
@@ -16087,7 +16617,7 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
-        
+
         html2pdf().set(opt).from(container.firstElementChild).outputPdf('datauristring').then(function(pdfAsString) {
             document.body.removeChild(container);
             resolve(pdfAsString);
@@ -16187,20 +16717,20 @@ window.abrirPDFPresupuesto = function(id, format = null) {
 window.renderFacturacionTable = function() {
     const tbody = document.getElementById('facturacion-table-tbody');
     if (!tbody) return;
-    
+
     const searchVal = (document.getElementById('facturacion-search-input')?.value || '').toLowerCase().trim();
     const estadoFilter = (document.getElementById('facturacion-estado-filter')?.value || '').trim();
-    
+
     const allPedidos = (window.appData && Array.isArray(window.appData.pedidos)) ? window.appData.pedidos : [];
     // Una vez que los comprobantes estén aprobados con OC pasan a registrar facturación
     const validOrders = allPedidos.filter(p => {
         if (!p) return false;
         const est = String(p.estado || '').trim().toLowerCase();
         const oc = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
-        
+
         // Descartar rechazados, anulados o cancelados
         if (est === 'rechazado' || est === 'anulado' || est === 'cancelado') return false;
-        
+
         const avancePct = parseFloat(p.avance_porcentaje_acumulado || p.avance_obra_porcentaje || 0);
         const hasAvances = (Array.isArray(p.avances) && p.avances.length > 0) || avancePct > 0;
         const factPct = parseFloat(p.facturado_porcentaje || 0);
@@ -16215,16 +16745,16 @@ window.renderFacturacionTable = function() {
         // 3. Comprobantes con facturación iniciada
         return isApprovedConOc || hasOc || hasAvances || hasFacturacion;
     });
-    
+
     let countPendiente = 0, sumPendiente = 0;
     let countParcial = 0, sumParcial = 0;
     let countTotal = 0, sumTotal = 0;
-    
+
     validOrders.forEach(p => {
         const total = parseFloat(p.importe || 0);
         const factPct = parseFloat(p.facturado_porcentaje || 0);
         const factMonto = parseFloat(p.monto_facturado || 0) || (total * factPct / 100);
-        
+
         if (factPct >= 100 || p.estado === 'Facturado Total') {
             countTotal++;
             sumTotal += total;
@@ -16236,36 +16766,36 @@ window.renderFacturacionTable = function() {
             sumPendiente += total;
         }
     });
-    
+
     const pCountEl = document.getElementById('fact-card-pendiente-count');
     const pMontoEl = document.getElementById('fact-card-pendiente-monto');
     const parCountEl = document.getElementById('fact-card-parcial-count');
     const parMontoEl = document.getElementById('fact-card-parcial-monto');
     const totCountEl = document.getElementById('fact-card-total-count');
     const totMontoEl = document.getElementById('fact-card-total-monto');
-    
+
     if (pCountEl) pCountEl.innerText = countPendiente;
     if (pMontoEl) pMontoEl.innerText = '$' + sumPendiente.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     if (parCountEl) parCountEl.innerText = countParcial;
     if (parMontoEl) parMontoEl.innerText = '$' + sumParcial.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     if (totCountEl) totCountEl.innerText = countTotal;
     if (totMontoEl) totMontoEl.innerText = '$' + sumTotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-    
+
     const filtered = validOrders.filter(p => {
         const nroStr = ((typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(p) : p.id) || '').toLowerCase();
         const cliStr = (p.cliente_nombre || p.cliente || '').toLowerCase();
         const detStr = (p.meca_denominacion || p.motivo || p.denominacion || '').toLowerCase();
         const matchesSearch = !searchVal || nroStr.includes(searchVal) || cliStr.includes(searchVal) || detStr.includes(searchVal);
-        
+
         const factPct = parseFloat(p.facturado_porcentaje || 0);
         let estFact = 'Pendiente';
         if (factPct >= 100 || p.estado === 'Facturado Total') estFact = 'Total';
         else if (factPct > 0 || p.estado === 'Facturado Parcial') estFact = 'Parcial';
-        
+
         const matchesEstado = !estadoFilter || estFact === estadoFilter;
         return matchesSearch && matchesEstado;
     });
-    
+
     let html = '';
     if (filtered.length === 0) {
         html = `<tr><td colspan="8" style="text-align: center; padding: 20px; color: #94a3b8;">No se encontraron registros de facturación.</td></tr>`;
@@ -16278,14 +16808,14 @@ window.renderFacturacionTable = function() {
             const factPct = parseFloat(p.facturado_porcentaje || 0);
             const factMonto = parseFloat(p.monto_facturado || 0) || (total * factPct / 100);
             const avanceObraPct = parseFloat(p.avance_obra_porcentaje || p.avance_porcentaje_acumulado || 0);
-            
+
             let badgeEst = `<span class="badge" style="background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Pendiente</span>`;
             if (factPct >= 100 || p.estado === 'Facturado Total') {
                 badgeEst = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid #10b981; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Total</span>`;
             } else if (factPct > 0 || p.estado === 'Facturado Parcial') {
                 badgeEst = `<span class="badge" style="background: rgba(234,179,8,0.2); color: #fde047; border: 1px solid #eab308; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Parcial (${factPct.toFixed(1)}%)</span>`;
             }
-            
+
             html += `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
                     <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${nro}</td>
@@ -16311,21 +16841,21 @@ window.abrirModalRegistrarFactura = function(id) {
     const orderIdx = (typeof window.findPedidoIndex === 'function') ? window.findPedidoIndex(id) : appData.pedidos.findIndex(x => x.id === id);
     if (orderIdx === -1) return;
     const p = appData.pedidos[orderIdx];
-    
+
     window.pedidoFacturaActivoId = p.id;
-    
+
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const total = parseFloat(p.importe || 0);
     const factPct = parseFloat(p.facturado_porcentaje || 0);
     const factMonto = parseFloat(p.monto_facturado || 0) || (total * factPct / 100);
     const avanceObraPct = parseFloat(p.avance_obra_porcentaje || p.avance_porcentaje_acumulado || 0);
-    
+
     const maxPermitido = (avanceObraPct > 0) ? avanceObraPct : 100;
     const remPct = Math.max(0, parseFloat((maxPermitido - factPct).toFixed(2)));
-    
+
     const resumenEl = document.getElementById('facturacion-modal-resumen');
     if (resumenEl) {
-        const infoAvance = (avanceObraPct > 0) 
+        const infoAvance = (avanceObraPct > 0)
             ? `<div style="color: #38bdf8; font-weight: 700; margin-top: 6px;"><i class="fa-solid fa-hammer"></i> Obra con Avance Registrado: ${avanceObraPct.toFixed(1)}% (Límite máximo permitido a facturar: ${avanceObraPct.toFixed(1)}%)</div>`
             : `<div style="color: #34d399; font-weight: 700; margin-top: 6px;"><i class="fa-solid fa-file-circle-check"></i> Aprobado con OC directo: Puede facturar el Total (100.0%) o parciales hasta el 100%</div>`;
 
@@ -16344,18 +16874,18 @@ window.abrirModalRegistrarFactura = function(id) {
             </div>
         `;
     }
-    
+
     const dateInp = document.getElementById('nueva-factura-fecha');
     if (dateInp) dateInp.value = new Date().toISOString().split('T')[0];
-    
+
     const pctInp = document.getElementById('nueva-factura-porcentaje');
     if (pctInp) {
         pctInp.value = remPct > 0 ? remPct.toFixed(2) : '0';
         window.calcFacturaMontoDesdePorcentaje(pctInp.value);
     }
-    
+
     window.renderHistorialFacturasModal(p);
-    
+
     const modalEl = document.getElementById('modal-registrar-factura');
     if (modalEl) modalEl.style.display = 'flex';
 };
@@ -16399,7 +16929,7 @@ window.calcFacturaPorcentajeDesdeMonto = function(val) {
 window.renderHistorialFacturasModal = function(p) {
     const histListaEl = document.getElementById('facturacion-historial-lista');
     if (!histListaEl) return;
-    
+
     const history = Array.isArray(p.historial_facturacion) ? p.historial_facturacion : [];
     if (history.length === 0) {
         histListaEl.innerHTML = `<div style="color: #64748b; font-size: 11px; text-align: center; padding: 15px;">No hay facturas registradas previamente para este presupuesto.</div>`;
@@ -16424,12 +16954,12 @@ window.guardarFacturaModal = function() {
     const orderIdx = (typeof window.findPedidoIndex === 'function') ? window.findPedidoIndex(window.pedidoFacturaActivoId) : appData.pedidos.findIndex(x => x.id === window.pedidoFacturaActivoId);
     if (orderIdx === -1) return;
     const p = appData.pedidos[orderIdx];
-    
+
     const fecha = document.getElementById('nueva-factura-fecha')?.value || new Date().toLocaleDateString('es-AR');
     const pct = parseFloat(document.getElementById('nueva-factura-porcentaje')?.value || 0);
     const total = parseFloat(p.importe || 0);
     const monto = (total * pct) / 100;
-    
+
     if (pct <= 0) {
         showToast('Debe ingresar un porcentaje mayor a 0% a facturar.', 'warning');
         return;
@@ -16465,7 +16995,7 @@ window.guardarFacturaModal = function() {
         estado: estadoFact,
         timestamp: new Date().toISOString()
     });
-    
+
     p.facturado_porcentaje = finalFactPct;
     p.monto_facturado = (total * finalFactPct) / 100;
     p.estado_facturacion = estadoFact;
@@ -16473,13 +17003,13 @@ window.guardarFacturaModal = function() {
     if (p.estado !== 'Rechazado' && p.estado !== 'Anulado') {
         p.estado = isTotal ? 'Facturado Total' : 'Facturado Parcial';
     }
-    
+
     saveData();
     showToast(`✅ Factura registrada exitosamente: ${pct.toFixed(1)}% ($${monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}) — Estado: ${estadoFact}`, 'success');
-    
+
     const modalEl = document.getElementById('modal-registrar-factura');
     if (modalEl) modalEl.style.display = 'none';
-    
+
     if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
     if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
 };
@@ -16501,15 +17031,15 @@ window.getPresupuestoFormattedItems = function(p, format) {
     let computedGrandTotal = 0;
     validItems.forEach(it => {
         const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-        const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
-                      (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+        const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') ||
+                      (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) ||
                       (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
         if (isMat) {
-            const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
-                ? parseFloat(it.precio_usd) 
+            const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
+                ? parseFloat(it.precio_usd)
                 : (parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0);
-            const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
-                ? parseFloat(it.subtotal_usd) 
+            const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd)))
+                ? parseFloat(it.subtotal_usd)
                 : (q * prUSD);
             computedGrandTotal += (subUSD * cotizMat);
         } else {
@@ -16536,7 +17066,7 @@ window.getPresupuestoFormattedItems = function(p, format) {
         const catalog = (p.tipo_presupuesto === 'Mecánico' || (p.id && String(p.id).toUpperCase().includes('MEC'))) ? (window.presupuestoMecanicoDB || []) : (window.presupuestosCatalogDB || []);
         const groupedLabor = {};
         const materials = [];
-        
+
         validItems.forEach((item) => {
             let subrubro = (item.subrubro || '').trim();
             if (!subrubro) {
@@ -16544,28 +17074,28 @@ window.getPresupuestoFormattedItems = function(p, format) {
                  if (foundCat && foundCat.subrubro) subrubro = foundCat.subrubro.trim();
             }
             const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
-            const isMat = (item.is_material === true || item.is_material === 1 || item.is_material === '1') || 
-                          (window.isMaterialItem ? window.isMaterialItem(item, p.tipo_presupuesto) : false) || 
+            const isMat = (item.is_material === true || item.is_material === 1 || item.is_material === '1') ||
+                          (window.isMaterialItem ? window.isMaterialItem(item, p.tipo_presupuesto) : false) ||
                           (subrubro.toLowerCase().includes('material') || subrubro.toLowerCase().includes('equipo'));
 
             if (isMat) {
                 const code = item.codigo || item.id || '-';
                 const desc = item.detalle || item.descripcion || item.denominacion || item.nombre || 'Material';
-                const prUSD = (item.precio_usd !== undefined && item.precio_usd !== null && !isNaN(parseFloat(item.precio_usd))) 
-                    ? parseFloat(item.precio_usd) 
+                const prUSD = (item.precio_usd !== undefined && item.precio_usd !== null && !isNaN(parseFloat(item.precio_usd)))
+                    ? parseFloat(item.precio_usd)
                     : (parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0);
-                const subUSD = (item.subtotal_usd !== undefined && item.subtotal_usd !== null && !isNaN(parseFloat(item.subtotal_usd))) 
-                    ? parseFloat(item.subtotal_usd) 
+                const subUSD = (item.subtotal_usd !== undefined && item.subtotal_usd !== null && !isNaN(parseFloat(item.subtotal_usd)))
+                    ? parseFloat(item.subtotal_usd)
                     : (q * prUSD);
                 const subPesos = (subUSD * cotizMat);
 
-                materials.push({ 
-                    codigo: code, 
-                    detalle: desc, 
-                    precio: prUSD, 
+                materials.push({
+                    codigo: code,
+                    detalle: desc,
+                    precio: prUSD,
                     precio_usd: prUSD,
-                    is_material: true, 
-                    cantidad: q, 
+                    is_material: true,
+                    cantidad: q,
                     subtotal: subPesos,
                     subtotal_usd: subUSD
                 });
@@ -16582,7 +17112,7 @@ window.getPresupuestoFormattedItems = function(p, format) {
         for (const [key, g] of Object.entries(groupedLabor)) {
             formatted.push({ codigo: '-', detalle: key.toUpperCase(), precio: '-', cantidad: '-', subtotal: g.sub, is_material: false });
         }
-        
+
         if (materials.length > 0) {
             formatted.push({ codigo: '-', detalle: 'MATERIALES Y EQUIPOS', precio: '-', cantidad: '-', subtotal: '-', is_material: false });
             materials.forEach(m => formatted.push(m));
@@ -16638,8 +17168,8 @@ window.getPresupuestoFormattedItems = function(p, format) {
         }
 
         const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-        const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
-                      (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+        const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') ||
+                      (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) ||
                       (catKey === 'MATERIALES Y EQUIPOS');
 
         let pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
@@ -16648,11 +17178,11 @@ window.getPresupuestoFormattedItems = function(p, format) {
         let subPesos = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
 
         if (isMat) {
-            priceUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
-                ? parseFloat(it.precio_usd) 
+            priceUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
+                ? parseFloat(it.precio_usd)
                 : pr;
-            subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
-                ? parseFloat(it.subtotal_usd) 
+            subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd)))
+                ? parseFloat(it.subtotal_usd)
                 : (q * priceUSD);
             subPesos = subUSD * cotizMat;
             pr = priceUSD;
@@ -16717,8 +17247,8 @@ window.findPedidoById = function(id) {
     }
 
     const cleanSearch = String(id).trim().toLowerCase();
-    const pedidosList = (typeof appData !== 'undefined' && appData && Array.isArray(appData.pedidos)) 
-        ? appData.pedidos 
+    const pedidosList = (typeof appData !== 'undefined' && appData && Array.isArray(appData.pedidos))
+        ? appData.pedidos
         : ((window.appData && Array.isArray(window.appData.pedidos)) ? window.appData.pedidos : []);
 
     // 1. Coincidencia exacta por ID
@@ -16807,7 +17337,7 @@ window.revivirPedido = function(id) {
             if (!item) return;
             const code = item.codigo || item.id;
             const desc = (item.detalle || item.descripcion || item.denominacion || item.nombre || '').toLowerCase().trim();
-            
+
             const found = catalog.find(c => {
                 if (code && c.codigo && String(c.codigo).trim().toLowerCase() === String(code).trim().toLowerCase()) return true;
                 if (desc && (c.detalle || c.descripcion) && String(c.detalle || c.descripcion).trim().toLowerCase() === desc) return true;
@@ -16890,7 +17420,7 @@ window.savePlantas = function(plantasArr) {
     try {
         localStorage.setItem('sg_plantas', JSON.stringify(plantasArr));
     } catch(e) {}
-    
+
     // Save to supabase as well if client exists
     if (typeof supabaseClient !== 'undefined' && supabaseClient) {
         // Attempt to sync to supabase
@@ -16925,7 +17455,7 @@ window.fetchPlantasFromSupabase = async function() {
                 // Mapear reglas de listas de precios de Supabase
                 if (!window.appData) window.appData = {};
                 if (!window.appData.plantasRules) window.appData.plantasRules = {};
-                
+
                 data.forEach(r => {
                     if (r.nombre && r.usa_lista_de) {
                         window.appData.plantasRules[r.nombre.trim().toUpperCase()] = r.usa_lista_de.trim().toUpperCase();
@@ -16933,26 +17463,26 @@ window.fetchPlantasFromSupabase = async function() {
                 });
 
                 let supabasePlantas = data.map(r => r.nombre.trim().toUpperCase()).filter(n => n !== '');
-                
+
                 // Traer también las locales por si falló el guardado en la nube
                 let localPlantas = [];
                 try {
                     const stored = localStorage.getItem('sg_plantas');
                     if (stored) localPlantas = JSON.parse(stored);
                 } catch(e) {}
-                
+
                 // Fusionar listas
                 let merged = [...new Set([...supabasePlantas, ...localPlantas, 'APS', 'APG', 'PPA'])];
-                
+
                 if (window.appData) window.appData.plantas = merged;
                 localStorage.setItem('sg_plantas', JSON.stringify(merged));
-                
+
                 // Intentar resincronizar la base de datos si estaba vacía
                 if (supabasePlantas.length < merged.length) {
                     const payload = merged.map(p => ({ nombre: p, usa_lista_de: window.appData.plantasRules[p] || p }));
                     supabaseClient.from('plantas').upsert(payload, { onConflict: 'nombre' }).catch(()=>{});
                 }
-                
+
                 window.actualizarSelectsPlantas();
             }
         } catch(e) {
@@ -16992,14 +17522,14 @@ window.gestionarPlantasABM = function() {
         modal.className = 'modal';
         modal.style.cssText = 'display: flex; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); align-items: center; justify-content: center; backdrop-filter: blur(4px);';
         document.body.appendChild(modal);
-        
+
         // Cierra con la tecla Escape
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && modal.style.display === 'flex') {
                 cerrarModalPlantas();
             }
         });
-        
+
         // Cierra haciendo click afuera
         modal.addEventListener('mousedown', function(e) {
             if (e.target === modal) cerrarModalPlantas();
@@ -17029,17 +17559,17 @@ window.renderModalGestionarPlantas = function() {
             <div style="margin-bottom: 20px;">
                 <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 6px;">Agregar nueva planta:</label>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <input type="text" id="input-nueva-planta" placeholder="Ej: VGG" 
+                    <input type="text" id="input-nueva-planta" placeholder="Ej: VGG"
                            style="flex: 1; min-width: 120px; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 13px; outline: none;"
                            onkeydown="if(event.key==='Enter'){ event.preventDefault(); document.getElementById('input-nueva-planta-alias').focus(); }">
-                           
+
                     <select id="input-nueva-planta-alias" style="width: 130px; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 6px; padding: 8px; font-size: 12px; outline: none; display: ${(typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') ? 'none' : 'block'};"
                             onkeydown="if(event.key==='Enter'){ event.preventDefault(); agregarNuevaPlanta(); }">
                         <option value="APS" selected>Usa lista de APS</option>
                         <option value="APG">Usa lista de APG</option>
                     </select>
 
-                    <button type="button" onclick="agregarNuevaPlanta()" 
+                    <button type="button" onclick="agregarNuevaPlanta()"
                             style="background: #10b981; color: #ffffff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap;">
                         <i class="fas fa-plus"></i> Agregar
                     </button>
@@ -17051,8 +17581,8 @@ window.renderModalGestionarPlantas = function() {
                 ${plantas.map(p => `
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05);">
                         <span style="font-size: 13px; font-weight: 600; color: #f1f5f9;">${p}</span>
-                        <button type="button" onclick="eliminarPlanta('${p.replace(/'/g, "\\'")}')" 
-                                title="Eliminar planta" 
+                        <button type="button" onclick="eliminarPlanta('${p.replace(/'/g, "\\'")}')"
+                                title="Eliminar planta"
                                 style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 4px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
                             <i class="fas fa-times" style="font-size: 12px;"></i>
                         </button>
@@ -17096,7 +17626,7 @@ window.agregarNuevaPlanta = function() {
         const aliasVal = aliasSelect && aliasSelect.value ? aliasSelect.value.toUpperCase() : val;
 
         plantas.push(val);
-        
+
         // Save to window.appData.plantasRules right away
         if (!window.appData) window.appData = {};
         if (!window.appData.plantasRules) window.appData.plantasRules = {};
@@ -17130,7 +17660,7 @@ window.eliminarPlanta = function(nombre) {
 
     let plantas = window.getPlantas();
     plantas = plantas.filter(p => p.trim().toLowerCase() !== nombre.trim().toLowerCase());
-    
+
     // Eliminar también de las reglas locales
     if (window.appData && window.appData.plantasRules && window.appData.plantasRules[nombre]) {
         delete window.appData.plantasRules[nombre];
@@ -17171,12 +17701,24 @@ document.addEventListener('DOMContentLoaded', () => {
    PERMISOS DE EDICIÓN DE PRECIOS Y CORRELATIVIDAD
    ========================================== */
 window.canUserEditUnitPrices = function(user) {
-    const u = user || (typeof getCurrentUser === 'function' ? getCurrentUser() : null) || (window.appData && Array.isArray(window.appData.users) ? window.appData.users.find(x => String(x.id) === String(window.appData.currentUserId)) : null);
+    let u = user;
+    if (!u && typeof getCurrentUser === 'function') {
+        u = getCurrentUser();
+    }
+    if (!u && window.appData && Array.isArray(window.appData.users)) {
+        let curId = window.appData.currentUserId;
+        if (!curId) {
+            try { curId = localStorage.getItem('sg_current_user_id') || localStorage.getItem('currentUserId') || localStorage.getItem('app_current_user_id'); } catch(e) {}
+        }
+        if (curId) {
+            u = window.appData.users.find(x => String(x.id) === String(curId) || String(x.username).toLowerCase() === String(curId).toLowerCase());
+        }
+    }
     if (!u) return false;
-    
+
     const role = String(u.role || '').toLowerCase();
     const name = String(u.username || '').toLowerCase();
-    
+
     // Cuenta congelada
     if (role === 'congelado') return false;
 
@@ -17185,20 +17727,25 @@ window.canUserEditUnitPrices = function(user) {
         return true;
     }
 
-    // Consulta en la matriz de permisos efectivos del sistema
-    const perms = typeof getUserEffectivePermissions === 'function' ? getUserEffectivePermissions(u) : [];
-    const hasPricePerm = perms.includes('menu-ingresar-edit-price') || 
-                         perms.includes('edit-precios') || 
-                         perms.includes('edit_prices') || 
-                         perms.includes('edit-price') || 
-                         perms.includes('modificar-precios');
+    // Bloqueo explícito si se deshabilitó específicamente para este usuario
+    if (u.can_edit_prices === false || u.editar_precios === false || u.edit_prices === false || u.canEditPrices === false) {
+        return false;
+    }
 
-    if (hasPricePerm) return true;
-
-    // Propiedad explícita en el objeto usuario
+    // Propiedad explícita en el objeto usuario habilitada
     if (u.can_edit_prices === true || u.editar_precios === true || u.edit_prices === true || u.canEditPrices === true) {
         return true;
     }
+
+    // Consulta en la matriz de permisos efectivos del sistema
+    const perms = typeof getUserEffectivePermissions === 'function' ? getUserEffectivePermissions(u) : [];
+    const hasPricePerm = perms.includes('menu-ingresar-edit-price') ||
+                         perms.includes('edit-precios') ||
+                         perms.includes('edit_prices') ||
+                         perms.includes('edit-price') ||
+                         perms.includes('modificar-precios');
+
+    if (hasPricePerm) return true;
 
     return false;
 };
@@ -17206,7 +17753,7 @@ window.canUserEditUnitPrices = function(user) {
 window.generateNextCorrelativeCode = function(catalog, customPrefix) {
     const isMec = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico');
     const prefix = customPrefix || (isMec ? 'MEC-' : 'ELE-');
-    
+
     // Collect all existing codes across all catalogs, pedidoItems, and local storage
     const allCatalogs = [];
     if (catalog && Array.isArray(catalog)) allCatalogs.push(...catalog);
@@ -17246,7 +17793,7 @@ window.generateNextCorrelativeCode = function(catalog, customPrefix) {
 
     let nextNum = maxNum + 1;
     let candidate = `${prefix}${String(nextNum).padStart(3, '0')}`;
-    
+
     // Ensure uniqueness guaranteed: while candidate exists in any source, increment
     while (existingCodes.has(candidate.toUpperCase())) {
         nextNum++;
@@ -17277,8 +17824,8 @@ window.abrirModalNuevoItemTarifario = function(subrubroDefault) {
 
         const subSelect = document.getElementById('nuevo-item-subrubro');
         if (subSelect) {
-            const cat = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') 
-                ? (window.presupuestoMecanicoDB || []) 
+            const cat = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico')
+                ? (window.presupuestoMecanicoDB || [])
                 : (window.presupuestosCatalogDB || []);
             const subrubros = Array.from(new Set(cat.map(i => i.subrubro).filter(Boolean)));
             if (subrubros.length === 0) subrubros.push('MANO DE OBRA EN TALLER', 'Materiales y Equipos', 'Mano de Obra MANTENIMIENTO', 'Mano de Obra PARADA DE PLANTA', 'Mano de Obra EMERGENCIA MANTENIMIENTO');
@@ -17332,8 +17879,19 @@ window.confirmarNuevoItemTarifario = function() {
     const precio = window.parseArgNumber ? window.parseArgNumber(rawPrecio) : (parseFloat(rawPrecio.replace(',', '.')) || 0);
     const cantidad = window.parseArgNumber ? window.parseArgNumber(rawCantidad) : (parseFloat(rawCantidad.replace(',', '.')) || 0);
 
-    const catalog = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') 
-        ? (window.presupuestoMecanicoDB || []) 
+    // Detectar si hay una planta seleccionada actualmente para asociar el ítem
+    let curPlanta = '';
+    const reqPlantaSelect = document.getElementById('req-meca-planta');
+    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect && reqPlantaSelect.value) {
+        curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+        if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+        if (curPlanta !== 'APS' && curPlanta !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+            curPlanta = window.appData.plantasRules[curPlanta];
+        }
+    }
+
+    const catalog = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico')
+        ? (window.presupuestoMecanicoDB || [])
         : (window.presupuestosCatalogDB || []);
 
     const nextCode = window.generateNextCorrelativeCode(catalog);
@@ -17357,24 +17915,35 @@ window.confirmarNuevoItemTarifario = function() {
         subtotal: subtotalPesos,
         subtotal_usd: isMat ? (cantidad * precio) : null,
         subrubro: subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra EN TALLER'),
-        stock: 999
+        stock: 999,
+        planta: curPlanta || ''
     };
 
-    catalog.push(newItem);
-    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') {
-        if (!PRESUPUESTO_ELECTRICO_STOCK.includes(newItem)) {
-            PRESUPUESTO_ELECTRICO_STOCK.push(newItem);
+    // Agregar a todos los arrays de catálogo activos en memoria
+    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
+        if (typeof window.presupuestoMecanicoDB !== 'undefined' && Array.isArray(window.presupuestoMecanicoDB)) {
+            window.presupuestoMecanicoDB.push({ ...newItem, planta: curPlanta });
+            if (curPlanta) window.presupuestoMecanicoDB.push({ ...newItem, planta: '' });
         }
-    }
-    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
-        if (!PRESUPUESTO_MECANICO_STOCK.includes(newItem)) {
-            PRESUPUESTO_MECANICO_STOCK.push(newItem);
+        if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) {
+            PRESUPUESTO_MECANICO_STOCK.push({ ...newItem, planta: curPlanta });
+            if (curPlanta) PRESUPUESTO_MECANICO_STOCK.push({ ...newItem, planta: '' });
+        }
+    } else {
+        if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+            window.presupuestosCatalogDB.push(newItem);
+        }
+        if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+            if (!PRESUPUESTO_ELECTRICO_STOCK.includes(newItem)) {
+                PRESUPUESTO_ELECTRICO_STOCK.push(newItem);
+            }
         }
     }
 
     // Save unit price into customPrices so it persists across sessions
     if (typeof saveCustomItemPrice === 'function') {
         saveCustomItemPrice(nextCode, precio);
+        if (curPlanta) saveCustomItemPrice(`${nextCode}_${curPlanta}`, precio);
     }
 
     if (cantidad > 0) {
@@ -17419,9 +17988,41 @@ window.confirmarNuevoItemTarifario = function() {
     }
 
     if (typeof closeModal === 'function') closeModal();
-    // render removed to prevent losing focus
-    if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
-        window.actualizarTablaItemsRequerimiento();
+
+    // Actualización inmediata e instantánea en pantalla
+    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
+        if (targetIdx !== -1 && typeof window.switchMecaTab === 'function') {
+            window.switchMecaTab(targetIdx);
+        }
+        if (typeof window.renderMecanicoExcelGrid === 'function') {
+            window.renderMecanicoExcelGrid();
+        }
+        // Foco visual y scroll a la fila del nuevo ítem
+        setTimeout(() => {
+            const inputQ = document.querySelector(`.meca-excel-input[data-code="${nextCode}"]`);
+            if (inputQ) {
+                inputQ.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                inputQ.focus();
+                inputQ.select();
+                const tr = inputQ.closest('tr');
+                if (tr) {
+                    const origBg = tr.style.background;
+                    tr.style.background = 'rgba(16, 185, 129, 0.35)';
+                    tr.style.transition = 'background 0.5s';
+                    setTimeout(() => { tr.style.background = origBg; }, 2000);
+                }
+            }
+        }, 120);
+    } else {
+        if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
+            window.actualizarTablaItemsRequerimiento();
+        }
+        if (cantidad <= 0) {
+            const prodInput = document.getElementById('req-product-input');
+            if (prodInput && typeof seleccionarProducto === 'function') {
+                seleccionarProducto(newItem);
+            }
+        }
     }
 
     // 5. Sincronizar nuevo ítem directamente en la tabla 'tarifario' de Supabase
@@ -17429,20 +18030,6 @@ window.confirmarNuevoItemTarifario = function() {
         const dbClient = (typeof getDbClient === 'function') ? getDbClient() : null;
         if (dbClient) {
             const rubroVal = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') ? 'Mecánico' : 'Eléctrico';
-            
-            // Detectar si hay una planta seleccionada actualmente
-            let curPlanta = null;
-            const reqPlantaSelect = document.getElementById('req-meca-planta');
-            if (reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect && reqPlantaSelect.value) {
-                curPlanta = reqPlantaSelect.value.trim().toUpperCase();
-            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
-// Resolver alias si existe
-                if (curPlanta === 'PPA') curPlanta = 'APS';
-            if (curPlanta !== 'APS' && curPlanta !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
-                    curPlanta = window.appData.plantasRules[curPlanta];
-                }
-            }
-            
             const allPlantas = (rubroVal === 'Mecánico') ? ['APS', 'APG', ''] : [''];
             const upsertData = allPlantas.map(p => ({
                 id: p ? `${nextCode}_${p}` : nextCode,
@@ -17477,7 +18064,7 @@ window.confirmarNuevoItemTarifario = function() {
 
 window.deleteStockItem = function(codigo) {
     if (!confirm('¿Seguro que deseas eliminar el artículo ' + codigo + '?')) return;
-    
+
     // Attempt to remove from all arrays
     if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
         const iE = PRESUPUESTO_ELECTRICO_STOCK.findIndex(x => x.codigo === codigo);
@@ -17491,49 +18078,56 @@ window.deleteStockItem = function(codigo) {
         const iDB = stockDB.findIndex(x => x.codigo === codigo);
         if (iDB !== -1) stockDB.splice(iDB, 1);
     }
-    
+
     renderStockTable();
 };
 
 
 window.eliminarItemDelTarifario = function(code) {
     if (!confirm('¿Seguro que desea eliminar el ítem ' + code + ' del tarifario?')) return;
-    
-    // 1. Remove from active catalog
-    const catalog = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') 
-        ? (window.presupuestoMecanicoDB || []) 
-        : (window.presupuestosCatalogDB || []);
-        
-    const idx = catalog.findIndex(i => i.codigo === code);
-    if (idx !== -1) {
-        catalog.splice(idx, 1);
+
+    // 1. Eliminar visualmente del DOM en el acto (feedback instantáneo en pantalla)
+    document.querySelectorAll(`.meca-excel-input[data-code="${code}"]`).forEach(el => {
+        const tr = el.closest('tr');
+        if (tr) tr.remove();
+    });
+    document.querySelectorAll(`tr:has([data-code="${code}"])`).forEach(tr => tr.remove());
+
+    // 2. Eliminar de todas las colecciones en memoria
+    if (typeof window.presupuestoMecanicoDB !== 'undefined' && Array.isArray(window.presupuestoMecanicoDB)) {
+        window.presupuestoMecanicoDB = window.presupuestoMecanicoDB.filter(i => i.codigo !== code);
     }
-    
-    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
-        const iE = PRESUPUESTO_ELECTRICO_STOCK.findIndex(i => i.codigo === code);
-        if (iE !== -1) PRESUPUESTO_ELECTRICO_STOCK.splice(iE, 1);
+    if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+        window.presupuestosCatalogDB = window.presupuestosCatalogDB.filter(i => i.codigo !== code);
     }
-    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
-        const iM = PRESUPUESTO_MECANICO_STOCK.findIndex(i => i.codigo === code);
-        if (iM !== -1) PRESUPUESTO_MECANICO_STOCK.splice(iM, 1);
+    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+        window.PRESUPUESTO_ELECTRICO_STOCK = PRESUPUESTO_ELECTRICO_STOCK.filter(i => i.codigo !== code);
     }
-    
-    // 2. Remove from pedidoItems
+    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) {
+        window.PRESUPUESTO_MECANICO_STOCK = PRESUPUESTO_MECANICO_STOCK.filter(i => i.codigo !== code);
+    }
+    if (typeof stockDB !== 'undefined' && Array.isArray(stockDB)) {
+        window.stockDB = stockDB.filter(i => i.codigo !== code);
+    }
+
+    // 3. Eliminar de pedidoItems si estaba seleccionado
     if (typeof pedidoItems !== 'undefined') {
-        const pIdx = pedidoItems.findIndex(i => i.codigo === code);
-        if (pIdx !== -1) {
-            pedidoItems.splice(pIdx, 1);
-        }
+        pedidoItems = pedidoItems.filter(i => i.codigo !== code);
     }
-    
-    // 3. Renumber electrical items to keep strict correlativity ELE-001 ...
+
+    // 4. Limpiar precio personalizado si existía
+    if (typeof removeCustomItemPrice === 'function') {
+        removeCustomItemPrice(code);
+    }
+
+    // 5. Renumber electrical items si aplica
     if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico' && typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
         PRESUPUESTO_ELECTRICO_STOCK.forEach((it, i) => {
             it.codigo = 'ELE-' + String(i + 1).padStart(3, '0');
         });
     }
 
-    // 4. Sincronizar eliminación en Supabase
+    // 6. Sincronizar eliminación en Supabase
     try {
         const dbClient = (typeof getDbClient === 'function') ? getDbClient() : null;
         if (dbClient) {
@@ -17545,11 +18139,19 @@ window.eliminarItemDelTarifario = function(code) {
     } catch(delErr) {
         console.warn("Error eliminando ítem en Supabase:", delErr);
     }
-    
-    // 5. Re-render
-    // render removed to prevent losing focus
-    if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
-        window.actualizarTablaItemsRequerimiento();
+
+    // 7. Re-render INMEDIATO en la interfaz
+    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
+        if (typeof window.renderMecanicoExcelGrid === 'function') {
+            window.renderMecanicoExcelGrid();
+        }
+        if (typeof window.recalcMecaExcelAll === 'function') {
+            window.recalcMecaExcelAll();
+        }
+    } else {
+        if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
+            window.actualizarTablaItemsRequerimiento();
+        }
     }
     if (typeof showToast === 'function') {
         showToast('Ítem ' + code + ' eliminado del tarifario', 'info');
@@ -17559,7 +18161,7 @@ window.eliminarItemDelTarifario = function(code) {
 window.recalcularPreciosPorPlanta = function() {
     const isMeca = typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico';
     const isElec = typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico';
-    
+
     if (isMeca && typeof window.renderMecanicoExcelGrid === 'function') {
         window.renderMecanicoExcelGrid();
         if (typeof window.recalcMecaExcelAll === 'function') {
@@ -17573,15 +18175,15 @@ window.recalcularPreciosPorPlanta = function() {
         }
         return;
     }
-    
+
     if (typeof reqItemsData === 'undefined' || !reqItemsData || !reqItemsData.length) return;
-    
+
     const catalog = window.getActiveStockCatalog ? window.getActiveStockCatalog() : [];
     if (!catalog.length) return;
-    
+
     const reqPlantaSelect = document.getElementById('req-meca-planta');
     if (!reqPlantaSelect) return;
-    
+
     let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
             if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
 if (curPlanta === 'PPA') curPlanta = 'APS';
@@ -17590,7 +18192,7 @@ if (curPlanta === 'PPA') curPlanta = 'APS';
     } else if (curPlanta === 'APA') {
         curPlanta = 'APS';
     }
-    
+
     // Group catalog by logic
     const grouped = {};
     catalog.forEach(s => {
@@ -17612,7 +18214,7 @@ if (curPlanta === 'PPA') curPlanta = 'APS';
             }
         }
     });
-    
+
     let updated = false;
     reqItemsData.forEach(item => {
         const cItem = grouped[item.codigo];
@@ -17623,7 +18225,7 @@ if (curPlanta === 'PPA') curPlanta = 'APS';
             }
         }
     });
-    
+
     if (updated) {
         if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
             window.actualizarTablaItemsRequerimiento();
