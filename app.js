@@ -550,7 +550,10 @@ function initSupabaseSync(callback) {
             tarRes.data.forEach(function(row) {
                 if (!row || !row.codigo) return;
                 const cPrice = parseFloat(row.precio) || 0;
-                customPrices[row.codigo] = cPrice;
+                let key = row.codigo;
+                if (row.planta) key = key + '_' + row.planta.trim().toUpperCase();
+                customPrices[key] = cPrice;
+                customPrices[row.codigo] = cPrice; // Guardamos el genérico también por compatibilidad
                 
                 if (!dbByCode[row.codigo]) dbByCode[row.codigo] = [];
                 dbByCode[row.codigo].push(row);
@@ -930,7 +933,10 @@ function initSupabaseSync(callback) {
                         if (item && item.codigo) {
                             const nPrice = parseFloat(item.precio) || 0;
                             const customPrices = getCustomItemPrices();
-                            customPrices[item.codigo] = nPrice;
+                            let key = item.codigo;
+                            if (item.planta) key = key + '_' + item.planta.trim().toUpperCase();
+                            customPrices[key] = nPrice;
+                            if (!item.planta) customPrices[item.codigo] = nPrice;
                             try { localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices)); } catch(e) {}
                             
                             // Actualizar catálogo eléctrico
@@ -978,9 +984,7 @@ function initSupabaseSync(callback) {
                                 }
                             }
                             console.log("⚡ Tarifario actualizado en vivo desde Supabase:", item.codigo, "$" + nPrice);
-                            if (typeof window.renderMecanicoExcelGrid === 'function') {
-                                window.renderMecanicoExcelGrid();
-                            }
+                            // render removed to prevent losing focus
                         }
                     })
                     .subscribe();
@@ -1188,8 +1192,45 @@ window.guardarPresupuestoEnSupabase = async function(p) {
         return { success: false, error: err };
     }
 
-    // Sincronizar items en la tabla relacional presupuesto_items
+    // Sincronizar items en la tabla relacional presupuesto_items y guardar precios nuevos en tarifario
     if (Array.isArray(p.items) && p.items.length > 0) {
+        try {
+            // Guardar precios del presupuesto en el tarifario global de Supabase
+            const tarifarioUpserts = p.items.map(it => {
+                const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
+                let pPlanta = (p.tipo_presupuesto === 'Mecánico') ? (p.meca_planta || p.planta || '') : '';
+                
+                // Aplicar regla de planta dinámica si existe
+                if (pPlanta && pPlanta !== 'APS' && pPlanta !== 'APG' && pPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[pPlanta]) {
+                    pPlanta = window.appData.plantasRules[pPlanta];
+                }
+                
+                const newId = pPlanta ? `${it.codigo}_${pPlanta.toUpperCase()}` : it.codigo;
+                return {
+                    id: newId,
+                    codigo: it.codigo,
+                    precio: pu,
+                    planta: pPlanta.toUpperCase(),
+                    detalle: it.detalle || it.codigo,
+                    rubro: p.tipo_presupuesto || 'Eléctrico',
+                    subrubro: it.subrubro || 'Mano de Obra EN TALLER',
+                    unidad: it.unidad || 'UN',
+                    stock: 999,
+                    estado: 'ACTIVOS'
+                };
+            });
+            
+            if (tarifarioUpserts.length > 0 && client) {
+                client.from('tarifario').upsert(tarifarioUpserts, { onConflict: 'id' }).then(res => {
+                    if (res.error) console.error("Error actualizando tarifario desde presupuesto:", res.error);
+                    else console.log("☁️ Supabase: Tarifario actualizado con los precios del presupuesto confirmado.");
+                });
+            }
+        } catch(e) {
+            console.error("Aviso actualizando tarifario post-presupuesto:", e);
+        }
+
+
         try {
             await client.from('presupuesto_items').delete().eq('presupuesto_id', String(p.id));
             const itemRows = p.items.map((it, idx) => {
@@ -2293,7 +2334,9 @@ window.saveCustomItemPrice = function(codigo, price, originalSubrubro = null, or
         const reqPlantaSelect = document.getElementById('req-meca-planta');
         if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect && reqPlantaSelect.value) {
             curPlanta = reqPlantaSelect.value.trim().toUpperCase();
-            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+if (curPlanta === 'PPA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
                 curPlanta = window.appData.plantasRules[curPlanta];
             }
         }
@@ -2353,32 +2396,15 @@ window.saveCustomItemPrice = function(codigo, price, originalSubrubro = null, or
         if (itemE) itemE.precio = numPrice;
     }
 
-    // Sincronizar con Supabase
-    try {
-        const dbClient = (typeof getDbClient === 'function') ? getDbClient() : null;
-        if (dbClient) {
-            const rubroVal = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') ? 'Mecánico' : 'Eléctrico';
-            
-            const newId = curPlanta ? `${codigo}_${curPlanta}` : codigo;
-            
-            dbClient.from('tarifario').upsert([{ 
-                id: newId, 
-                codigo: codigo, 
-                precio: numPrice, 
-                planta: curPlanta || '',
-                detalle: originalDetalle || codigo,
-                rubro: rubroVal,
-                subrubro: originalSubrubro || 'Mano de Obra EN TALLER',
-                unidad: originalUdm || 'UN',
-                stock: 999,
-                estado: 'ACTIVOS'
-            }], { onConflict: 'id' }).then(function(insRes){
-                if (insRes.error) alert("Error guardando: " + JSON.stringify(insRes.error));
-            }).catch(function(err){ alert("Error BD: " + JSON.stringify(err)); });
-        }
-    } catch (sbTarErr) {
-        console.warn("Aviso actualizando precio en Supabase tarifario:", sbTarErr);
-    }
+    // Actualizamos el diccionario local de custom prices
+    const customPrices = typeof getCustomItemPrices === 'function' ? getCustomItemPrices() : {};
+    let key = codigo;
+    if (curPlanta) key = key + '_' + curPlanta;
+    customPrices[key] = numPrice;
+    try { localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices)); } catch(e) {}
+
+    // Sincronizar con Supabase: Desactivado por regla de negocio.
+    // Solo se guardará en Supabase al confirmar el presupuesto (en guardarPresupuestoEnSupabase).
 };
 
 const PRESUPUESTO_ELECTRICO_STOCK = [
@@ -3637,8 +3663,18 @@ function applyCustomPricesToCatalog(catalog) {
     if (!catalog || !Array.isArray(catalog)) return catalog;
     const customPrices = getCustomItemPrices();
     catalog.forEach(item => {
-        if (item && item.codigo && customPrices[item.codigo] !== undefined) {
-            item.precio = parseFloat(customPrices[item.codigo]);
+        if (item && item.codigo) {
+            let key = item.codigo;
+            if (item.planta) key = key + '_' + item.planta.trim().toUpperCase();
+            
+            let cPrice = customPrices[key];
+            if (cPrice === undefined && item.planta) {
+                // Fallback to generic code if specific plant is not found in customPrices
+                cPrice = customPrices[item.codigo];
+            }
+            if (cPrice !== undefined) {
+                item.precio = parseFloat(cPrice);
+            }
         }
     });
     return catalog;
@@ -3646,8 +3682,13 @@ function applyCustomPricesToCatalog(catalog) {
 
 function getActiveStockCatalog() {
     let cat = [];
-    if (reqTipoPresupuesto === 'Eléctrico' && typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
+    if (reqTipoPresupuesto === 'Eléctrico' && typeof window.presupuestosCatalogDB !== 'undefined') {
+        cat = window.presupuestosCatalogDB;
+    } else if (reqTipoPresupuesto === 'Eléctrico' && typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
         cat = PRESUPUESTO_ELECTRICO_STOCK;
+    } else if (reqTipoPresupuesto === 'Mecánico' && typeof window.presupuestoMecanicoDB !== 'undefined' && window.presupuestoMecanicoDB.length > 0) {
+        // Usa la base de datos construida desde Supabase que SI tiene las plantas
+        cat = window.presupuestoMecanicoDB;
     } else if (reqTipoPresupuesto === 'Mecánico' && typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
         cat = PRESUPUESTO_MECANICO_STOCK;
     } else if (typeof stockDB !== 'undefined' && stockDB.length > 0) {
@@ -5403,9 +5444,10 @@ window.abrirRobotStock = function() {
         const reqPlantaSelect = document.getElementById('req-meca-planta');
         if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect) {
             let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
-            
-            // Regla Dinámica: Mirar en plantasRules a ver si usa la lista de otra planta
-            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+// Regla Dinámica: Mirar en plantasRules a ver si usa la lista de otra planta
+            if (curPlanta === 'PPA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
                 curPlanta = window.appData.plantasRules[curPlanta];
             } else if (curPlanta === 'APA') {
                 curPlanta = 'APS'; // Fallback
@@ -5850,7 +5892,14 @@ window.crearPresupuestoBasadoEnActual = function(id) {
     setVal('req-reason', p.motivo || '');
 
     // Cargar ítems en el Paso 2
-    pedidoItems = JSON.parse(JSON.stringify(p.items || []));
+    pedidoItems = JSON.parse(JSON.stringify(p.items || [])).map(it => {
+        // La regla de negocio indica que al basarse en otro presupuesto, las cantidades deben arrancar en 0
+        it.cantidad = 0;
+        it.cantidad_original = 0;
+        it.subtotal = 0;
+        it.subtotal_usd = 0;
+        return it;
+    });
 
     // Resetear pestaña activa para el Paso 2
     window.activeMecaTab = 0;
@@ -8916,12 +8965,20 @@ window.abrirRobotStockEdicion = function() {
         
         // Filtrar por planta SOLO SI ES MECÁNICO
         let curPlanta = '';
-        if (typeof pedidoActivo !== 'undefined' && pedidoActivo && pedidoActivo.tipo_presupuesto === 'Mecánico') {
-            curPlanta = (pedidoActivo.meca_planta || pedidoActivo.planta || '').trim().toUpperCase();
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
+            if (reqPlantaSelect && reqPlantaSelect.value) {
+                curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+} else if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
+                curPlanta = (pedidoActivo.meca_planta || pedidoActivo.planta || '').trim().toUpperCase();
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+}
         }
             
         // Regla Dinámica: Mirar en plantasRules a ver si usa la lista de otra planta
-        if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+        if (curPlanta === 'PPA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
             curPlanta = window.appData.plantasRules[curPlanta];
         } else if (curPlanta === 'APA') {
             curPlanta = 'APS'; // Fallback manual por si la base de datos no está actualizada
@@ -13533,10 +13590,12 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
         const reqPlantaSelect = document.getElementById('req-meca-planta');
         if (reqPlantaSelect) {
             let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
-            if (curPlanta === 'APA') curPlanta = 'APS';
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+if (curPlanta === 'APA') curPlanta = 'APS';
             
             // Regla dinámica (solo aplicable a PPA u otras, nunca mezclar APS y APG)
-            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+            if (curPlanta === 'PPA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
                 curPlanta = window.appData.plantasRules[curPlanta];
             }
             
@@ -13920,8 +13979,24 @@ window.onMecaPriceInputChange = function(input) {
     }
     const code = input.getAttribute('data-code');
     
-    // Prohibido el punto: reemplazar todo punto por coma y filtrar caracteres inválidos
-    let cleanVal = input.value.replace(/\./g, ',').replace(/[^0-9,]/g, '');
+    // Mejor manejo de puntos y comas:
+    let cleanVal = input.value;
+    
+    // Si contiene múltiples puntos (ej. 1.500.000), son separadores de miles, los eliminamos.
+    if ((cleanVal.match(/\./g) || []).length > 1) {
+        cleanVal = cleanVal.replace(/\./g, '');
+    } 
+    // Si contiene un punto Y una coma (ej. 1.500,50), el punto es de mil, lo eliminamos.
+    else if (cleanVal.includes('.') && cleanVal.includes(',')) {
+        cleanVal = cleanVal.replace(/\./g, '');
+    }
+    // Si solo contiene un punto, asumimos que quiso poner una coma decimal.
+    else if (cleanVal.includes('.') && !cleanVal.includes(',')) {
+        cleanVal = cleanVal.replace(/\./g, ',');
+    }
+    
+    // Filtrar caracteres inválidos (solo dejamos números y coma)
+    cleanVal = cleanVal.replace(/[^0-9,]/g, '');
     
     // Asegurar que solo exista como máximo una sola coma
     const parts = cleanVal.split(',');
@@ -13949,7 +14024,8 @@ window.onMecaPriceInputChange = function(input) {
         }
     }
 
-    saveCustomItemPrice(code, newPrice, subr, det, u);
+    // saveCustomItemPrice removido de aquí para evitar race conditions en cada tecla.
+    // Ahora se llama en onMecaPriceInputBlur
 
     const qtyInput = document.querySelector(`.meca-excel-input[data-code="${code}"]`);
     if (qtyInput) {
@@ -13960,7 +14036,15 @@ window.onMecaPriceInputChange = function(input) {
 };
 
 window.onMecaPriceInputBlur = function(input) {
-    let cleanVal = input.value.trim().replace(/\./g, ',').replace(/[^0-9,]/g, '');
+    let cleanVal = input.value.trim();
+    if ((cleanVal.match(/\./g) || []).length > 1) {
+        cleanVal = cleanVal.replace(/\./g, '');
+    } else if (cleanVal.includes('.') && cleanVal.includes(',')) {
+        cleanVal = cleanVal.replace(/\./g, '');
+    } else if (cleanVal.includes('.') && !cleanVal.includes(',')) {
+        cleanVal = cleanVal.replace(/\./g, ',');
+    }
+    cleanVal = cleanVal.replace(/[^0-9,]/g, '');
     const parts = cleanVal.split(',');
     if (parts.length > 2) {
         cleanVal = parts[0] + ',' + parts.slice(1).join('');
@@ -13970,6 +14054,27 @@ window.onMecaPriceInputBlur = function(input) {
     }
     input.value = cleanVal;
     window.onMecaPriceInputChange(input);
+    // Format with dots for visual feedback
+    const vParts = cleanVal.split(',');
+    vParts[0] = vParts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    input.value = vParts.join(',');
+    
+    // Guardar en Supabase y DB local de forma segura solo al perder el foco (blur)
+    const newPrice = window.parseArgNumber(cleanVal);
+    const code = input.getAttribute('data-code');
+    let subr = null, det = null, u = null;
+    if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems)) {
+        const pItem = pedidoItems.find(i => i.codigo === code);
+        if (pItem) { subr = pItem.subrubro; det = pItem.detalle; u = pItem.unidad; }
+    }
+    if (!det && typeof getActiveStockCatalog === 'function') {
+        const cat = getActiveStockCatalog();
+        if (cat) {
+            const catItem = cat.find(i => i.codigo === code);
+            if (catItem) { subr = catItem.subrubro; det = catItem.detalle || catItem.descripcion; u = catItem.unidad; }
+        }
+    }
+    saveCustomItemPrice(code, newPrice, subr, det, u);
 };
 
 window.recalcMecaExcelRow = function(input) {
@@ -14023,8 +14128,10 @@ window.recalcMecaExcelAll = function() {
         const reqPlantaSelect = document.getElementById('req-meca-planta');
         if (reqPlantaSelect) {
             let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
-            if (curPlanta === 'APA') curPlanta = 'APS';
-            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+if (curPlanta === 'APA') curPlanta = 'APS';
+            if (curPlanta === 'PPA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
                 curPlanta = window.appData.plantasRules[curPlanta];
             }
             
@@ -14340,7 +14447,7 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
     for (const endpoint of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000);
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
             const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -16815,26 +16922,37 @@ window.fetchPlantasFromSupabase = async function() {
                 return;
             }
             if (data) {
-                // Mapear reglas de listas de precios
-                window.appData.plantasRules = {};
+                // Mapear reglas de listas de precios de Supabase
+                if (!window.appData) window.appData = {};
+                if (!window.appData.plantasRules) window.appData.plantasRules = {};
+                
                 data.forEach(r => {
                     if (r.nombre && r.usa_lista_de) {
                         window.appData.plantasRules[r.nombre.trim().toUpperCase()] = r.usa_lista_de.trim().toUpperCase();
                     }
                 });
 
-                let plantasList = data.map(r => r.nombre).filter(n => n && n.trim() !== '');
-                if (plantasList.length === 0) {
-                    // Fallback inicial para que no desaparezcan las por defecto si Supabase está vacío
-                    plantasList = ['APS', 'APG', 'PPA'];
-                    // Intentar guardar este fallback en Supabase para inicializar la tabla vacía
-                    const payload = plantasList.map(p => ({ nombre: p, usa_lista_de: p }));
+                let supabasePlantas = data.map(r => r.nombre.trim().toUpperCase()).filter(n => n !== '');
+                
+                // Traer también las locales por si falló el guardado en la nube
+                let localPlantas = [];
+                try {
+                    const stored = localStorage.getItem('sg_plantas');
+                    if (stored) localPlantas = JSON.parse(stored);
+                } catch(e) {}
+                
+                // Fusionar listas
+                let merged = [...new Set([...supabasePlantas, ...localPlantas, 'APS', 'APG', 'PPA'])];
+                
+                if (window.appData) window.appData.plantas = merged;
+                localStorage.setItem('sg_plantas', JSON.stringify(merged));
+                
+                // Intentar resincronizar la base de datos si estaba vacía
+                if (supabasePlantas.length < merged.length) {
+                    const payload = merged.map(p => ({ nombre: p, usa_lista_de: window.appData.plantasRules[p] || p }));
                     supabaseClient.from('plantas').upsert(payload, { onConflict: 'nombre' }).catch(()=>{});
                 }
                 
-                // Forzar la limpieza de la memoria vieja y reemplazarla 100% por Supabase
-                if (window.appData) window.appData.plantas = plantasList;
-                localStorage.setItem('sg_plantas', JSON.stringify(plantasList));
                 window.actualizarSelectsPlantas();
             }
         } catch(e) {
@@ -16874,8 +16992,21 @@ window.gestionarPlantasABM = function() {
         modal.className = 'modal';
         modal.style.cssText = 'display: flex; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); align-items: center; justify-content: center; backdrop-filter: blur(4px);';
         document.body.appendChild(modal);
+        
+        // Cierra con la tecla Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modal.style.display === 'flex') {
+                cerrarModalPlantas();
+            }
+        });
+        
+        // Cierra haciendo click afuera
+        modal.addEventListener('mousedown', function(e) {
+            if (e.target === modal) cerrarModalPlantas();
+        });
     }
     window.renderModalGestionarPlantas();
+        if (typeof window.actualizarSelectsPlantas === 'function') window.actualizarSelectsPlantas();
     modal.style.display = 'flex';
 };
 
@@ -16904,9 +17035,8 @@ window.renderModalGestionarPlantas = function() {
                            
                     <select id="input-nueva-planta-alias" style="width: 130px; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 6px; padding: 8px; font-size: 12px; outline: none; display: ${(typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') ? 'none' : 'block'};"
                             onkeydown="if(event.key==='Enter'){ event.preventDefault(); agregarNuevaPlanta(); }">
-                        <option value="">Usa listado propio</option>
+                        <option value="APS" selected>Usa lista de APS</option>
                         <option value="APG">Usa lista de APG</option>
-                        <option value="APS">Usa lista de APS</option>
                     </select>
 
                     <button type="button" onclick="agregarNuevaPlanta()" 
@@ -16987,6 +17117,7 @@ window.agregarNuevaPlanta = function() {
             showToast(`Planta "${val}" agregada con éxito`, 'success');
         }
         window.renderModalGestionarPlantas();
+        if (typeof window.actualizarSelectsPlantas === 'function') window.actualizarSelectsPlantas();
     } catch (error) {
         alert("Error agregando planta: " + error.message);
         console.error(error);
@@ -17020,6 +17151,7 @@ window.eliminarPlanta = function(nombre) {
         showToast(`Planta "${nombre}" eliminada`, 'info');
     }
     window.renderModalGestionarPlantas();
+        if (typeof window.actualizarSelectsPlantas === 'function') window.actualizarSelectsPlantas();
 };
 
 window.cerrarModalPlantas = function() {
@@ -17287,9 +17419,7 @@ window.confirmarNuevoItemTarifario = function() {
     }
 
     if (typeof closeModal === 'function') closeModal();
-    if (typeof window.renderMecanicoExcelGrid === 'function') {
-        window.renderMecanicoExcelGrid();
-    }
+    // render removed to prevent losing focus
     if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
         window.actualizarTablaItemsRequerimiento();
     }
@@ -17305,8 +17435,10 @@ window.confirmarNuevoItemTarifario = function() {
             const reqPlantaSelect = document.getElementById('req-meca-planta');
             if (reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect && reqPlantaSelect.value) {
                 curPlanta = reqPlantaSelect.value.trim().toUpperCase();
-                // Resolver alias si existe
-                if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+// Resolver alias si existe
+                if (curPlanta === 'PPA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
                     curPlanta = window.appData.plantasRules[curPlanta];
                 }
             }
@@ -17415,9 +17547,7 @@ window.eliminarItemDelTarifario = function(code) {
     }
     
     // 5. Re-render
-    if (typeof window.renderMecanicoExcelGrid === 'function') {
-        window.renderMecanicoExcelGrid();
-    }
+    // render removed to prevent losing focus
     if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
         window.actualizarTablaItemsRequerimiento();
     }
@@ -17453,7 +17583,9 @@ window.recalcularPreciosPorPlanta = function() {
     if (!reqPlantaSelect) return;
     
     let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
-    if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+if (curPlanta === 'PPA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
         curPlanta = window.appData.plantasRules[curPlanta];
     } else if (curPlanta === 'APA') {
         curPlanta = 'APS';
