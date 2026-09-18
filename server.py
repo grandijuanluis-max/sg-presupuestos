@@ -474,20 +474,90 @@ class SGBackendHandler(SimpleHTTPRequestHandler):
         self.send_json_response({"error": "Ruta POST no encontrada"}, status=404)
 
 from socketserver import ThreadingMixIn
+import threading
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
+# --- WORKER DE COLA DE EMAILS (lee cola_emails en Supabase y los despacha) ---
+def email_queue_worker():
+    """Thread en background: cada 5 seg lee cola_emails con estado='pendiente' y los envía por SMTP."""
+    print("🔄 [EMAIL WORKER] Iniciado — polling cola_emails cada 5 segundos", flush=True)
+    while True:
+        try:
+            # Leer emails pendientes (máximo 10 a la vez)
+            result = supabase_request("cola_emails?estado=eq.pendiente&order=creado_en.asc&limit=10")
+            if isinstance(result, list) and len(result) > 0:
+                for row in result:
+                    mail_id = row.get("id")
+                    if not mail_id:
+                        continue
+                    try:
+                        to_arr   = row.get("destinatarios") or []
+                        cc_arr   = row.get("cc") or []
+                        bcc_arr  = row.get("bcc") or []
+                        subject  = row.get("asunto") or "Cotización SG Montajes"
+                        html_body = row.get("cuerpo_html") or ""
+                        text_body = row.get("cuerpo_texto") or ""
+                        adjuntos = row.get("adjuntos") or []
+
+                        print(f"📬 [EMAIL WORKER] Procesando {mail_id} → {to_arr} | Asunto: {subject}", flush=True)
+
+                        res = send_email_smtp(
+                            to_emails=to_arr,
+                            subject=subject,
+                            html_content=html_body,
+                            text_content=text_body,
+                            attachments=adjuntos,
+                            cc_emails=cc_arr,
+                            bcc_emails=bcc_arr
+                        )
+
+                        if res.get("success"):
+                            patch_data = {"estado": "enviado", "procesado_en": datetime.now().isoformat()}
+                            print(f"✅ [EMAIL WORKER] Enviado OK: {mail_id}", flush=True)
+                        else:
+                            err_msg = res.get("error", "Error desconocido")
+                            patch_data = {"estado": "error", "error_mensaje": err_msg[:500], "procesado_en": datetime.now().isoformat()}
+                            print(f"❌ [EMAIL WORKER] Error en {mail_id}: {err_msg}", flush=True)
+
+                        # Actualizar el estado en Supabase vía PATCH
+                        endpoint = f"cola_emails?id=eq.{urllib.parse.quote(str(mail_id))}"
+                        supabase_request(endpoint, method="PATCH", data=patch_data)
+
+                    except Exception as row_err:
+                        print(f"⚠️ [EMAIL WORKER] Excepción procesando {mail_id}: {row_err}", flush=True)
+                        traceback.print_exc()
+                        try:
+                            endpoint = f"cola_emails?id=eq.{urllib.parse.quote(str(mail_id))}"
+                            supabase_request(endpoint, method="PATCH", data={
+                                "estado": "error",
+                                "error_mensaje": str(row_err)[:500],
+                                "procesado_en": datetime.now().isoformat()
+                            })
+                        except Exception:
+                            pass
+        except Exception as worker_err:
+            print(f"⚠️ [EMAIL WORKER] Error en ciclo de polling: {worker_err}", flush=True)
+
+        time.sleep(5)
+
 def run():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     server_address = ("", PORT)
     httpd = ThreadedHTTPServer(server_address, SGBackendHandler)
+
+    # Arrancar el worker de cola de emails en un hilo en segundo plano
+    worker_thread = threading.Thread(target=email_queue_worker, daemon=True, name="EmailQueueWorker")
+    worker_thread.start()
+
     print("====================================================================")
     print("  🚀 SG MONTAJES SRL — BACKEND PYTHON & SERVIDOR WEB ACTIVO")
     print(f"  🌐 Servidor corriendo en: http://localhost:{PORT}")
     print(f"  ☁️  Conectado a Supabase: {SUPABASE_URL}")
     print(f"  📧 SMTP Saliente Configurado: {SMTP_USER} ({SMTP_HOST}:{SMTP_PORT} SSL)")
+    print("  📬 Worker de Cola de Emails: ACTIVO (polling cada 5 seg)")
     print("  Endpoints disponibles:")
     print("    - http://localhost:8000/api/health")
     print("    - http://localhost:8000/api/presupuestos")

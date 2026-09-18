@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: sg-presupuestos
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: python server.py
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SMTP_HOST
+        value: c2001014.ferozo.com
+      - key: SMTP_PORT
+        value: 465
+      - key: SMTP_USER
+        value: cotizaciones@sgmontajes.com.ar
+      - key: SMTP_PASS
+        value: Admin712*
+      - key: SUPABASE_URL
+        value: https://amkkuwgatjcbiyrykuoy.supabase.co
+      - key: SUPABASE_KEY
+        value: sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ

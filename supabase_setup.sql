@@ -240,8 +240,11 @@ CREATE TABLE IF NOT EXISTS public.cola_emails (
     adjuntos JSONB DEFAULT '[]'::jsonb,
     estado TEXT DEFAULT 'pendiente',
     error_mensaje TEXT,
+    procesado_en TIMESTAMP WITH TIME ZONE,
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+-- Migración idempotente: agregar procesado_en si no existe
+ALTER TABLE public.cola_emails ADD COLUMN IF NOT EXISTS procesado_en TIMESTAMP WITH TIME ZONE;
 
 ALTER TABLE public.cola_emails ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir acceso cola_emails" ON public.cola_emails;
