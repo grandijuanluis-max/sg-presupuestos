@@ -15,10 +15,8 @@ CREATE TABLE IF NOT EXISTS public.app_state (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- Habilitar Row Level Security (RLS)
 ALTER TABLE public.app_state ENABLE ROW LEVEL SECURITY;
 
--- Políticas de acceso para app_state (permite lectura y escritura pública/anónima para la aplicación web)
 DROP POLICY IF EXISTS "Permitir lectura publica app_state" ON public.app_state;
 CREATE POLICY "Permitir lectura publica app_state" ON public.app_state
     FOR SELECT USING (true);
@@ -27,18 +25,7 @@ DROP POLICY IF EXISTS "Permitir escritura publica app_state" ON public.app_state
 CREATE POLICY "Permitir escritura publica app_state" ON public.app_state
     FOR ALL USING (true) WITH CHECK (true);
 
--- Habilitar Supabase Realtime para la tabla app_state
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_publication_tables 
-        WHERE pubname = 'supabase_realtime' AND tablename = 'app_state'
-    ) THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.app_state;
-    END IF;
-END $$;
-
--- 2. TABLAS RELACIONALES (Para consultas SQL directas, reportes y BI)
+-- 2. TABLAS RELACIONALES (Para consultas directas, reportes, BI y sincronización)
 
 -- TABLA: USUARIOS
 CREATE TABLE IF NOT EXISTS public.usuarios (
@@ -50,13 +37,17 @@ CREATE TABLE IF NOT EXISTS public.usuarios (
     rubro_defecto TEXT NOT NULL DEFAULT 'Eléctrico', -- Eléctrico, Mecánico
     vendedor_codigo TEXT DEFAULT '',
     vendedor_nombre TEXT DEFAULT '',
-    empresa TEXT NOT NULL DEFAULT 'SG MONTAJES SRL' -- 'SG MONTAJES SRL', 'ACOSTA SERVICIOS SRL'
+    empresa TEXT NOT NULL DEFAULT 'SG MONTAJES SRL', -- 'SG MONTAJES SRL', 'ACOSTA SERVICIOS SRL'
+    permisos JSONB DEFAULT '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-facturacion", "menu-all-ver", "menu-all-edit"]'::jsonb,
+    can_edit_prices BOOLEAN DEFAULT false
 );
 
--- Migraciones para tabla usuarios si ya existía previamente
+-- Migraciones idempotentes para tabla usuarios
 ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS vendedor_codigo TEXT DEFAULT '';
 ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS vendedor_nombre TEXT DEFAULT '';
 ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS empresa TEXT DEFAULT 'SG MONTAJES SRL';
+ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS permisos JSONB DEFAULT '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-facturacion", "menu-all-ver", "menu-all-edit"]'::jsonb;
+ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS can_edit_prices BOOLEAN DEFAULT false;
 
 ALTER TABLE public.usuarios ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir acceso usuarios" ON public.usuarios;
@@ -110,7 +101,7 @@ CREATE TABLE IF NOT EXISTS public.presupuestos (
     avances JSONB DEFAULT '[]'::jsonb
 );
 
--- Migraciones para tabla presupuestos si ya existía previamente (Idempotente)
+-- Migraciones idempotentes para tabla presupuestos
 ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS nro_ot TEXT DEFAULT '';
 ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS importe_neto NUMERIC(15, 2) DEFAULT 0.00;
 ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS proveedor TEXT DEFAULT 'SG MONTAJES SRL';
@@ -127,6 +118,26 @@ ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS avances JSONB DEFAULT '
 ALTER TABLE public.presupuestos ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir acceso presupuestos" ON public.presupuestos;
 CREATE POLICY "Permitir acceso presupuestos" ON public.presupuestos FOR ALL USING (true) WITH CHECK (true);
+
+-- TABLA: TARIFARIO (Catálogo de Precios de Ítems en Tiempo Real)
+CREATE TABLE IF NOT EXISTS public.tarifario (
+    id TEXT PRIMARY KEY,
+    codigo TEXT NOT NULL,
+    detalle TEXT NOT NULL,
+    rubro TEXT,
+    subrubro TEXT,
+    unidad TEXT DEFAULT 'Hs',
+    precio NUMERIC(15, 2) DEFAULT 0.00,
+    stock NUMERIC(10, 2) DEFAULT 999,
+    estado TEXT DEFAULT 'ACTIVOS',
+    is_custom BOOLEAN DEFAULT false,
+    planta TEXT DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.tarifario ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir acceso tarifario" ON public.tarifario;
+CREATE POLICY "Permitir acceso tarifario" ON public.tarifario FOR ALL USING (true) WITH CHECK (true);
 
 -- TABLA: AVANCES DE OBRA
 CREATE TABLE IF NOT EXISTS public.avances_obra (
@@ -165,9 +176,11 @@ CREATE POLICY "Permitir presupuesto_items" ON public.presupuesto_items FOR ALL U
 -- TABLA: NOTIFICACIONES
 CREATE TABLE IF NOT EXISTS public.notificaciones (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    message TEXT NOT NULL,
-    read BOOLEAN DEFAULT false,
+    user_id TEXT,
+    tipo TEXT DEFAULT 'general',
+    titulo TEXT DEFAULT '',
+    mensaje TEXT NOT NULL,
+    leida BOOLEAN DEFAULT false,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     task_id TEXT
 );
@@ -204,6 +217,56 @@ ALTER TABLE public.clientes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir acceso clientes" ON public.clientes;
 CREATE POLICY "Permitir acceso clientes" ON public.clientes FOR ALL USING (true) WITH CHECK (true);
 
+-- TABLA: PLANTAS (Gestión de Plantas y Reglas de Listas de Precios)
+CREATE TABLE IF NOT EXISTS public.plantas (
+    nombre TEXT PRIMARY KEY,
+    usa_lista_de TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.plantas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir acceso plantas" ON public.plantas;
+CREATE POLICY "Permitir acceso plantas" ON public.plantas FOR ALL USING (true) WITH CHECK (true);
+
+-- TABLA: COLA DE EMAILS (Para envío asíncrono y workers cloud)
+CREATE TABLE IF NOT EXISTS public.cola_emails (
+    id TEXT PRIMARY KEY,
+    destinatarios JSONB DEFAULT '[]'::jsonb,
+    cc JSONB DEFAULT '[]'::jsonb,
+    bcc JSONB DEFAULT '[]'::jsonb,
+    asunto TEXT NOT NULL DEFAULT '',
+    cuerpo_html TEXT DEFAULT '',
+    cuerpo_texto TEXT DEFAULT '',
+    adjuntos JSONB DEFAULT '[]'::jsonb,
+    estado TEXT DEFAULT 'pendiente',
+    error_mensaje TEXT,
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.cola_emails ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir acceso cola_emails" ON public.cola_emails;
+CREATE POLICY "Permitir acceso cola_emails" ON public.cola_emails FOR ALL USING (true) WITH CHECK (true);
+
+-- ====================================================================
+-- HABILITACIÓN DE SUPABASE REALTIME PARA TODAS LAS TABLAS ACTIVAS
+-- ====================================================================
+DO $$
+DECLARE
+    t TEXT;
+    tablas TEXT[] := ARRAY['app_state', 'usuarios', 'presupuestos', 'tarifario', 'clientes', 'notificaciones', 'avances_obra', 'plantas'];
+BEGIN
+    FOREACH t IN ARRAY tablas LOOP
+        IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_publication_tables 
+                WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = t
+            ) THEN
+                EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I;', t);
+            END IF;
+        END IF;
+    END LOOP;
+END $$;
+
 -- ====================================================================
 -- SEED DATA: CARGA INICIAL DIRECTA EN SUPABASE
 -- ====================================================================
@@ -230,19 +293,24 @@ ON CONFLICT (codigo) DO UPDATE SET
     domicilio = EXCLUDED.domicilio,
     localidad = EXCLUDED.localidad;
 
--- Cargar los 8 usuarios oficiales con empresa asignada
-INSERT INTO public.usuarios (id, username, password, email, role, rubro_defecto, vendedor_codigo, vendedor_nombre, empresa)
+-- Cargar los 9 usuarios oficiales con empresa asignada, permisos y control de edición de precios
+INSERT INTO public.usuarios (id, username, password, email, role, rubro_defecto, vendedor_codigo, vendedor_nombre, empresa, can_edit_prices, permisos)
 VALUES
-    ('1', 'mel', '123', 'mel@empresa.com', 'Administrador', 'Eléctrico', '', '', 'SG MONTAJES SRL'),
-    ('2', 'juanluis', '123', 'grandijuanluis@gmail.com', 'Solicitante', 'Eléctrico', '103', 'Juan Luis', 'SG MONTAJES SRL'),
-    ('3', 'luciano', '123', 'luciano@sgmontajes.com', 'Solicitante', 'Eléctrico', '102', 'Luciano', 'SG MONTAJES SRL'),
-    ('4', 'roberto', '123', 'Roberto@sgmontajes.com', 'Solicitante', 'Mecánico', '104', 'Roberto', 'SG MONTAJES SRL'),
-    ('5', 'melani', '123', 'melanidaiana28@gmail.com', 'Administrador', 'Eléctrico', '', '', 'SG MONTAJES SRL'),
-    ('6', 'nicole', '123', 'nicole@sgmontajes.com', 'Solicitante', 'Eléctrico', '105', 'Nicole', 'SG MONTAJES SRL'),
-    ('7', 'alexis', '123', 'alexis@sgmontajes.com', 'Solicitante', 'Mecánico', '106', 'Alexis', 'SG MONTAJES SRL'),
-    ('8', 'emiliano', '123', 'emiliano@sgmontajes.com', 'Solicitante', 'Eléctrico', '107', 'Emiliano', 'SG MONTAJES SRL')
+    ('1', 'mel', '123', 'mel@empresa.com', 'Administrador', 'Eléctrico', '', '', 'SG MONTAJES SRL', true, '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-admin", "menu-facturacion", "menu-all-ver", "menu-all-edit", "menu-ingresar-edit-price", "edit-precios"]'::jsonb),
+    ('2', 'juanluis', '123', 'grandijuanluis@gmail.com', 'Solicitante', 'Eléctrico', '103', 'Juan Luis', 'SG MONTAJES SRL', false, '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-facturacion", "menu-all-ver", "menu-all-edit"]'::jsonb),
+    ('3', 'luciano', '123', 'luciano@sgmontajes.com', 'Solicitante', 'Eléctrico', '102', 'Luciano', 'SG MONTAJES SRL', false, '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-facturacion", "menu-all-ver", "menu-all-edit"]'::jsonb),
+    ('4', 'roberto', '123', 'Roberto@sgmontajes.com', 'Solicitante', 'Mecánico', '104', 'Roberto', 'SG MONTAJES SRL', false, '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-facturacion", "menu-all-ver", "menu-all-edit"]'::jsonb),
+    ('5', 'melani', '123', 'melanidaiana28@gmail.com', 'Administrador', 'Eléctrico', '', '', 'SG MONTAJES SRL', true, '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-admin", "menu-facturacion", "menu-all-ver", "menu-all-edit", "menu-ingresar-edit-price", "edit-precios"]'::jsonb),
+    ('6', 'nicole', '123', 'nicole@sgmontajes.com', 'Solicitante', 'Eléctrico', '105', 'Nicole', 'SG MONTAJES SRL', false, '["menu-facturacion"]'::jsonb),
+    ('7', 'alexis', '123', 'alexis@sgmontajes.com', 'Solicitante', 'Mecánico', '106', 'Alexis', 'SG MONTAJES SRL', false, '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-facturacion", "menu-all-ver", "menu-all-edit"]'::jsonb),
+    ('8', 'emiliano', '123', 'emiliano@sgmontajes.com', 'Solicitante', 'Eléctrico', '107', 'Emiliano', 'SG MONTAJES SRL', false, '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-facturacion", "menu-all-ver", "menu-all-edit"]'::jsonb),
+    ('9', 'hernan', '123', 'hernan@sgmontajes.com', 'Solicitante', 'Eléctrico', '108', 'Hernán', 'SG MONTAJES SRL', false, '["menu-ingresar", "menu-all", "menu-estado-presupuesto", "menu-rechazados", "menu-facturacion", "menu-all-ver", "menu-all-edit"]'::jsonb)
 ON CONFLICT (id) DO UPDATE SET
     username = EXCLUDED.username,
     role = EXCLUDED.role,
     rubro_defecto = EXCLUDED.rubro_defecto,
-    empresa = EXCLUDED.empresa;
+    vendedor_codigo = EXCLUDED.vendedor_codigo,
+    vendedor_nombre = EXCLUDED.vendedor_nombre,
+    empresa = EXCLUDED.empresa,
+    can_edit_prices = EXCLUDED.can_edit_prices,
+    permisos = EXCLUDED.permisos;

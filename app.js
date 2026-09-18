@@ -14048,21 +14048,19 @@ window.activeMecaTab = 0;
 
 window.switchMecaTab = function(idx) {
     window.activeMecaTab = idx;
-    for (let i = 0; i < 5; i++) {
-        const bodyEl = document.getElementById(`meca-sec-body-${i}`);
-        if (bodyEl) {
-            bodyEl.style.display = i === idx ? 'table-row-group' : 'none';
-        }
-        const tabEl = document.getElementById(`meca-tab-${i}`);
-        if (tabEl) {
-            const isSelected = i === idx;
-            tabEl.style.background = isSelected ? '#0891b2' : 'rgba(30, 41, 59, 0.6)';
-            tabEl.style.color = isSelected ? '#ffffff' : 'var(--text-muted)';
-            tabEl.style.border = `1px solid ${isSelected ? '#0891b2' : 'rgba(255, 255, 255, 0.1)'}`;
-            tabEl.style.borderBottom = 'none';
-            tabEl.style.fontWeight = isSelected ? '800' : '700';
-        }
-    }
+    const allBodies = document.querySelectorAll('[id^="meca-sec-body-"]');
+    allBodies.forEach((bodyEl, i) => {
+        bodyEl.style.display = i === idx ? 'table-row-group' : 'none';
+    });
+    const allTabs = document.querySelectorAll('[id^="meca-tab-"]');
+    allTabs.forEach((tabEl, i) => {
+        const isSelected = i === idx;
+        tabEl.style.background = isSelected ? '#0891b2' : 'rgba(30, 41, 59, 0.6)';
+        tabEl.style.color = isSelected ? '#ffffff' : 'var(--text-muted)';
+        tabEl.style.border = `1px solid ${isSelected ? '#0891b2' : 'rgba(255, 255, 255, 0.1)'}`;
+        tabEl.style.borderBottom = 'none';
+        tabEl.style.fontWeight = isSelected ? '800' : '700';
+    });
     const priceTh = document.getElementById('meca-excel-th-price');
     if (priceTh) {
         priceTh.innerHTML = (idx === 0)
@@ -14423,6 +14421,10 @@ window.renderMecanicoExcelGrid = function() {
     const container = document.getElementById('req-mecanico-step2-container');
     if (container) {
         renderMecanicoExcelGridInContainer(container, true);
+    }
+    const editContainer = document.getElementById('auth-pedido-detalle-mecanico');
+    if (editContainer && editContainer.style.display !== 'none') {
+        renderMecanicoExcelGridInContainer(editContainer, true);
     }
 };
 
@@ -17919,25 +17921,25 @@ window.confirmarNuevoItemTarifario = function() {
         planta: curPlanta || ''
     };
 
-    // Agregar a todos los arrays de catálogo activos en memoria
-    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
-        if (typeof window.presupuestoMecanicoDB !== 'undefined' && Array.isArray(window.presupuestoMecanicoDB)) {
-            window.presupuestoMecanicoDB.push({ ...newItem, planta: curPlanta });
-            if (curPlanta) window.presupuestoMecanicoDB.push({ ...newItem, planta: '' });
+    // Agregar a todos los arrays de catálogo activos en memoria sin demora
+    if (typeof window.presupuestoMecanicoDB !== 'undefined' && Array.isArray(window.presupuestoMecanicoDB)) {
+        window.presupuestoMecanicoDB.push({ ...newItem, planta: curPlanta });
+        if (curPlanta) window.presupuestoMecanicoDB.push({ ...newItem, planta: '' });
+    }
+    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) {
+        PRESUPUESTO_MECANICO_STOCK.push({ ...newItem, planta: curPlanta });
+        if (curPlanta) PRESUPUESTO_MECANICO_STOCK.push({ ...newItem, planta: '' });
+    }
+    if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+        window.presupuestosCatalogDB.push(newItem);
+    }
+    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+        if (!PRESUPUESTO_ELECTRICO_STOCK.some(x => x.codigo === nextCode)) {
+            PRESUPUESTO_ELECTRICO_STOCK.push(newItem);
         }
-        if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) {
-            PRESUPUESTO_MECANICO_STOCK.push({ ...newItem, planta: curPlanta });
-            if (curPlanta) PRESUPUESTO_MECANICO_STOCK.push({ ...newItem, planta: '' });
-        }
-    } else {
-        if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
-            window.presupuestosCatalogDB.push(newItem);
-        }
-        if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
-            if (!PRESUPUESTO_ELECTRICO_STOCK.includes(newItem)) {
-                PRESUPUESTO_ELECTRICO_STOCK.push(newItem);
-            }
-        }
+    }
+    if (typeof stockDB !== 'undefined' && Array.isArray(stockDB)) {
+        stockDB.push(newItem);
     }
 
     // Save unit price into customPrices so it persists across sessions
@@ -17974,56 +17976,53 @@ window.confirmarNuevoItemTarifario = function() {
         }
     }
 
-    // Determine target tab and switch to it
-    const secNames = [
-        "Materiales y Equipos",
-        "Mano de Obra EN TALLER",
-        "Mano de Obra MANTENIMIENTO",
-        "Mano de Obra PARADA DE PLANTA",
-        "Mano de Obra EMERGENCIA MANTENIMIENTO"
-    ];
-    const targetIdx = secNames.findIndex(sn => sn.toLowerCase() === (subrubro || '').toLowerCase() || (sn === "Materiales y Equipos" && (subrubro.toLowerCase().includes("material") || subrubro.toLowerCase().includes("equipo"))));
-    if (targetIdx !== -1) {
-        window.activeMecaTab = targetIdx;
+    // Determinar la pestaña de destino exacta según subrubro
+    const normSub = String(subrubro || '').toLowerCase();
+    let targetIdx = 0;
+    if (normSub.includes("material") || normSub.includes("equipo")) {
+        targetIdx = 0;
+    } else if (normSub.includes("taller")) {
+        targetIdx = 1;
+    } else if (normSub.includes("mantenimiento") && !normSub.includes("emergencia")) {
+        targetIdx = 2;
+    } else if (normSub.includes("parada")) {
+        targetIdx = 3;
+    } else if (normSub.includes("emergencia")) {
+        targetIdx = 4;
+    } else {
+        targetIdx = 0;
     }
+    window.activeMecaTab = targetIdx;
 
     if (typeof closeModal === 'function') closeModal();
 
-    // Actualización inmediata e instantánea en pantalla
-    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
-        if (targetIdx !== -1 && typeof window.switchMecaTab === 'function') {
-            window.switchMecaTab(targetIdx);
-        }
-        if (typeof window.renderMecanicoExcelGrid === 'function') {
-            window.renderMecanicoExcelGrid();
-        }
-        // Foco visual y scroll a la fila del nuevo ítem
-        setTimeout(() => {
-            const inputQ = document.querySelector(`.meca-excel-input[data-code="${nextCode}"]`);
-            if (inputQ) {
-                inputQ.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                inputQ.focus();
-                inputQ.select();
-                const tr = inputQ.closest('tr');
-                if (tr) {
-                    const origBg = tr.style.background;
-                    tr.style.background = 'rgba(16, 185, 129, 0.35)';
-                    tr.style.transition = 'background 0.5s';
-                    setTimeout(() => { tr.style.background = origBg; }, 2000);
-                }
-            }
-        }, 120);
-    } else {
-        if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
-            window.actualizarTablaItemsRequerimiento();
-        }
-        if (cantidad <= 0) {
-            const prodInput = document.getElementById('req-product-input');
-            if (prodInput && typeof seleccionarProducto === 'function') {
-                seleccionarProducto(newItem);
-            }
-        }
+    // Actualización INMEDIATA E INSTANTÁNEA en pantalla (para Mecánico y Eléctrico)
+    if (typeof window.renderMecanicoExcelGrid === 'function') {
+        window.renderMecanicoExcelGrid();
     }
+    if (typeof window.switchMecaTab === 'function') {
+        window.switchMecaTab(targetIdx);
+    }
+    if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
+        window.actualizarTablaItemsRequerimiento();
+    }
+
+    // Foco visual y scroll a la fila del nuevo ítem de forma ultra rápida
+    setTimeout(() => {
+        const inputQ = document.querySelector(`.meca-excel-input[data-code="${nextCode}"]`);
+        if (inputQ) {
+            inputQ.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            inputQ.focus();
+            inputQ.select();
+            const tr = inputQ.closest('tr');
+            if (tr) {
+                const origBg = tr.style.background;
+                tr.style.background = 'rgba(16, 185, 129, 0.45)';
+                tr.style.transition = 'background 0.3s ease';
+                setTimeout(() => { tr.style.background = origBg; }, 2500);
+            }
+        }
+    }, 40);
 
     // 5. Sincronizar nuevo ítem directamente en la tabla 'tarifario' de Supabase
     try {
@@ -18140,18 +18139,15 @@ window.eliminarItemDelTarifario = function(code) {
         console.warn("Error eliminando ítem en Supabase:", delErr);
     }
 
-    // 7. Re-render INMEDIATO en la interfaz
-    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
-        if (typeof window.renderMecanicoExcelGrid === 'function') {
-            window.renderMecanicoExcelGrid();
-        }
-        if (typeof window.recalcMecaExcelAll === 'function') {
-            window.recalcMecaExcelAll();
-        }
-    } else {
-        if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
-            window.actualizarTablaItemsRequerimiento();
-        }
+    // 7. Re-render INMEDIATO en la interfaz (Mecánico y Eléctrico)
+    if (typeof window.renderMecanicoExcelGrid === 'function') {
+        window.renderMecanicoExcelGrid();
+    }
+    if (typeof window.recalcMecaExcelAll === 'function') {
+        window.recalcMecaExcelAll();
+    }
+    if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
+        window.actualizarTablaItemsRequerimiento();
     }
     if (typeof showToast === 'function') {
         showToast('Ítem ' + code + ' eliminado del tarifario', 'info');
@@ -18159,10 +18155,7 @@ window.eliminarItemDelTarifario = function(code) {
 };
 
 window.recalcularPreciosPorPlanta = function() {
-    const isMeca = typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico';
-    const isElec = typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico';
-
-    if (isMeca && typeof window.renderMecanicoExcelGrid === 'function') {
+    if (typeof window.renderMecanicoExcelGrid === 'function') {
         window.renderMecanicoExcelGrid();
         if (typeof window.recalcMecaExcelAll === 'function') {
             window.recalcMecaExcelAll();
