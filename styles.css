@@ -3911,7 +3911,24 @@ body.theme-electrico {
     background-color: #ca8a04 !important; /* Amarillo más sutil y oscuro para que se lea todo */
 }
 
+/* ==========================================================================
+   ALTO CONTRASTE: Cuadro de Motivo de Rechazo y Modales
+   ========================================================================== */
+#auth-reject-reason-input,
+#swal-motivo-rechazo-input,
+#swal-motivo-rechazo-rapido-input {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 2px solid #f43f5e !important;
+    border-radius: 6px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+}
 
-
-
-
+#auth-reject-reason-input::placeholder,
+#swal-motivo-rechazo-input::placeholder,
+#swal-motivo-rechazo-rapido-input::placeholder {
+    color: #64748b !important;
+    font-weight: 500 !important;
+}
