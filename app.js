@@ -1862,6 +1862,13 @@ function buildSidebar() {
     }
     const sidebar = document.getElementById('sidebar-menu');
     if (!sidebar) return;
+
+    // Guardar el ID del ítem activo antes de reconstruir el menú
+    const prevActiveEl = sidebar.querySelector('.menu-item.active');
+    const prevActiveId = prevActiveEl ? prevActiveEl.id : null;
+    const isFirstBuild = !window._sidebarBuiltOnce;
+    window._sidebarBuiltOnce = true;
+
     sidebar.innerHTML = '';
 
     // Botón Volver al inicio de la barra
@@ -1894,6 +1901,7 @@ function buildSidebar() {
     if (roleEl) roleEl.remove();
 
     const items = getMenuItemsForUser(user);
+    let clickedItem = false;
 
     items.forEach((item, index) => {
         const a = document.createElement('a');
@@ -1904,6 +1912,7 @@ function buildSidebar() {
             e.preventDefault();
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
             a.classList.add('active');
+            window._sidebarActiveMenuId = item.id;
             renderContent(item.tpl);
             if (item.action) item.action();
 
@@ -1913,9 +1922,26 @@ function buildSidebar() {
         };
         sidebar.appendChild(a);
 
-        // Auto-click primer item
-        if (index === 0) a.click();
+        // Solo auto-click en el primer build (login). En rebuilds por Realtime,
+        // restaurar el ítem que estaba activo sin llamar action() para no resetear la vista.
+        if (isFirstBuild && index === 0 && !clickedItem) {
+            a.click();
+            clickedItem = true;
+        } else if (!isFirstBuild && prevActiveId && item.id === prevActiveId) {
+            // Restaurar solo el estilo activo, sin re-ejecutar la acción
+            a.classList.add('active');
+            window._sidebarActiveMenuId = item.id;
+            clickedItem = true;
+        }
     });
+
+    // Si en un rebuild no se encontró el ítem activo previo (fue removido por cambio de permisos),
+    // auto-click al primero como fallback
+    if (!isFirstBuild && !clickedItem && items.length > 0) {
+        const firstItem = sidebar.querySelector('.menu-item');
+        if (firstItem) firstItem.click();
+    }
+
 
     // Agregar selector de temas a la derecha de la barra horizontal
     const themeContainer = document.createElement('div');
@@ -2094,7 +2120,12 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     });
 }
 
-// --- MODAL UTILS ---
+// --- MODAL UTILS & ESTADO ACTIVO ---
+var pedidoActivo = null;
+window.pedidoActivo = null;
+var pedidoEdicionTemp = null;
+var reqTipoPresupuesto = null;
+
 function openModal(templateId) {
     const overlay = document.getElementById('modal-overlay');
     const template = document.getElementById(templateId);
@@ -2371,7 +2402,7 @@ window.abrirRobotCondiciones = function() {
 };
 
 // --- LÓGICA DE TIPO DE PRESUPUESTO (ELÉCTRICO / MECÁNICO) ---
-let reqTipoPresupuesto = null;
+// (Variable reqTipoPresupuesto declarada arriba como var)
 
 window.getCustomItemPrices = function() {
     try {
@@ -8866,9 +8897,7 @@ function renderAssignmentsTable() {
 };
 
 // 5. PLANILLA DETALLE / AUTORIZACIÓN PRESEA
-let pedidoActivo = null;
-window.pedidoActivo = null;
-let pedidoEdicionTemp = null;
+// (Variables globales pedidoActivo y pedidoEdicionTemp declaradas arriba)
 
 window.saveTempEdits = function() {
     if (!pedidoActivo) return;
@@ -9730,13 +9759,7 @@ window.verDetallePedido = function(id, explicitMode) {
     })();
 
     // Formatear fecha a DD/MM/YYYY
-    let formattedDate = p.fecha || '';
-    if (p.fecha && String(p.fecha).includes(' ')) {
-        const parts = String(p.fecha).substring(0, 10).split('-');
-        if (parts.length === 3) {
-            formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-        }
-    }
+    let formattedDate = (typeof formatFechaCorta === 'function') ? formatFechaCorta(p.fecha) : (p.fecha || '');
     setElemText('auth-date-val', formattedDate);
     let curMo = p.oc_mano_obra || '';
     let curMat = p.oc_materiales || '';
@@ -9808,6 +9831,7 @@ window.verDetallePedido = function(id, explicitMode) {
     const rawOcMat = cleanVal(parsedMat, '-');
     const rawPlanta = cleanVal(p.meca_planta || p.planta, 'VGG').toUpperCase();
     const rawNroPres = formatPresupuestoCodigo(p) || p.id || '-';
+    const rawCliEnt = (typeof formatFechaCorta === 'function') ? formatFechaCorta(p.fecha_entrega || p.meca_fecha_fin || p.fecha || '') : (p.fecha_entrega || p.meca_fecha_fin || p.fecha || '-');
 
     setElemText('auth-client-display', `${rawCliCode}  ${rawCliName}`);
     setElemText('auth-domicilio-val', rawCliDom);

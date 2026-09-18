@@ -1759,8 +1759,8 @@
                 </div>
             </div>
 
-            <!-- Acciones de Resolución (Solo visibles si está Pendiente) -->
-            <div id="auth-actions-panel" style="margin-top: 20px; display: flex; flex-direction: column; gap: 15px;">
+            <!-- Acciones de Resolución (Solo visibles si está Pendiente y se requiere autorizar) -->
+            <div id="auth-actions-panel" style="margin-top: 20px; display: none; flex-direction: column; gap: 15px;">
                 <!-- Opciones de decisión (Tildes/Radio) -->
                 <div style="display: flex; gap: 20px; align-items: center; justify-content: center; margin-bottom: 5px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: white; font-size: 15px; font-weight: 600;">
@@ -3071,7 +3071,7 @@
             localStorage.removeItem('sg_plantas');
         } catch(e) {}
     </script>
-    <script src="app.js?v=424"></script>
+    <script src="app.js?v=426"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

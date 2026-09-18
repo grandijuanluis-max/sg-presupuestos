@@ -1,0 +1,2 @@
+# SG MONTAJES SRL — Servidor de correos y presupuestos
+# Utiliza la librería estándar de Python 3 (urllib, smtplib, ssl, json, http.server)
