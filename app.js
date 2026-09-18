@@ -504,6 +504,7 @@ function initSupabaseSync(callback) {
     }
 
     console.log("🔄 Conectando y leyendo datos directamente desde Supabase...");
+    if (typeof fetchPlantasFromSupabase === 'function') fetchPlantasFromSupabase();
 
     // 1. LECTURA DIRECTA DE LA TABLA 'clientes'
     client.from('clientes').select('*').then(function(cRes) {
@@ -543,52 +544,111 @@ function initSupabaseSync(callback) {
     client.from('tarifario').select('*').then(function(tarRes) {
         if (tarRes.data && tarRes.data.length > 0) {
             const customPrices = getCustomItemPrices();
+            
+            // Map de la base de datos a un diccionario rápido por código
+            const dbByCode = {};
             tarRes.data.forEach(function(row) {
                 if (!row || !row.codigo) return;
                 const cPrice = parseFloat(row.precio) || 0;
                 customPrices[row.codigo] = cPrice;
+                
+                if (!dbByCode[row.codigo]) dbByCode[row.codigo] = [];
+                dbByCode[row.codigo].push(row);
+            });
 
-                // Actualizar en memoria catálogo Eléctrico
-                if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
-                    const foundE = PRESUPUESTO_ELECTRICO_STOCK.find(e => e.codigo === row.codigo);
-                    if (foundE) {
-                        foundE.precio = cPrice;
-                        foundE.precio_unitario = cPrice;
-                        if (row.detalle) { foundE.detalle = row.detalle; foundE.descripcion = row.detalle; }
-                        if (row.subrubro) foundE.subrubro = row.subrubro;
-                    } else if (row.rubro === 'Eléctrico') {
-                        PRESURewItem(PRESUPUESTO_ELECTRICO_STOCK, row);
-                    }
-                }
+            // Reconstruir catálogo Eléctrico (toma el primer precio disponible)
+            if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
+                window.presupuestosCatalogDB = PRESUPUESTO_ELECTRICO_STOCK.map(baseItem => {
+                    const rows = dbByCode[baseItem.codigo];
+                    if (!rows || rows.length === 0) return { ...baseItem };
+                    // Priorizar el que no tenga planta (o la vacía) para Eléctrico
+                    const row = rows.find(r => !r.planta || r.planta.trim() === '') || rows[0];
+                    return {
+                        ...baseItem,
+                        precio: parseFloat(row.precio) || 0,
+                        precio_unitario: parseFloat(row.precio) || 0,
+                        detalle: row.detalle || baseItem.detalle,
+                        descripcion: row.detalle || baseItem.descripcion,
+                        subrubro: row.subrubro || baseItem.subrubro
+                    };
+                });
+            }
 
-                // Actualizar en memoria catálogo Mecánico
-                if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
-                    const foundM = PRESUPUESTO_MECANICO_STOCK.find(m => m.codigo === row.codigo);
-                    if (foundM) {
-                        foundM.precio = cPrice;
-                        foundM.precio_unitario = cPrice;
-                        if (row.detalle) { foundM.detalle = row.detalle; foundM.descripcion = row.detalle; }
-                        if (row.subrubro) foundM.subrubro = row.subrubro;
-                    } else if (row.rubro === 'Mecánico') {
-                        PRESURewItem(PRESUPUESTO_MECANICO_STOCK, row);
+            // Reconstruir catálogo Mecánico (Mantener todas las variantes de planta)
+            if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
+                let mecaArr = [];
+                PRESUPUESTO_MECANICO_STOCK.forEach(baseItem => {
+                    const rows = dbByCode[baseItem.codigo];
+                    if (!rows || rows.length === 0) {
+                        mecaArr.push({ ...baseItem });
+                    } else {
+                        rows.forEach(row => {
+                            mecaArr.push({
+                                ...baseItem,
+                                precio: parseFloat(row.precio) || 0,
+                                precio_unitario: parseFloat(row.precio) || 0,
+                                planta: row.planta || '',
+                                detalle: row.detalle || baseItem.detalle,
+                                descripcion: row.detalle || baseItem.descripcion,
+                                subrubro: row.subrubro || baseItem.subrubro
+                            });
+                        });
                     }
+                });
+                
+                // Agregar ítems que estén en Supabase pero no en el stock base
+                tarRes.data.forEach(row => {
+                    if (row.rubro === 'Mecánico' && !PRESUPUESTO_MECANICO_STOCK.find(b => b.codigo === row.codigo)) {
+                        mecaArr.push({
+                            codigo: row.codigo,
+                            detalle: row.detalle,
+                            descripcion: row.detalle,
+                            rubro: row.rubro,
+                            subrubro: row.subrubro || 'Mano de Obra',
+                            udm: row.unidad || 'Hs',
+                            precio: parseFloat(row.precio) || 0,
+                            precio_unitario: parseFloat(row.precio) || 0,
+                            planta: row.planta || ''
+                        });
+                    }
+                });
+                
+                window.presupuestoMecanicoDB = mecaArr;
+            }
+
+            // Identificar codigos que ya procesamos en la reconstruccion
+            const processedCodes = new Set([
+                ...(typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' ? PRESUPUESTO_ELECTRICO_STOCK.map(i => i.codigo) : []),
+                ...(typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' ? PRESUPUESTO_MECANICO_STOCK.map(i => i.codigo) : [])
+            ]);
+
+            // Agregar items totalmente nuevos que no estaban en los arrays por defecto
+            Object.keys(dbByCode).forEach(codigo => {
+                if (!processedCodes.has(codigo)) {
+                    dbByCode[codigo].forEach(row => {
+                        const newItem = {
+                            codigo: row.codigo,
+                            detalle: row.detalle || '',
+                            descripcion: row.detalle || '',
+                            rubro: row.rubro || 'Mecánico',
+                            subrubro: row.subrubro || 'Materiales y Equipos',
+                            udm: row.unidad || 'Hs',
+                            precio: parseFloat(row.precio) || 0,
+                            precio_unitario: parseFloat(row.precio) || 0,
+                            stock: parseFloat(row.stock) || 999,
+                            estado: row.estado || 'ACTIVOS',
+                            planta: row.planta ? row.planta.trim().toUpperCase() : null
+                        };
+                        
+                        if (row.rubro === 'Eléctrico') {
+                            if (window.presupuestosCatalogDB) window.presupuestosCatalogDB.push(newItem);
+                        } else {
+                            if (window.presupuestoMecanicoDB) window.presupuestoMecanicoDB.push(newItem);
+                        }
+                    });
                 }
             });
 
-            function PRESURewItem(list, row) {
-                list.push({
-                    codigo: row.codigo,
-                    detalle: row.detalle || '',
-                    descripcion: row.detalle || '',
-                    rubro: row.rubro || 'Eléctrico',
-                    subrubro: row.subrubro || 'Materiales y Equipos',
-                    udm: row.unidad || 'Hs',
-                    precio: parseFloat(row.precio) || 0,
-                    precio_unitario: parseFloat(row.precio) || 0,
-                    stock: parseFloat(row.stock) || 999,
-                    estado: row.estado || 'ACTIVOS'
-                });
-            }
 
             try {
                 localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices));
@@ -610,10 +670,13 @@ function initSupabaseSync(callback) {
                 console.log("✅ " + pRes.data.length + " presupuestos leídos DIRECTAMENTE de la tabla 'presupuestos' en Supabase.");
                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-            } else if (appData.pedidos && appData.pedidos.length > 0) {
+                if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+            } else if (pRes.data && pRes.data.length === 0 && appData.pedidos && appData.pedidos.length > 0) {
+                // Solo sincronizar local hacia Supabase si la base remota está realmente vacía (primer setup)
                 console.log("☁️ Sincronizando " + appData.pedidos.length + " presupuestos locales hacia tabla 'presupuestos' de Supabase...");
                 saveData();
                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
             }
         })
         .catch(function(pErr) {
@@ -711,6 +774,7 @@ function initSupabaseSync(callback) {
                             appData.pedidos = (appData.pedidos || []).filter(function(p) { return String(p.id) !== delId; });
                             try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                             if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                            if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
                             console.log("🗑️ Presupuesto " + delId + " eliminado automáticamente en tiempo real.");
                         } else if (payload.eventType === 'INSERT' && payload.new) {
                             const newP = payload.new;
@@ -720,6 +784,7 @@ function initSupabaseSync(callback) {
                                 normalizePresupuestosRubro(appData.pedidos);
                                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                                if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
                             }
                         } else if (payload.eventType === 'UPDATE' && payload.new) {
                             const updatedP = payload.new;
@@ -729,6 +794,7 @@ function initSupabaseSync(callback) {
                                 normalizePresupuestosRubro(appData.pedidos);
                                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                                if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
                             }
                         }
                     })
@@ -1496,7 +1562,7 @@ const allAvailableModules = [
     { id: 'menu-rechazados', label: 'Rechazo de Presupuesto', icon: 'fa-solid fa-ban', tpl: 'tpl-assignments', action: () => initAssignmentsView('Rechazados') },
     { id: 'menu-facturacion', label: 'Registros de Facturación', icon: 'fa-solid fa-file-invoice-dollar', tpl: 'tpl-facturacion', action: () => { showView('tpl-facturacion'); if (window.renderFacturacionTable) window.renderFacturacionTable(); } },
     { id: 'menu-metrics', label: 'Estadísticas y BI', icon: 'fa-solid fa-chart-pie', tpl: 'tpl-metrics', action: initMetricsView },
-    { id: 'menu-admin', label: 'Configuración', icon: 'fa-solid fa-gear', tpl: 'tpl-admin', action: initAdminView }
+    { id: 'menu-admin', label: 'Configuración', icon: 'fa-solid fa-gear', tpl: 'tpl-admin', action: initAdminView },
 ];
 
 function getUserEffectivePermissions(userOrName, role) {
@@ -1533,7 +1599,11 @@ function getUserEffectivePermissions(userOrName, role) {
         perms = defaultMenuPermissions[userRole] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all'];
     }
 
-    return Array.isArray(perms) ? perms : [];
+    let finalPerms = Array.isArray(perms) ? perms : [];
+    
+    // Si tiene el permiso heredado de antes
+
+    return finalPerms;
 }
 
 window.getUserEffectivePermissions = getUserEffectivePermissions;
@@ -1854,6 +1924,13 @@ function closeModal() {
     window.pedidoActivo = null;
     pedidoEdicionTemp = null;
 
+    // Sincronizar tema con la vista activa según reqTipoPresupuesto
+    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') {
+        document.body.classList.add('theme-electrico');
+    } else {
+        document.body.classList.remove('theme-electrico');
+    }
+
     document.title = 'Gestión de Presupuestos';
     if (typeof window.actualizarBotonVolver === 'function') {
         window.actualizarBotonVolver();
@@ -2102,42 +2179,202 @@ window.getCustomItemPrices = function() {
     }
 };
 
-window.saveCustomItemPrice = function(codigo, price) {
+// ==========================================================
+// GESTIÓN DE COTIZACIÓN EXCLUSIVA DE MATERIALES (U$D)
+// ==========================================================
+window.getCotizacionMateriales = function() {
+    // 1. Si hay un input en pantalla con valor válido, priorizarlo
+    const gridInp = document.getElementById('grid-cotizacion-materiales');
+    if (gridInp && gridInp.value) {
+        const parsed = window.parseArgNumber(gridInp.value);
+        if (parsed > 0) return parsed;
+    }
+    const reqMecaInp = document.getElementById('req-meca-cotizacion-materiales');
+    if (reqMecaInp && reqMecaInp.value) {
+        const parsed = window.parseArgNumber(reqMecaInp.value);
+        if (parsed > 0) return parsed;
+    }
+    const reqStdInp = document.getElementById('req-cotizacion-materiales');
+    if (reqStdInp && reqStdInp.value) {
+        const parsed = window.parseArgNumber(reqStdInp.value);
+        if (parsed > 0) return parsed;
+    }
+    // 2. Si el pedido activo en edición tiene cotización guardada
+    if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
+        const pCotiz = parseFloat(pedidoActivo.cotizacion_materiales || pedidoActivo.cotizacion);
+        if (!isNaN(pCotiz) && pCotiz > 0) return pCotiz;
+    }
+    // 3. Valor almacenado en localStorage
+    try {
+        const stored = parseFloat(localStorage.getItem('PRESUPUESTO_COTIZACION_MATERIALES'));
+        if (!isNaN(stored) && stored > 0) return stored;
+    } catch(e) {}
+    // 4. Default estándar ($1.450,00)
+    return 1450.00;
+};
+
+window.setCotizacionMateriales = function(val, updateInputs = true) {
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 0) return;
+    try {
+        localStorage.setItem('PRESUPUESTO_COTIZACION_MATERIALES', num.toString());
+    } catch(e) {}
+    
+    if (updateInputs) {
+        const formatted = num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && document.activeElement !== el) {
+                el.value = formatted;
+            }
+        });
+        const sumStd = document.getElementById('summary-cotiz-materiales');
+        if (sumStd) sumStd.innerText = `$${formatted}`;
+        const sumMec = document.getElementById('summary-meca-cotiz-materiales');
+        if (sumMec) sumMec.innerText = `$${formatted}`;
+    }
+};
+
+window.onReqCotizacionMaterialesInput = function(input) {
+    let clean = input.value.replace(/\./g, ',').replace(/[^0-9,]/g, '');
+    const parts = clean.split(',');
+    if (parts.length > 2) clean = parts[0] + ',' + parts.slice(1).join('');
+    if (input.value !== clean) input.value = clean;
+    const parsed = window.parseArgNumber(clean);
+    if (parsed > 0) {
+        window.setCotizacionMateriales(parsed, false);
+        // Sincronizar todos los inputs en pantalla
+        ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el !== input) el.value = clean;
+        });
+        if (typeof window.recalcMecaExcelAll === 'function') {
+            window.recalcMecaExcelAll();
+        }
+    }
+};
+
+window.onGridCotizacionMaterialesChange = function(input) {
+    window.onReqCotizacionMaterialesInput(input);
+};
+
+window.isMaterialItem = function(item, tipoPresupuesto = '') {
+    if (!item) return false;
+    const sub = String(item.subrubro || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(item, tipoPresupuesto) : '')).toLowerCase();
+    return sub.includes('material') || sub.includes('equipo');
+};
+
+window.onNuevoItemSubrubroChange = function() {
+    const subSelect = document.getElementById('nuevo-item-subrubro');
+    const label = document.getElementById('nuevo-item-precio-label');
+    const priceInput = document.getElementById('nuevo-item-precio');
+    if (!subSelect || !label) return;
+    const subVal = (subSelect.value || '').toLowerCase();
+    const isMat = subVal.includes('material') || subVal.includes('equipo');
+    if (isMat) {
+        label.innerHTML = 'Precio Unitario (U$D) <span style="color: #38bdf8; font-size: 10px; font-weight: 800;">💵 Dolarizado</span>';
+        if (priceInput) priceInput.placeholder = '0,00 U$D';
+    } else {
+        label.innerHTML = 'Precio Unitario ($ ARS) <span style="color: #10b981; font-size: 10px; font-weight: 800;">🇦🇷 Pesos</span>';
+        if (priceInput) priceInput.placeholder = '0,00 $';
+    }
+};
+
+window.saveCustomItemPrice = function(codigo, price, originalSubrubro = null, originalDetalle = null, originalUdm = null, plantaOverride = null) {
     if (!codigo) return;
     const numPrice = parseFloat(price || 0);
     if (isNaN(numPrice)) return;
     
-    const customPrices = getCustomItemPrices();
-    customPrices[codigo] = numPrice;
+    let curPlanta = null;
     
-    if (typeof appData !== 'undefined' && appData) {
-        if (!appData.customPrices) appData.customPrices = {};
-        appData.customPrices[codigo] = numPrice;
+    if (plantaOverride !== null) {
+        curPlanta = plantaOverride;
+    } else {
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect && reqPlantaSelect.value) {
+            curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+                curPlanta = window.appData.plantasRules[curPlanta];
+            }
+        }
+    }
+
+    // Update dynamic DB arrays if they exist
+    if (typeof window.presupuestoMecanicoDB !== 'undefined' && Array.isArray(window.presupuestoMecanicoDB)) {
+        let found = window.presupuestoMecanicoDB.find(i => i.codigo === codigo && (i.planta || '').toUpperCase() === (curPlanta || ''));
+        if (found) {
+            found.precio = numPrice;
+            found.precio_unitario = numPrice;
+        } else if (curPlanta) {
+            // No existe para esta planta, lo clonamos del genérico si existe
+            let generic = window.presupuestoMecanicoDB.find(i => i.codigo === codigo && !i.planta);
+            if (!generic && typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
+                generic = PRESUPUESTO_MECANICO_STOCK.find(i => i.codigo === codigo);
+            }
+            if (!generic) {
+                generic = window.presupuestoMecanicoDB.find(i => i.codigo === codigo);
+            }
+            if (generic) {
+                window.presupuestoMecanicoDB.push({ ...generic, planta: curPlanta, precio: numPrice, precio_unitario: numPrice });
+            }
+        } else {
+            // Es genérico
+            let generic = window.presupuestoMecanicoDB.find(i => i.codigo === codigo && !i.planta);
+            if (generic) {
+                generic.precio = numPrice;
+                generic.precio_unitario = numPrice;
+            } else if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
+                let base = PRESUPUESTO_MECANICO_STOCK.find(i => i.codigo === codigo);
+                if (!base) base = window.presupuestoMecanicoDB.find(i => i.codigo === codigo);
+                if (base) {
+                    window.presupuestoMecanicoDB.push({ ...base, planta: '', precio: numPrice, precio_unitario: numPrice });
+                }
+            }
+        }
     }
     
-    try {
-        localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices));
-    } catch (e) {}
+    if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+        if (!curPlanta) { // Electrico uses generic
+            const foundE = window.presupuestosCatalogDB.find(i => i.codigo === codigo);
+            if (foundE) {
+                foundE.precio = numPrice;
+                foundE.precio_unitario = numPrice;
+            }
+        }
+    }
 
-    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
+    // Update old static arrays just in case
+    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && !curPlanta) {
         const itemM = PRESUPUESTO_MECANICO_STOCK.find(i => i.codigo === codigo);
         if (itemM) itemM.precio = numPrice;
     }
-    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
+    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && !curPlanta) {
         const itemE = PRESUPUESTO_ELECTRICO_STOCK.find(i => i.codigo === codigo);
         if (itemE) itemE.precio = numPrice;
     }
 
-    // Sincronizar inmediatamente con la tabla 'tarifario' en Supabase
+    // Sincronizar con Supabase
     try {
         const dbClient = (typeof getDbClient === 'function') ? getDbClient() : null;
         if (dbClient) {
-            dbClient.from('tarifario').update({ precio: numPrice }).eq('codigo', codigo).then(function(res) {
-                if (res && res.error) {
-                    // Si no existía por UPDATE, intentar UPSERT
-                    dbClient.from('tarifario').upsert([{ id: codigo, codigo: codigo, precio: numPrice }], { onConflict: 'codigo' }).catch(function() {});
-                }
-            }).catch(function() {});
+            const rubroVal = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') ? 'Mecánico' : 'Eléctrico';
+            
+            const newId = curPlanta ? `${codigo}_${curPlanta}` : codigo;
+            
+            dbClient.from('tarifario').upsert([{ 
+                id: newId, 
+                codigo: codigo, 
+                precio: numPrice, 
+                planta: curPlanta || '',
+                detalle: originalDetalle || codigo,
+                rubro: rubroVal,
+                subrubro: originalSubrubro || 'Mano de Obra EN TALLER',
+                unidad: originalUdm || 'UN',
+                stock: 999,
+                estado: 'ACTIVOS'
+            }], { onConflict: 'id' }).then(function(insRes){
+                if (insRes.error) alert("Error guardando: " + JSON.stringify(insRes.error));
+            }).catch(function(err){ alert("Error BD: " + JSON.stringify(err)); });
         }
     } catch (sbTarErr) {
         console.warn("Aviso actualizando precio en Supabase tarifario:", sbTarErr);
@@ -3509,16 +3746,30 @@ function updateTipoPresupuestoBadge() {
     const standardFields = document.getElementById('req-standard-fields');
     const isElec = reqTipoPresupuesto === 'Eléctrico';
     
-    // Cambiar la etiqueta del detalle en el formulario de creacion
+    // Cambiar tema global: fondo amarillo y letras azules en Eléctrico, original en Mecánico
+    if (isElec) {
+        document.body.classList.add('theme-electrico');
+    } else {
+        document.body.classList.remove('theme-electrico');
+    }
+
+    // Etiqueta del título en el formulario de creación unificada
     const lblMecaDenom = document.getElementById('lbl-meca-denominacion');
     if (lblMecaDenom) {
-        lblMecaDenom.innerHTML = isElec ? 'i. <u>Detalle:</u>' : 'i. <u>Título:</u>';
+        lblMecaDenom.innerHTML = 'i. <u>Título:</u>';
     }
     
-    // Ocultar sección entera de propuesta comercial para Eléctrico
+    // Ocultar botón de gestionar plantas (listas) si es eléctrico, pero dejar la planta visible
+    // (Ahora me pidieron que el botón de ABM de Plantas sea visible en ambos rubros)
+    const btnPlantas = document.getElementById('btn-gestionar-plantas');
+    if (btnPlantas) {
+        btnPlantas.style.display = 'block';
+    }
+    
+    // Mostrar sección de propuesta comercial para ambos
     const reqMecaPropuestaBox = document.getElementById('req-meca-propuesta-box');
     if (reqMecaPropuestaBox) {
-        reqMecaPropuestaBox.style.display = isElec ? 'none' : 'flex';
+        reqMecaPropuestaBox.style.display = 'flex';
     }
     const icon = isElec ? '⚡' : '⚙️';
     const bgColor = isElec ? 'rgba(234, 179, 8, 0.2)' : 'rgba(6, 182, 212, 0.2)';
@@ -3575,7 +3826,7 @@ function updateTipoPresupuestoBadge() {
         subtitle1.innerText = 'Defina la identificación de la oferta y la propuesta técnica.';
     }
 
-    // Dynamic labels inside Step 1
+    // Dynamic labels inside Step 1 (unificados)
     const lblDenom = document.getElementById('lbl-meca-denominacion');
     const lblProv = document.getElementById('lbl-meca-proveedor');
     const lblFecha = document.getElementById('lbl-meca-fecha-oferta');
@@ -3593,44 +3844,29 @@ function updateTipoPresupuestoBadge() {
     const valDuracion = document.getElementById('req-meca-duracion');
 
     const todayStr = getLocalDateStr();
-    if (lblDenom) lblDenom.innerHTML = isElec ? '<u>Denominación del Servicio:</u>' : 'i. <u>Denominación del Servicio:</u>';
-    if (lblProv) lblProv.innerHTML = isElec ? 'ii. <u>Nombre del Proveedor:</u>' : 'ii. <u>Nombre del Proveedor:</u>';
-    if (lblFecha) lblFecha.innerHTML = isElec ? 'iii. <u>Fecha de Oferta:</u>' : 'iii. <u>Fecha de Oferta:</u>';
-    if (lblVal) lblVal.innerHTML = isElec ? 'iv. <u>Validez de la Oferta:</u>' : 'iv. <u>Validez de la Oferta:</u>';
-    if (lblPlanta) lblPlanta.innerHTML = isElec ? 'v. <u>Planta de Cargill:</u>' : 'v. <u>Planta de Cargill:</u>';
-    if (lblInicio) lblInicio.innerHTML = isElec ? 'vi. <u>Fecha estimada de Inicio:</u>' : 'vi. <u>Fecha estimada de Inicio:</u>';
-    if (lblDuracion) lblDuracion.innerHTML = isElec ? 'vii. <u>Duración estimada:</u>' : 'vii. <u>Duración estimada:</u>';
-    if (lblFin) lblFin.innerHTML = isElec ? 'viii. <u>Plazo Máximo de Finalización:</u>' : 'viii. <u>Plazo Máximo de Finalización:</u>';
+    if (lblDenom) lblDenom.innerHTML = 'i. <u>Denominación del Servicio:</u>';
+    if (lblProv) lblProv.innerHTML = 'ii. <u>Nombre del Proveedor:</u>';
+    if (lblFecha) lblFecha.innerHTML = 'iii. <u>Fecha de Oferta:</u>';
+    if (lblVal) lblVal.innerHTML = 'iv. <u>Validez de la Oferta:</u>';
+    if (lblPlanta) lblPlanta.innerHTML = 'v. <u>Planta de Cargill:</u>';
+    if (lblInicio) lblInicio.innerHTML = 'vi. <u>Fecha estimada de Inicio:</u>';
+    if (lblDuracion) lblDuracion.innerHTML = 'vii. <u>Duración estimada:</u>';
+    if (lblFin) lblFin.innerHTML = 'viii. <u>Plazo Máximo de Finalización:</u>';
 
-    // Ya ocultado arriba
     if (reqMecaPropuestaBox) {
-        reqMecaPropuestaBox.style.display = isElec ? 'none' : 'flex';
+        reqMecaPropuestaBox.style.display = 'flex';
     }
 
-    if (isElec) {
-        if (valProveedor && !valProveedor.value) valProveedor.value = 'SG Montajes S.R.L';
-        if (typeof window.setValidezOfertaValue === 'function') {
-            if (!valValidez || !valValidez.value) window.setValidezOfertaValue('5 días');
-        } else if (valValidez && !valValidez.value) {
-            valValidez.value = '5 días';
-        }
-        if (valPlanta && !valPlanta.value) valPlanta.value = 'Complejo APS- PGSM';
-        if (valInicio && (!valInicio.value || valInicio.value === '12-ago-26')) valInicio.value = todayStr;
-        if (typeof window.setDuracionEstimadaValue === 'function') {
-            if (valDuracion && (valDuracion.value === 'OT-' || valDuracion.value === '25-30días')) window.setDuracionEstimadaValue('');
-        }
-    } else {
-        if (valProveedor && (!valProveedor.value || valProveedor.value === 'SG Montajes S.R.L')) valProveedor.value = 'SG MONTAJES SRL';
-        if (typeof window.setValidezOfertaValue === 'function') {
-            if (!valValidez || !valValidez.value || valValidez.value === '5 dias') window.setValidezOfertaValue('5 días');
-        } else if (valValidez && (!valValidez.value || valValidez.value === '5 dias')) {
-            valValidez.value = '5 días';
-        }
-        if (valPlanta && (!valPlanta.value || valPlanta.value === 'Complejo APS- PGSM')) valPlanta.value = 'APS';
-        if (valInicio && (!valInicio.value || valInicio.value === '12-ago-26')) valInicio.value = todayStr;
-        if (typeof window.setDuracionEstimadaValue === 'function') {
-            if (valDuracion && (valDuracion.value === 'OT-' || valDuracion.value === '25-30días')) window.setDuracionEstimadaValue('');
-        }
+    if (valProveedor && !valProveedor.value) valProveedor.value = 'SG MONTAJES SRL';
+    if (typeof window.setValidezOfertaValue === 'function') {
+        if (!valValidez || !valValidez.value || valValidez.value === '5 dias') window.setValidezOfertaValue('5 días');
+    } else if (valValidez && (!valValidez.value || valValidez.value === '5 dias')) {
+        valValidez.value = '5 días';
+    }
+    if (valPlanta && !valPlanta.value) valPlanta.value = 'APS';
+    if (valInicio && (!valInicio.value || valInicio.value === '12-ago-26')) valInicio.value = todayStr;
+    if (typeof window.setDuracionEstimadaValue === 'function') {
+        if (valDuracion && (valDuracion.value === 'OT-' || valDuracion.value === '25-30días')) window.setDuracionEstimadaValue('');
     }
 
     // Auto-populate hidden required standard values for both
@@ -4637,19 +4873,19 @@ window.goToRequestStep = function(step) {
         }
 
         if (isExcelFlow) {
-            // Update Step 3 labels dynamically
+            // Update Step 3 labels dynamically (unificados)
             const lblSumInicio = document.getElementById('lbl-summary-meca-inicio');
             const lblSumDuracion = document.getElementById('lbl-summary-meca-duracion');
             if (lblSumInicio) {
-                lblSumInicio.innerText = isElec ? 'FECHA DE INICIO' : 'FECHA ESTIMADA DE INICIO';
+                lblSumInicio.innerText = 'FECHA ESTIMADA DE INICIO';
             }
             if (lblSumDuracion) {
-                lblSumDuracion.innerText = isElec ? 'NUMEROS DE OT' : 'DURACIÓN ESTIMADA';
+                lblSumDuracion.innerText = 'DURACIÓN ESTIMADA';
             }
 
             const summaryMecaPropuestaBox = document.getElementById('summary-meca-propuesta-box');
             if (summaryMecaPropuestaBox) {
-                summaryMecaPropuestaBox.style.display = isElec ? 'none' : 'grid';
+                summaryMecaPropuestaBox.style.display = 'grid';
             }
 
             // Populate mechanical/electrical summary
@@ -5162,6 +5398,46 @@ window.abrirRobotStock = function() {
         const rubro = rubroFilter ? rubroFilter.value : '';
 
         let filtered = catalog;
+        
+        // Filtrar por planta
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect) {
+            let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
+            
+            // Regla Dinámica: Mirar en plantasRules a ver si usa la lista de otra planta
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+                curPlanta = window.appData.plantasRules[curPlanta];
+            } else if (curPlanta === 'APA') {
+                curPlanta = 'APS'; // Fallback
+            }
+            
+            if (curPlanta) {
+                const grouped = {};
+                filtered.forEach(s => {
+                    if (!grouped[s.codigo] && (!(s.planta || '').trim() || (s.planta || '').trim().toUpperCase() === curPlanta)) grouped[s.codigo] = { ...s, precio: 0, precio_unitario: 0, planta: curPlanta };
+                });
+                filtered.forEach(s => {
+                    if (!(s.planta || '').trim()) {
+                        if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                            grouped[s.codigo].precio = s.precio;
+                            grouped[s.codigo].precio_unitario = s.precio_unitario;
+                            grouped[s.codigo].detalle = s.detalle;
+                        }
+                    }
+                });
+                filtered.forEach(s => {
+                    if ((s.planta || '').trim().toUpperCase() === curPlanta) {
+                        if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                            grouped[s.codigo].precio = s.precio;
+                            grouped[s.codigo].precio_unitario = s.precio_unitario;
+                            grouped[s.codigo].detalle = s.detalle;
+                        }
+                    }
+                });
+                filtered = Object.values(grouped);
+            }
+        }
+
         if (rubro) {
             filtered = filtered.filter(s => s.rubro === rubro);
         }
@@ -5548,16 +5824,26 @@ window.crearPresupuestoBasadoEnActual = function(id) {
     setVal('req-meca-denominacion', p.meca_denominacion || p.motivo || '');
     setVal('req-meca-cliente', p.cliente_nombre || 'CARGILL SACI');
     setVal('req-meca-proveedor', p.meca_proveedor || 'SG MONTAJES SRL');
+    const parseDateInput = (dStr, fallback) => {
+        if (!dStr) return fallback;
+        if (dStr.includes('/')) {
+            const parts = dStr.split('/');
+            if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+        return dStr;
+    };
+
     setVal('req-meca-fecha-oferta', new Date().toISOString().substring(0, 10));
     setVal('req-meca-validez', p.meca_validez || '5 días');
     if (typeof window.setValidezOfertaValue === 'function') window.setValidezOfertaValue(p.meca_validez || '5 días');
     setVal('req-meca-planta', p.meca_planta || 'APS');
     setVal('req-meca-nro-oc', p.meca_nro_oc || '');
     setVal('req-meca-nro-ot', p.meca_nro_ot || '');
-    setVal('req-meca-fecha-inicio', p.meca_fecha_inicio || new Date().toISOString().substring(0, 10));
+    setVal('req-meca-fecha-inicio', parseDateInput(p.meca_fecha_inicio, new Date().toISOString().substring(0, 10)));
     setVal('req-meca-duracion', p.meca_duracion || '');
     if (typeof window.setDuracionEstimadaValue === 'function') window.setDuracionEstimadaValue(p.meca_duracion || '');
-    setVal('req-meca-fecha-fin', p.meca_fecha_fin || '');
+    const existingFin = document.getElementById('req-meca-fecha-fin') ? document.getElementById('req-meca-fecha-fin').value : '';
+    setVal('req-meca-fecha-fin', parseDateInput(p.meca_fecha_fin, existingFin));
     setVal('req-meca-propuesta', p.meca_propuesta || '');
     setVal('req-meca-personal', p.meca_personal || '');
     setVal('req-meca-exclusiones', p.meca_exclusiones || '');
@@ -5607,16 +5893,26 @@ window.cargarPresupuestoParaModificacion = function(id) {
     setVal('req-meca-denominacion', p.meca_denominacion || p.motivo || '');
     setVal('req-meca-cliente', p.cliente_nombre || 'CARGILL SACI');
     setVal('req-meca-proveedor', p.meca_proveedor || 'SG MONTAJES SRL');
-    setVal('req-meca-fecha-oferta', p.meca_fecha_oferta || '');
+    const parseDateInput2 = (dStr, fallback) => {
+        if (!dStr) return fallback;
+        if (dStr.includes('/')) {
+            const parts = dStr.split('/');
+            if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+        return dStr;
+    };
+
+    setVal('req-meca-fecha-oferta', parseDateInput2(p.meca_fecha_oferta, ''));
     setVal('req-meca-validez', p.meca_validez || '5 días');
     if (typeof window.setValidezOfertaValue === 'function') window.setValidezOfertaValue(p.meca_validez || '5 días');
     setVal('req-meca-planta', p.meca_planta || 'APS');
     setVal('req-meca-nro-oc', p.meca_nro_oc || '');
     setVal('req-meca-nro-ot', p.meca_nro_ot || '');
-    setVal('req-meca-fecha-inicio', p.meca_fecha_inicio || new Date().toISOString().substring(0, 10));
+    setVal('req-meca-fecha-inicio', parseDateInput2(p.meca_fecha_inicio, new Date().toISOString().substring(0, 10)));
     setVal('req-meca-duracion', p.meca_duracion || '');
     if (typeof window.setDuracionEstimadaValue === 'function') window.setDuracionEstimadaValue(p.meca_duracion || '');
-    setVal('req-meca-fecha-fin', p.meca_fecha_fin || '');
+    const existingFin = document.getElementById('req-meca-fecha-fin') ? document.getElementById('req-meca-fecha-fin').value : '';
+    setVal('req-meca-fecha-fin', parseDateInput2(p.meca_fecha_fin, existingFin));
     setVal('req-meca-propuesta', p.meca_propuesta || '');
     setVal('req-meca-personal', p.meca_personal || '');
     setVal('req-meca-exclusiones', p.meca_exclusiones || '');
@@ -5758,6 +6054,8 @@ window.confirmarConTipoReporte = function(tipoReporte) {
             targetPedido.meca_propuesta = document.getElementById('req-meca-propuesta') ? document.getElementById('req-meca-propuesta').value : '';
             targetPedido.meca_personal = document.getElementById('req-meca-personal') ? document.getElementById('req-meca-personal').value : '';
             targetPedido.meca_exclusiones = document.getElementById('req-meca-exclusiones') ? document.getElementById('req-meca-exclusiones').value : '';
+            targetPedido.cotizacion_materiales = window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1;
+            targetPedido.cotizacion = targetPedido.cotizacion_materiales;
             targetPedido.items = (pedidoItems || []).map(item => ({
                 ...item,
                 cantidad_original: item.cantidad,
@@ -5853,6 +6151,8 @@ window.confirmarConTipoReporte = function(tipoReporte) {
                 meca_propuesta: document.getElementById('req-meca-propuesta') ? document.getElementById('req-meca-propuesta').value : '',
                 meca_personal: document.getElementById('req-meca-personal') ? document.getElementById('req-meca-personal').value : '',
                 meca_exclusiones: document.getElementById('req-meca-exclusiones') ? document.getElementById('req-meca-exclusiones').value : '',
+                cotizacion_materiales: window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1,
+                cotizacion: window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1,
                 operador: user ? user.username : 'admin',
                 requiere_autorizacion: isReqAuth,
                 estado: finalInitialState,
@@ -6450,7 +6750,7 @@ window.notificarAprobacionEquipo = async function(p, nuevoEstado) {
     }
 };
 
-window.cambiarEstadoPresupuesto = function(id, nuevoEstado) {
+window.cambiarEstadoPresupuesto = async function(id, nuevoEstado) {
     const orderIdx = (typeof window.findPedidoIndex === 'function') 
         ? window.findPedidoIndex(id) 
         : appData.pedidos.findIndex(p => p && (p.id === id || String(p.id) === String(id)));
@@ -6476,23 +6776,88 @@ window.cambiarEstadoPresupuesto = function(id, nuevoEstado) {
     }
 
     if (nuevoEstado === 'Aprobado con OC') {
-        const currentOc = pTarget.meca_nro_oc || pTarget.nro_oc || '';
-        const inputOc = prompt('Ingrese el Número de Orden de Compra (OC) para este presupuesto:', currentOc);
-        if (inputOc !== null && inputOc.trim()) {
-            const cleanOc = inputOc.trim();
-            pTarget.meca_nro_oc = cleanOc;
-            pTarget.nro_oc = cleanOc;
-            if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(pTarget.id)) {
-                pedidoActivo.meca_nro_oc = cleanOc;
-                pedidoActivo.nro_oc = cleanOc;
+        const currentOcMo = pTarget.oc_mano_obra || pTarget.meca_nro_oc || pTarget.nro_oc || '';
+        const currentOcMat = pTarget.oc_materiales || '';
+        
+        const { value: formValues, isDismissed } = await Swal.fire({
+            title: '<h3 style="color: #f8fafc; font-size: 18px; margin: 0;">Ingresar Órdenes de Compra</h3>',
+            background: 'rgba(30, 41, 59, 0.95)',
+            color: '#f8fafc',
+            width: '360px',
+            customClass: { popup: 'glass-panel' },
+            html:
+                '<div style="text-align:left; margin-bottom: 10px;">' +
+                '<label style="font-size: 12px; color: #94a3b8; font-weight: bold;">OC Mano de Obra:</label>' +
+                '<input id="swal-input-oc-mo" class="swal2-input" style="height: 36px; padding: 5px 10px; font-size: 13px; width: 90%; background: rgba(15, 23, 42, 0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); margin: 5px auto; display: block;" value="' + currentOcMo + '">' +
+                '</div><div style="text-align:left;">' +
+                '<label style="font-size: 12px; color: #94a3b8; font-weight: bold;">OC Materiales:</label>' +
+                '<input id="swal-input-oc-mat" class="swal2-input" style="height: 36px; padding: 5px 10px; font-size: 13px; width: 90%; background: rgba(15, 23, 42, 0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); margin: 5px auto; display: block;" value="' + currentOcMat + '">' +
+                '</div>',
+            focusConfirm: false,
+            showCancelButton: true,
+            cancelButtonText: 'Cancelar',
+            confirmButtonText: 'Confirmar',
+            confirmButtonColor: '#0ea5e9',
+            cancelButtonColor: '#64748b',
+            preConfirm: () => {
+                const mo = document.getElementById('swal-input-oc-mo').value;
+                const mat = document.getElementById('swal-input-oc-mat').value;
+                if (!mo && !mat) {
+                    Swal.showValidationMessage('Debe completar al menos una orden de compra (Mano de Obra o Materiales).');
+                }
+                return { mo: mo, mat: mat };
             }
-        }
-    } else if (nuevoEstado === 'Rechazado' && !pTarget.motivo_rechazo) {
-        const reason = prompt('Ingrese el motivo obligatorio del rechazo del presupuesto:');
-        if (reason === null || !reason.trim()) {
-            showToast('El motivo de rechazo es obligatorio.', 'error');
+        });
+
+        if (isDismissed || !formValues) {
+            // Restaurar select visual si estuviera en la planilla
+            if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(pTarget.id)) {
+                const statusSelect = document.getElementById('modal-change-status-select');
+                if (statusSelect) statusSelect.value = currentEstNorm;
+            }
             if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
             return;
+        }
+
+        const cleanMo = formValues.mo.trim();
+        const cleanMat = formValues.mat.trim();
+        pTarget.oc_mano_obra = cleanMo;
+        pTarget.oc_materiales = cleanMat;
+        pTarget.meca_nro_oc = cleanMo;
+        pTarget.nro_oc = cleanMo;
+        
+        if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(pTarget.id)) {
+            pedidoActivo.oc_mano_obra = cleanMo;
+            pedidoActivo.oc_materiales = cleanMat;
+            pedidoActivo.meca_nro_oc = cleanMo;
+            pedidoActivo.nro_oc = cleanMo;
+        }
+    } else if (nuevoEstado === 'Rechazado' && !pTarget.motivo_rechazo) {
+        let reason;
+        if (typeof Swal !== 'undefined') {
+            const { value, isDismissed } = await Swal.fire({
+                title: 'Motivo de rechazo',
+                input: 'text',
+                inputLabel: 'Ingrese el motivo obligatorio del rechazo del presupuesto:',
+                showCancelButton: true,
+                inputValidator: (val) => {
+                    if (!val || !val.trim()) {
+                        return 'El motivo de rechazo es obligatorio';
+                    }
+                }
+            });
+            if (isDismissed || !value) {
+                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                return;
+            }
+            reason = value;
+        } else {
+            reason = prompt('Ingrese el motivo obligatorio del rechazo del presupuesto:');
+            if (reason === null || !reason.trim()) {
+                showToast('El motivo de rechazo es obligatorio.', 'error');
+                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                return;
+            }
         }
         pTarget.motivo_rechazo = reason.trim();
     }
@@ -6528,8 +6893,10 @@ window.cambiarEstadoPresupuesto = function(id, nuevoEstado) {
                 authOcEl.innerText = ocDisplay;
             }
         }
-        const authHeaderOc = document.getElementById('auth-header-nro-oc-val');
-        if (authHeaderOc) authHeaderOc.innerText = ocDisplay;
+        const authHeaderOcMo = document.getElementById('auth-header-nro-oc-mo-val');
+        const authHeaderOcMat = document.getElementById('auth-header-nro-oc-mat-val');
+        if (authHeaderOcMo) authHeaderOcMo.innerText = pedidoActivo.oc_mano_obra || pedidoActivo.meca_nro_oc || pedidoActivo.nro_oc || '-';
+        if (authHeaderOcMat) authHeaderOcMat.innerText = pedidoActivo.oc_materiales || '-';
     }
     
     if (typeof renderAssignmentsTable === 'function') {
@@ -6543,25 +6910,8 @@ window.cambiarEstadoPresupuesto = function(id, nuevoEstado) {
         const codPresupuesto = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(pTarget) : (pTarget.id || id);
         const ocNumero = pTarget ? (pTarget.meca_nro_oc || pTarget.nro_oc || '') : '';
         const ocDesc = ocNumero ? ` con OC <strong>${ocNumero}</strong>` : '';
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                icon: 'success',
-                title: 'Comprobante ' + nuevoEstado,
-                html: `Presupuesto <strong>${codPresupuesto}</strong> actualizado a <strong>${nuevoEstado}</strong>${ocDesc} y disponible en <strong>Registros de Facturación</strong>.<br><br>¿Desea ir ahora al módulo de Facturación?`,
-                showCancelButton: true,
-                confirmButtonText: '<i class="fa-solid fa-file-invoice-dollar"></i> Ir a Facturación',
-                cancelButtonText: 'Permanecer aquí',
-                confirmButtonColor: '#10b981',
-                cancelButtonColor: '#64748b'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    if (typeof closeModal === 'function') closeModal();
-                    if (typeof showView === 'function') {
-                        showView('tpl-facturacion');
-                        if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
-                    }
-                }
-            });
+        if (typeof showToast !== 'undefined') {
+            showToast(`Guardado. Presupuesto ${codPresupuesto} actualizado a ${nuevoEstado}.`, 'success');
         }
     }
 };
@@ -7075,7 +7425,7 @@ function getSLABadge(p) {
     return `<span class="sla-badge info"><i class="fa-solid fa-clock"></i> Hace ${hoursElapsed}h ${minsElapsed}m</span>`;
 }
 
-window.cambiarEstadoPresupuestoDirecto = function(id, nuevoEstado) {
+window.cambiarEstadoPresupuestoDirecto = async function(id, nuevoEstado) {
     const orderIdx = (typeof window.findPedidoIndex === 'function') 
         ? window.findPedidoIndex(id) 
         : appData.pedidos.findIndex(p => p && (p.id === id || String(p.id) === String(id)));
@@ -7087,19 +7437,76 @@ window.cambiarEstadoPresupuestoDirecto = function(id, nuevoEstado) {
     const p = appData.pedidos[orderIdx];
     
     if (nuevoEstado === 'Aprobado con OC') {
-        const currentOc = p.meca_nro_oc || p.nro_oc || '';
-        const inputOc = prompt('Ingrese el Número de Orden de Compra (OC) para este presupuesto:', currentOc);
-        if (inputOc !== null && inputOc.trim()) {
-            const cleanOc = inputOc.trim();
-            p.meca_nro_oc = cleanOc;
-            p.nro_oc = cleanOc;
-        }
-    } else if (nuevoEstado === 'Rechazado' && !p.motivo_rechazo) {
-        const reason = prompt('Ingrese el motivo obligatorio del rechazo del presupuesto:');
-        if (reason === null || !reason.trim()) {
-            showToast('El motivo de rechazo es obligatorio.', 'error');
-            renderAssignmentsTable();
+        const currentOcMo = p.oc_mano_obra || p.meca_nro_oc || p.nro_oc || '';
+        const currentOcMat = p.oc_materiales || '';
+        
+        const { value: formValues, isDismissed } = await Swal.fire({
+            title: '<h3 style="color: #f8fafc; font-size: 18px; margin: 0;">Ingresar Órdenes de Compra</h3>',
+            background: 'rgba(30, 41, 59, 0.95)',
+            color: '#f8fafc',
+            width: '360px',
+            customClass: { popup: 'glass-panel' },
+            html:
+                '<div style="text-align:left; margin-bottom: 10px;">' +
+                '<label style="font-size: 12px; color: #94a3b8; font-weight: bold;">OC Mano de Obra:</label>' +
+                '<input id="swal-input-oc-mo2" class="swal2-input" style="height: 36px; padding: 5px 10px; font-size: 13px; width: 90%; background: rgba(15, 23, 42, 0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); margin: 5px auto; display: block;" value="' + currentOcMo + '">' +
+                '</div><div style="text-align:left;">' +
+                '<label style="font-size: 12px; color: #94a3b8; font-weight: bold;">OC Materiales:</label>' +
+                '<input id="swal-input-oc-mat2" class="swal2-input" style="height: 36px; padding: 5px 10px; font-size: 13px; width: 90%; background: rgba(15, 23, 42, 0.6); color: #fff; border: 1px solid rgba(255,255,255,0.1); margin: 5px auto; display: block;" value="' + currentOcMat + '">' +
+                '</div>',
+            focusConfirm: false,
+            showCancelButton: true,
+            cancelButtonText: 'Cancelar',
+            confirmButtonText: 'Confirmar',
+            confirmButtonColor: '#0ea5e9',
+            cancelButtonColor: '#64748b',
+            preConfirm: () => {
+                const mo = document.getElementById('swal-input-oc-mo2').value;
+                const mat = document.getElementById('swal-input-oc-mat2').value;
+                if (!mo && !mat) {
+                    Swal.showValidationMessage('Debe completar al menos una orden de compra (Mano de Obra o Materiales).');
+                }
+                return { mo: mo, mat: mat };
+            }
+        });
+
+        if (isDismissed || !formValues) {
+            if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
             return;
+        }
+
+        const cleanMo = formValues.mo.trim();
+        const cleanMat = formValues.mat.trim();
+        p.oc_mano_obra = cleanMo;
+        p.oc_materiales = cleanMat;
+        p.meca_nro_oc = cleanMo;
+        p.nro_oc = cleanMo;
+    } else if (nuevoEstado === 'Rechazado' && !p.motivo_rechazo) {
+        let reason;
+        if (typeof Swal !== 'undefined') {
+            const { value, isDismissed } = await Swal.fire({
+                title: 'Motivo de rechazo',
+                input: 'text',
+                inputLabel: 'Ingrese el motivo obligatorio del rechazo del presupuesto:',
+                showCancelButton: true,
+                inputValidator: (val) => {
+                    if (!val || !val.trim()) {
+                        return 'El motivo de rechazo es obligatorio';
+                    }
+                }
+            });
+            if (isDismissed || !value) {
+                renderAssignmentsTable();
+                return;
+            }
+            reason = value;
+        } else {
+            reason = prompt('Ingrese el motivo obligatorio del rechazo del presupuesto:');
+            if (reason === null || !reason.trim()) {
+                showToast('El motivo de rechazo es obligatorio.', 'error');
+                renderAssignmentsTable();
+                return;
+            }
         }
         p.motivo_rechazo = reason.trim();
     }
@@ -8042,12 +8449,18 @@ window.saveTempEdits = function() {
     if (getEditVal('auth-edit-meca-entrega') !== null) pedidoActivo.fecha_entrega = getEditVal('auth-edit-meca-entrega');
     if (getEditVal('auth-edit-meca-oc-mo') !== null) {
         const valOc = getEditVal('auth-edit-meca-oc-mo');
+        pedidoActivo.oc_mano_obra = valOc;
         pedidoActivo.meca_nro_oc = valOc;
         pedidoActivo.nro_oc = valOc;
-        const authHeaderOc = document.getElementById('auth-header-nro-oc-val');
-        if (authHeaderOc) authHeaderOc.innerText = valOc || '-';
+        const authHeaderOcMo = document.getElementById('auth-header-nro-oc-mo-val');
+        if (authHeaderOcMo) authHeaderOcMo.innerText = valOc || '-';
     }
-    if (getEditVal('auth-edit-meca-oc-mat') !== null) pedidoActivo.oc_materiales = getEditVal('auth-edit-meca-oc-mat');
+    if (getEditVal('auth-edit-meca-oc-mat') !== null) {
+        const valOcMat = getEditVal('auth-edit-meca-oc-mat');
+        pedidoActivo.oc_materiales = valOcMat;
+        const authHeaderOcMat = document.getElementById('auth-header-nro-oc-mat-val');
+        if (authHeaderOcMat) authHeaderOcMat.innerText = valOcMat || '-';
+    }
     if (getEditVal('auth-edit-meca-proveedor') !== null) pedidoActivo.meca_proveedor = getEditVal('auth-edit-meca-proveedor');
     if (getEditVal('auth-edit-meca-oferta') !== null) pedidoActivo.meca_fecha_oferta = getEditVal('auth-edit-meca-oferta');
     if (getEditVal('auth-edit-meca-validez') !== null) pedidoActivo.meca_validez = getEditVal('auth-edit-meca-validez');
@@ -8058,10 +8471,11 @@ window.saveTempEdits = function() {
     }
     if (getEditVal('auth-edit-meca-nro-oc') !== null) {
         const valOc = getEditVal('auth-edit-meca-nro-oc');
+        pedidoActivo.oc_mano_obra = valOc;
         pedidoActivo.meca_nro_oc = valOc;
         pedidoActivo.nro_oc = valOc;
-        const authHeaderOc = document.getElementById('auth-header-nro-oc-val');
-        if (authHeaderOc) authHeaderOc.innerText = valOc || '-';
+        const authHeaderOcMo = document.getElementById('auth-header-nro-oc-mo-val');
+        if (authHeaderOcMo) authHeaderOcMo.innerText = valOc || '-';
     }
     if (getEditVal('auth-edit-meca-nro-ot') !== null) pedidoActivo.meca_nro_ot = getEditVal('auth-edit-meca-nro-ot');
     if (getEditVal('auth-edit-meca-inicio') !== null) pedidoActivo.meca_fecha_inicio = getEditVal('auth-edit-meca-inicio');
@@ -8499,6 +8913,51 @@ window.abrirRobotStockEdicion = function() {
         const rubro = rubroFilter ? rubroFilter.value : '';
 
         let filtered = activeCatalog;
+        
+        // Filtrar por planta SOLO SI ES MECÁNICO
+        let curPlanta = '';
+        if (typeof pedidoActivo !== 'undefined' && pedidoActivo && pedidoActivo.tipo_presupuesto === 'Mecánico') {
+            curPlanta = (pedidoActivo.meca_planta || pedidoActivo.planta || '').trim().toUpperCase();
+        }
+            
+        // Regla Dinámica: Mirar en plantasRules a ver si usa la lista de otra planta
+        if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+            curPlanta = window.appData.plantasRules[curPlanta];
+        } else if (curPlanta === 'APA') {
+            curPlanta = 'APS'; // Fallback manual por si la base de datos no está actualizada
+        }
+
+        if (curPlanta) {
+            const grouped = {};
+            
+            // 1. Registrar todos los códigos existentes en cualquier planta o genérico
+            filtered.forEach(s => {
+                if (!grouped[s.codigo] && (!(s.planta || '').trim() || (s.planta || '').trim().toUpperCase() === curPlanta)) {
+                    grouped[s.codigo] = { ...s, precio: 0, precio_unitario: 0, planta: curPlanta };
+                }
+            });
+            
+            // 2. Pisar con el precio genérico (si existe)
+            filtered.forEach(s => {
+                if (!(s.planta || '').trim()) {
+                    grouped[s.codigo].precio = s.precio;
+                    grouped[s.codigo].precio_unitario = s.precio_unitario;
+                    grouped[s.codigo].detalle = s.detalle;
+                }
+            });
+            
+            // 3. Pisar con el precio específico de la planta seleccionada (si existe)
+            filtered.forEach(s => {
+                if ((s.planta || '').trim().toUpperCase() === curPlanta) {
+                    grouped[s.codigo].precio = s.precio;
+                    grouped[s.codigo].precio_unitario = s.precio_unitario;
+                    grouped[s.codigo].detalle = s.detalle;
+                }
+            });
+            
+            filtered = Object.values(grouped);
+        }
+
         if (window.robotSelectedTab) {
             filtered = filtered.filter(s => {
                 const sub = (s.subrubro || s.rubro || '').toUpperCase();
@@ -8510,8 +8969,8 @@ window.abrirRobotStockEdicion = function() {
         }
         if (query) {
             filtered = filtered.filter(s => 
-                s.detalle.toLowerCase().includes(query) || 
-                s.codigo.toLowerCase().includes(query)
+                (s.detalle || '').toLowerCase().includes(query) || 
+                (s.codigo || '').toLowerCase().includes(query)
             );
         }
 
@@ -8802,18 +9261,23 @@ window.verDetallePedido = function(id, explicitMode) {
             }
         }
         if (_wmEl) {
+            const wmContainer = _wmEl.closest('.sheet-watermark');
             if (_isAcostaModal) {
                 _wmEl.src = (window.LOGO_ACOSTA_WATERMARK_BASE64) ? window.LOGO_ACOSTA_WATERMARK_BASE64 : 'logo_acosta_watermark.png';
                 _wmEl.alt = 'Marca de agua Acosta Servicios';
                 _wmEl.style.width = '380px';
                 _wmEl.style.maxWidth = '100%';
                 _wmEl.style.objectFit = 'contain';
+                _wmEl.style.opacity = '0.22';
+                if (wmContainer) wmContainer.style.opacity = '0.22';
             } else {
                 _wmEl.src = (window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : 'logo_sg_watermark_gold.png';
                 _wmEl.alt = 'Marca de agua SG MONTAJES';
                 _wmEl.style.width = '380px';
                 _wmEl.style.maxWidth = '100%';
                 _wmEl.style.objectFit = 'contain';
+                _wmEl.style.opacity = '0.60';
+                if (wmContainer) wmContainer.style.opacity = '0.60';
             }
         }
     })();
@@ -8827,7 +9291,8 @@ window.verDetallePedido = function(id, explicitMode) {
         }
     }
     setElemText('auth-date-val', formattedDate);
-    setElemText('auth-header-nro-oc-val', p.meca_nro_oc || p.nro_oc || '-');
+    setElemText('auth-header-nro-oc-mo-val', p.oc_mano_obra || p.meca_nro_oc || p.nro_oc || '-');
+    setElemText('auth-header-nro-oc-mat-val', p.oc_materiales || '-');
     
     const cleanVal = (val, fallback) => {
         if (val === undefined || val === null) return (fallback !== undefined && fallback !== null && fallback !== '-') ? fallback : '-';
@@ -8886,6 +9351,13 @@ window.verDetallePedido = function(id, explicitMode) {
     setElemText('auth-tiponv-val', `${isElec ? '⚡' : '⚙️'} PRESUPUESTO ${isElec ? 'ELÉCTRICO' : 'MECÁNICO'}`);
     setElemText('auth-entrega-val', (p.tipo_entrega || 'RETIRA CLIENTE').toUpperCase());
     setElemText('auth-pago-val', rawCliCond);
+
+    // Ajustar tema según el tipo de presupuesto del pedido
+    if (isElec) {
+        document.body.classList.add('theme-electrico'); // USER requested to remove yellow theme
+    } else {
+        document.body.classList.remove('theme-electrico');
+    }
     
     // Ficha y Aclaraciones para Presupuestos Excel (Mecánico y Eléctrico)
     const mecaHeaderBox = document.getElementById('auth-mecanico-header-box');
@@ -8902,23 +9374,21 @@ window.verDetallePedido = function(id, explicitMode) {
     if (mecaHeaderBox) {
         mecaHeaderBox.style.display = 'block';
         
-        // Conditional layout for Mecánico vs Eléctrico
-        if (isElectrical) {
-            if (document.getElementById('lbl-modal-titulo')) document.getElementById('lbl-modal-titulo').innerText = 'Detalle:';
-            if (document.getElementById('modal-row-detalle-planta')) document.getElementById('modal-row-detalle-planta').style.display = 'none';
-            if (document.getElementById('modal-col-f6-planta-el')) document.getElementById('modal-col-f6-planta-el').style.display = 'flex';
-            if (document.getElementById('modal-col-f6-condicion-meca')) document.getElementById('modal-col-f6-condicion-meca').style.display = 'none';
-        } else {
-            if (document.getElementById('lbl-modal-titulo')) document.getElementById('lbl-modal-titulo').innerText = 'Título:';
-            if (document.getElementById('modal-row-detalle-planta')) document.getElementById('modal-row-detalle-planta').style.display = 'flex';
-            if (document.getElementById('modal-col-f6-planta-el')) document.getElementById('modal-col-f6-planta-el').style.display = 'none';
-            if (document.getElementById('modal-col-f6-condicion-meca')) document.getElementById('modal-col-f6-condicion-meca').style.display = 'flex';
+        // Layout unificado para Mecánico y Eléctrico
+        if (document.getElementById('lbl-modal-titulo')) document.getElementById('lbl-modal-titulo').innerText = 'Título:';
+        
+        // La planta es SOLO para Mecánico, la ocultamos en Eléctrico
+        if (document.getElementById('modal-row-detalle-planta')) {
+            document.getElementById('modal-row-detalle-planta').style.display = 'flex';
         }
+        
+        if (document.getElementById('modal-col-f6-planta-el')) document.getElementById('modal-col-f6-planta-el').style.display = 'none';
+        if (document.getElementById('modal-col-f6-condicion-meca')) document.getElementById('modal-col-f6-condicion-meca').style.display = 'flex';
 
         const rawDenom = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
         const rawOt = (p.meca_nro_ot || p.nro_ot || '-');
 
-        const plantasList = (typeof window.getPlantas === 'function') ? window.getPlantas() : ['VGG', 'PGSM', 'PPA', 'APS', 'APG'];
+        const plantasList = (typeof window.getPlantas === 'function') ? window.getPlantas() : ['APS', 'APG', 'PPA'];
         const optsPlanta = plantasList.map(pl => `<option value="${pl}" ${pl === rawPlanta ? 'selected' : ''}>${pl}</option>`).join('');
 
         if (canEditControls) {
@@ -8940,13 +9410,8 @@ window.verDetallePedido = function(id, explicitMode) {
                     ${optsPlanta}
                 </select>
             `;
-            if (isElectrical) {
-                setElemHtml('auth-meca-planta-val-el', selectPlantaHtml);
-                setElemText('auth-meca-planta-val', rawPlanta);
-            } else {
-                setElemHtml('auth-meca-planta-val', selectPlantaHtml);
-                setElemText('auth-meca-planta-val-el', rawPlanta);
-            }
+            setElemHtml('auth-meca-planta-val', selectPlantaHtml);
+            setElemText('auth-meca-planta-val-el', rawPlanta);
             setElemText('auth-meca-nro-presupuesto-val', rawNroPres);
         } else {
             setElemText('auth-meca-cliente-val', rawCliName);
@@ -9140,15 +9605,19 @@ window.verDetallePedido = function(id, explicitMode) {
             return;
         }
 
+        const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
         const formattedItems = (typeof window.getPresupuestoFormattedItems === 'function') 
             ? window.getPresupuestoFormattedItems(p, activeMode) 
             : [];
         
         let itemsRowsHtml = '';
         let grandTotal = 0;
+        let laborTotalARS = 0;
+        let materialsTotalUSD = 0;
 
         formattedItems.forEach((r, idx) => {
             const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-');
+            const isMat = (r.is_material === true || r.is_material === 1 || r.is_material === '1');
             const subVal = (r.subtotal !== '-' && r.subtotal !== null && r.subtotal !== undefined) ? parseFloat(r.subtotal) : 0;
             if (!isHeaderRow && r.subtotal !== '-') {
                 grandTotal += subVal;
@@ -9157,9 +9626,29 @@ window.verDetallePedido = function(id, explicitMode) {
             }
 
             const codeStr = r.codigo === '-' ? '-' : r.codigo;
-            const priceStr = r.precio === '-' ? '-' : '$' + parseFloat(r.precio).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            let priceStr = '-';
+            let subStr = '-';
+            if (r.precio !== '-') {
+                const prVal = parseFloat(r.precio) || 0;
+                if (isMat) {
+                    priceStr = 'U$D ' + prVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                } else {
+                    priceStr = '$' + prVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+            }
+
+            if (r.subtotal !== '-') {
+                const sVal = parseFloat(r.subtotal) || 0;
+                if (isMat && r.subtotal_usd !== undefined && r.subtotal_usd !== null) {
+                    const sUSD = parseFloat(r.subtotal_usd) || 0;
+                    subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + 
+                        ` <br><span style="font-size: 10px; opacity: 0.8; font-weight: normal; color: #a5f3fc;">(U$D ${sUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>`;
+                } else {
+                    subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+            }
+
             const qtyStr = r.cantidad === '-' ? '-' : (typeof r.cantidad === 'number' ? r.cantidad.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2}) : r.cantidad);
-            const subStr = r.subtotal === '-' ? '-' : '$' + parseFloat(r.subtotal).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
             if (isHeaderRow) {
                 itemsRowsHtml += `
@@ -9176,7 +9665,7 @@ window.verDetallePedido = function(id, explicitMode) {
                     <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: ${idx % 2 === 0 ? 'rgba(15, 23, 42, 0.15)' : 'transparent'};">
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${codeStr}</td>
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-weight: 600; color: #f8fafc;">${r.detalle}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; color: #f8fafc; font-weight: 600;">${priceStr}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; color: ${isMat ? '#38bdf8' : '#f8fafc'}; font-weight: 600;">${priceStr}</td>
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: center; font-weight: 800; font-family: monospace; color: #f8fafc;">${qtyStr}</td>
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">${subStr}</td>
                     </tr>
@@ -9184,12 +9673,68 @@ window.verDetallePedido = function(id, explicitMode) {
             }
         });
 
-        const netAmt = (grandTotal > 0) ? grandTotal : (parseFloat(String(p.importe || '0').replace(',', '.')) || 0);
-        const ivaAmt = netAmt * 0.21;
-        const totalWithIvaAmt = netAmt * 1.21;
+        // Compute labor total and material total from raw items if available, or from formatted items
+        const rawItems = Array.isArray(p.items) ? p.items : [];
+        if (rawItems.length > 0) {
+            rawItems.forEach(it => {
+                if (it.estado === 'Rechazado') return;
+                const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
+                const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
+                              (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+                              (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
+                if (isMat) {
+                    const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
+                        ? parseFloat(it.precio_usd) 
+                        : (parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0);
+                    const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
+                        ? parseFloat(it.subtotal_usd) 
+                        : (q * prUSD);
+                    materialsTotalUSD += subUSD;
+                } else {
+                    const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
+                    const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) 
+                        ? parseFloat(String(it.subtotal).replace(',', '.')) 
+                        : (q * pr);
+                    laborTotalARS += sub;
+                }
+            });
+        } else {
+            formattedItems.forEach(r => {
+                const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-');
+                if (isHeaderRow) return;
+                const isMat = (r.is_material === true || r.is_material === 1 || r.is_material === '1');
+                if (isMat) {
+                    materialsTotalUSD += (parseFloat(r.subtotal_usd) || 0);
+                } else {
+                    laborTotalARS += (parseFloat(r.subtotal) || 0);
+                }
+            });
+        }
+
+        const materialsTotalARS = materialsTotalUSD * cotizMat;
+        const computedGrandTotal = (laborTotalARS + materialsTotalARS > 0) ? (laborTotalARS + materialsTotalARS) : grandTotal;
+        const netAmt = (computedGrandTotal > 0) ? computedGrandTotal : (parseFloat(String(p.importe || '0').replace(',', '.')) || 0);
         const subtotalStr = `$${netAmt.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        const ivaStr = `$${ivaAmt.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        const totalWithIvaStr = `$${totalWithIvaAmt.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+        let breakdownTfootHtml = '';
+        if (materialsTotalUSD > 0) {
+            breakdownTfootHtml = `
+                <tr style="background: rgba(15, 23, 42, 0.40); border-top: 1px solid rgba(255, 255, 255, 0.12); font-size: 11.5px;">
+                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; color: #cbd5e1; font-weight: 600;">Subtotal Mano de Obra ($ ARS):</td>
+                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; font-family: monospace; color: #f8fafc; font-weight: 700;">$${laborTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>
+                <tr style="background: rgba(15, 23, 42, 0.40); border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 11.5px;">
+                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; color: #38bdf8; font-weight: 600;">
+                        Subtotal Materiales (U$D) <span style="font-size: 10.5px; color: #fcd34d; font-weight: 700; margin-left: 6px; background: rgba(253, 224, 71, 0.12); border: 1px solid rgba(253, 224, 71, 0.3); padding: 1px 6px; border-radius: 4px;">[Cotiz. Dólar: $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}]</span>:
+                    </td>
+                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; font-family: monospace; color: #38bdf8; font-weight: 700;">U$D ${materialsTotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>
+                <tr style="background: rgba(15, 23, 42, 0.40); border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 11.5px;">
+                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; color: #a5f3fc; font-weight: 600;">Subtotal Materiales Pesificados:</td>
+                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; font-family: monospace; color: #a5f3fc; font-weight: 700;">$${materialsTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>
+            `;
+        }
 
         authMecaContainer.innerHTML = rejectedBannerHtml + `
             <div style="background: rgba(15, 23, 42, 0.28); backdrop-filter: blur(2px); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; color: #f8fafc; font-family: inherit; margin-bottom: 12px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
@@ -9210,7 +9755,7 @@ window.verDetallePedido = function(id, explicitMode) {
                                     <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">CANTIDAD</span>
                                 </th>
                                 <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 140px; color: #f8fafc; font-weight: 800; font-size: 11px;">
-                                    <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">TOTAL</span>
+                                    <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">TOTAL ($ ARS)</span>
                                 </th>
                             </tr>
                         </thead>
@@ -9218,8 +9763,9 @@ window.verDetallePedido = function(id, explicitMode) {
                             ${itemsRowsHtml}
                         </tbody>
                         <tfoot>
+                            ${breakdownTfootHtml}
                             <tr style="background: rgba(16, 185, 129, 0.18); border-top: 2px solid #10b981; font-size: 13px;">
-                                <td colspan="4" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; text-transform: uppercase; color: #4ade80; font-weight: 900; letter-spacing: 0.5px;"><strong>TOTAL:</strong></td>
+                                <td colspan="4" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; text-transform: uppercase; color: #4ade80; font-weight: 900; letter-spacing: 0.5px;"><strong>TOTAL GENERAL ($ ARS):</strong></td>
                                 <td style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 900; font-size: 16px; color: #4ade80;">${subtotalStr}</td>
                             </tr>
                         </tfoot>
@@ -9228,13 +9774,11 @@ window.verDetallePedido = function(id, explicitMode) {
                 ${obsHtml}
 
                 ${(() => {
-                    const propTecnica = p.meca_propuesta || p.propuesta || (isElectrical ? '' : (p.meca_denominacion || p.denominacion || p.motivo || ''));
-                    const propTecnicaForEl = p.meca_propuesta || p.propuesta || '';
+                    const propTecnica = p.meca_propuesta || p.propuesta || p.meca_denominacion || p.denominacion || p.motivo || '';
                     const personal = p.meca_personal || p.personal || '';
                     const exclus = p.meca_exclusiones || p.exclusiones || '';
                     const obsGeneral = p.observaciones || p.meca_observaciones || '';
                     const tituloObra = p.meca_denominacion || p.denominacion || p.motivo || '';
-                    if (isElectrical) return '';
                     
                     const propRows = [];
                     if (personal.trim()) propRows.push({label: 'SOLICITUD DE SUPERVISOR', value: personal.trim()});
@@ -12895,7 +13439,11 @@ window.compartirWhatsAppPedido = function(id) {
     if (!p) return;
     const nro = formatPresupuestoCodigo(p);
     const cliente = p.cliente_nombre ? p.cliente_nombre.toUpperCase() : 'CONSUMIDOR FINAL';
-    const total = p.importe ? p.importe.toLocaleString('es-AR', {minimumFractionDigits: 2}) : '0,00';
+    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
+    
+    let laborARS = 0;
+    let matUSD = 0;
+
     let msg = `*SG MONTAJES - PRESUPUESTO Nro. ${nro}*\n`;
     msg += `Fecha: ${p.fecha}\n`;
     msg += `Cliente: ${cliente}\n`;
@@ -12905,12 +13453,43 @@ window.compartirWhatsAppPedido = function(id) {
     msg += `------------------------------------\n`;
     if (Array.isArray(p.items)) {
         p.items.forEach(it => {
-            const sub = (it.cantidad * it.precio).toLocaleString('es-AR', {minimumFractionDigits: 2});
-            msg += `• ${it.codigo} - ${it.detalle} (x${it.cantidad}) = $${sub}\n`;
+            if (it.estado === 'Rechazado') return;
+            const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
+            const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
+                          (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+                          (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
+            if (isMat) {
+                const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
+                    ? parseFloat(it.precio_usd) 
+                    : (parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0);
+                const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
+                    ? parseFloat(it.subtotal_usd) 
+                    : (q * prUSD);
+                matUSD += subUSD;
+                const subPesos = subUSD * cotizMat;
+                msg += `• [MAT] ${it.codigo} - ${it.detalle} (x${q} @ U$D ${prUSD.toLocaleString('es-AR', {minimumFractionDigits: 2})}) = $${subPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})} (U$D ${subUSD.toLocaleString('es-AR', {minimumFractionDigits: 2})})\n`;
+            } else {
+                const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
+                const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) 
+                    ? parseFloat(String(it.subtotal).replace(',', '.')) 
+                    : (q * pr);
+                laborARS += sub;
+                msg += `• ${it.codigo} - ${it.detalle} (x${q}) = $${sub.toLocaleString('es-AR', {minimumFractionDigits: 2})}\n`;
+            }
         });
     }
     msg += `------------------------------------\n`;
-    msg += `*TOTAL: $${total}*\n\n`;
+    if (matUSD > 0) {
+        const matARS = matUSD * cotizMat;
+        const grandTot = laborARS + matARS;
+        msg += `Subtotal M.O.: $${laborARS.toLocaleString('es-AR', {minimumFractionDigits: 2})}\n`;
+        msg += `Subtotal Materiales: U$D ${matUSD.toLocaleString('es-AR', {minimumFractionDigits: 2})} [Cotiz: $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2})}]\n`;
+        msg += `Materiales Pesificados: $${matARS.toLocaleString('es-AR', {minimumFractionDigits: 2})}\n`;
+        msg += `*TOTAL GENERAL: $${grandTot.toLocaleString('es-AR', {minimumFractionDigits: 2})}*\n\n`;
+    } else {
+        const grandTot = laborARS > 0 ? laborARS : (parseFloat(String(p.importe || '0').replace(',', '.')) || 0);
+        msg += `*TOTAL GENERAL: $${grandTot.toLocaleString('es-AR', {minimumFractionDigits: 2})}*\n\n`;
+    }
     msg += `Comprobante no válido como factura - SG MONTAJES`;
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
@@ -12936,12 +13515,56 @@ window.switchMecaTab = function(idx) {
             tabEl.style.fontWeight = isSelected ? '800' : '700';
         }
     }
+    const priceTh = document.getElementById('meca-excel-th-price');
+    if (priceTh) {
+        priceTh.innerHTML = (idx === 0) 
+            ? 'Precio unitario <span style="color:#38bdf8;font-size:11px;font-weight:bold;">(U$D)</span>' 
+            : 'Precio unitario <span style="color:#34d399;font-size:11px;font-weight:bold;">($ ARS)</span>';
+    }
 };
 
 window.renderMecanicoExcelGridInContainer = function(container, isEditable = true) {
     if (!container) return;
 
-    const catalog = getActiveStockCatalog();
+    let catalog = getActiveStockCatalog();
+    
+    // Si estamos en un presupuesto mecánico, filtramos y agrupamos el catálogo según la planta seleccionada
+    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (reqPlantaSelect) {
+            let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
+            if (curPlanta === 'APA') curPlanta = 'APS';
+            
+            // Regla dinámica (solo aplicable a PPA u otras, nunca mezclar APS y APG)
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+                curPlanta = window.appData.plantasRules[curPlanta];
+            }
+            
+            const grouped = {};
+            catalog.forEach(s => {
+                if (!grouped[s.codigo] && (!(s.planta || '').trim() || (s.planta || '').trim().toUpperCase() === curPlanta)) grouped[s.codigo] = { ...s, precio: 0, precio_unitario: 0, planta: curPlanta };
+            });
+            catalog.forEach(s => {
+                if (!(s.planta || '').trim()) {
+                    if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                        grouped[s.codigo].precio = s.precio;
+                        grouped[s.codigo].precio_unitario = s.precio_unitario;
+                        grouped[s.codigo].detalle = s.detalle;
+                    }
+                }
+            });
+            catalog.forEach(s => {
+                if ((s.planta || '').trim().toUpperCase() === curPlanta) {
+                    if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                        grouped[s.codigo].precio = s.precio;
+                        grouped[s.codigo].precio_unitario = s.precio_unitario;
+                        grouped[s.codigo].detalle = s.detalle;
+                    }
+                }
+            });
+            catalog = Object.values(grouped);
+        }
+    }
     
     // Group catalog by subrubro
     const sections = [
@@ -12969,12 +13592,26 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
 
     let html = `
         <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; overflow: hidden; color: var(--text-main); box-shadow: var(--glass-shadow); font-family: inherit; margin-bottom: 15px; text-align: left;">
-            <div style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; font-weight: 800; font-size: 14px; padding: 12px 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between;">
+            <div style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; font-weight: 800; font-size: 14px; padding: 10px 15px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="background: #0891b2; color: white; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 800;">2</span>
                     <span style="text-decoration: underline; letter-spacing: 0.5px;">PROPUESTA COMERCIAL (TARIFARIO)</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 6px; background: rgba(15, 23, 42, 0.7); border: 1.5px solid rgba(56, 189, 248, 0.5); border-radius: 6px; padding: 4px 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
+                        <span style="font-size: 11px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-dollar-sign"></i> Cotiz. U$D (Solo Mat):
+                        </span>
+                        <input type="text" 
+                               id="grid-cotizacion-materiales" 
+                               inputmode="decimal" 
+                               value="${(window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450).toString().replace(/\./g, ',')}" 
+                               ${isEditable ? '' : 'disabled'}
+                               onkeydown="onMecaPriceKeyDown(event, this)"
+                               oninput="window.onGridCotizacionMaterialesChange ? window.onGridCotizacionMaterialesChange(this) : null"
+                               style="width: 85px; text-align: right; background: rgba(0,0,0,0.45); border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 4px; color: #38bdf8; font-family: monospace; font-weight: 900; font-size: 12px; padding: 3px 6px;" 
+                               title="Cotización oficial aplicada EXCLUSIVAMENTE a Materiales y Equipos">
+                    </div>
                     <button type="button" class="btn btn-sm" onclick="abrirModalNuevoItemTarifario()" style="background: #10b981; color: white; border: 1px solid #059669; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" title="Agregar nuevo ítem al tarifario en orden correlativo">
                         <i class="fas fa-plus-circle"></i> Agregar Ítem al Tarifario
                     </button>
@@ -13010,8 +13647,10 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
                             <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; color: #ffffff !important; font-weight: 800; font-size: 12px;">Tarifario</th>
                             <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: center; width: 160px; color: #ffffff !important; font-weight: 800; font-size: 12px;">Cantidades Estimadas</th>
                             <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: center; width: 85px; color: #ffffff !important; font-weight: 800; font-size: 12px;">U.D.M.</th>
-                            <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; width: 140px; color: #ffffff !important; font-weight: 800; font-size: 12px;">Precio unitario</th>
-                            <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; width: 140px; color: #ffffff !important; font-weight: 800; font-size: 12px;">Precio Total</th>
+                            <th id="meca-excel-th-price" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; width: 155px; color: #ffffff !important; font-weight: 800; font-size: 12px;">
+                                ${window.activeMecaTab === 0 ? 'Precio unitario <span style="color:#38bdf8;font-size:11px;font-weight:bold;">(U$D)</span>' : 'Precio unitario <span style="color:#34d399;font-size:11px;font-weight:bold;">($ ARS)</span>'}
+                            </th>
+                            <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 10px; text-align: right; width: 145px; color: #ffffff !important; font-weight: 800; font-size: 12px;">Precio Total ($ ARS)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -13037,7 +13676,13 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
         sec.items.forEach((item, index) => {
             const existing = pedidoItems.find(pi => pi.codigo === item.codigo);
             const initialQty = existing ? existing.cantidad : '';
-            const initialTotal = existing ? (existing.cantidad * item.precio) : 0;
+            const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
+            const isMat = (window.isMaterialItem ? window.isMaterialItem(item, reqTipoPresupuesto) : false) || (secIdx === 0);
+            const numItemPrice = (item.precio !== undefined && item.precio !== null) ? item.precio : 0;
+            const initialSubtotalPesos = existing 
+                ? (isMat ? (existing.cantidad * numItemPrice * cotizMat) : (existing.cantidad * numItemPrice))
+                : 0;
+            const initialSubtotalUSD = isMat && existing ? (existing.cantidad * numItemPrice) : 0;
             
             // Subheaders and section banners for Eléctrico budget
             if (reqTipoPresupuesto === 'Eléctrico') {
@@ -13142,22 +13787,26 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px; text-align: center; color: var(--text-muted) !important; font-weight: 700; font-size: 12px;">${item.udm}</td>
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 6px; text-align: right;">
                         <div style="display: flex; align-items: center; justify-content: flex-end; gap: 3px;">
-                            <span style="font-weight: 800; color: var(--text-muted) !important; font-size: 12px;">$</span>
+                            <span style="font-weight: 800; color: ${isMat ? '#38bdf8' : '#34d399'} !important; font-size: 11px;">${isMat ? 'U$D' : '$'}</span>
                             <input type="text" 
                                    inputmode="decimal"
                                    class="meca-excel-price-input" 
                                    data-code="${item.codigo}" 
                                    data-sec="${secIdx}"
+                                   data-is-material="${isMat ? '1' : '0'}"
                                    value="${formattedPrice}" 
                                    ${priceDisabledAttr}
                                    title="${canEditPrices ? '' : 'No tiene permisos para modificar precios unitarios'}"
-                                   style="width: 105px; text-align: right; background: rgba(15, 23, 42, 0.6) !important; border: 1.5px solid rgba(6, 182, 212, 0.4) !important; border-radius: 6px; padding: 5px 8px; font-weight: 700 !important; color: #ffffff !important; font-family: monospace; font-size: 12px !important; opacity: ${canEditPrices ? '1' : '0.65'} !important;"
+                                   style="width: 105px; text-align: right; background: rgba(15, 23, 42, 0.6) !important; border: 1.5px solid ${isMat ? 'rgba(56, 189, 248, 0.5)' : 'rgba(6, 182, 212, 0.4)'} !important; border-radius: 6px; padding: 5px 8px; font-weight: 700 !important; color: #ffffff !important; font-family: monospace; font-size: 12px !important; opacity: ${canEditPrices ? '1' : '0.65'} !important;"
                                    onkeydown="onMecaPriceKeyDown(event, this)"
                                    oninput="onMecaPriceInputChange(this)"
                                    onblur="onMecaPriceInputBlur(this)">
                         </div>
                     </td>
-                    <td id="meca-total-${item.codigo}" style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8 !important; font-size: 13px;">$${initialTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                    <td id="meca-total-${item.codigo}" style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8 !important; font-size: 13px;">
+                        $${initialSubtotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        ${isMat && existing && existing.cantidad > 0 ? `<div style="font-size: 10px; color: #94a3b8; font-weight: normal;">(U$D ${initialSubtotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</div>` : ''}
+                    </td>
                 </tr>
             `;
         });
@@ -13285,7 +13934,22 @@ window.onMecaPriceInputChange = function(input) {
     }
 
     const newPrice = window.parseArgNumber(input.value);
-    saveCustomItemPrice(code, newPrice);
+    
+    // Buscar detalles del item original
+    let subr = null, det = null, u = null;
+    if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems)) {
+        const pItem = pedidoItems.find(i => i.codigo === code);
+        if (pItem) { subr = pItem.subrubro; det = pItem.detalle; u = pItem.unidad; }
+    }
+    if (!det && typeof getActiveStockCatalog === 'function') {
+        const cat = getActiveStockCatalog();
+        if (cat) {
+            const catItem = cat.find(i => i.codigo === code);
+            if (catItem) { subr = catItem.subrubro; det = catItem.detalle || catItem.descripcion; u = catItem.unidad; }
+        }
+    }
+
+    saveCustomItemPrice(code, newPrice, subr, det, u);
 
     const qtyInput = document.querySelector(`.meca-excel-input[data-code="${code}"]`);
     if (qtyInput) {
@@ -13312,9 +13976,12 @@ window.recalcMecaExcelRow = function(input) {
     const code = input.getAttribute('data-code');
     const priceInput = document.querySelector(`.meca-excel-price-input[data-code="${code}"]`);
     const qtyInput = document.querySelector(`.meca-excel-input[data-code="${code}"]`);
+    const secIdx = parseInt(input.getAttribute('data-sec')) || 0;
+    const isMat = (priceInput && priceInput.getAttribute('data-is-material') === '1') || (secIdx === 0);
 
     const price = priceInput ? window.parseArgNumber(priceInput.value) : (input.hasAttribute('data-price') ? window.parseArgNumber(input.getAttribute('data-price')) : 0);
     const qty = qtyInput ? (parseInt(qtyInput.value.replace(/[^0-9]/g, ''), 10) || 0) : 0;
+    const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
     const totalEl = document.getElementById(`meca-total-${code}`);
 
     if (qtyInput) {
@@ -13324,8 +13991,14 @@ window.recalcMecaExcelRow = function(input) {
     }
 
     if (totalEl) {
-        const subtotal = qty * price;
-        totalEl.innerText = `$${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        if (isMat) {
+            const subtotalUSD = qty * price;
+            const subtotalPesos = subtotalUSD * cotizMat;
+            totalEl.innerHTML = `$${subtotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${qty > 0 ? `<div style="font-size: 10px; color: #94a3b8; font-weight: normal;">(U$D ${subtotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</div>` : ''}`;
+        } else {
+            const subtotal = qty * price;
+            totalEl.innerText = `$${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
     }
 
     recalcMecaExcelAll();
@@ -13335,11 +14008,51 @@ window.recalcMecaExcelAll = function() {
     const inputs = document.querySelectorAll('.meca-excel-input');
     const subtotals = [0, 0, 0, 0, 0, 0];
     let grandTotal = 0;
+    let materialsTotalUSD = 0;
+    let materialsTotalPesos = 0;
+    let laborTotalPesos = 0;
+
+    const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
 
     // Reset items array
     pedidoItems = [];
 
-    const catalog = getActiveStockCatalog();
+    let catalog = getActiveStockCatalog();
+
+    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (reqPlantaSelect) {
+            let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
+            if (curPlanta === 'APA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+                curPlanta = window.appData.plantasRules[curPlanta];
+            }
+            
+            const grouped = {};
+            catalog.forEach(s => {
+                if (!grouped[s.codigo] && (!(s.planta || '').trim() || (s.planta || '').trim().toUpperCase() === curPlanta)) grouped[s.codigo] = { ...s, precio: 0, precio_unitario: 0, planta: curPlanta };
+            });
+            catalog.forEach(s => {
+                if (!(s.planta || '').trim()) {
+                    if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                        grouped[s.codigo].precio = s.precio;
+                        grouped[s.codigo].precio_unitario = s.precio_unitario;
+                        grouped[s.codigo].detalle = s.detalle;
+                    }
+                }
+            });
+            catalog.forEach(s => {
+                if ((s.planta || '').trim().toUpperCase() === curPlanta) {
+                    if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                        grouped[s.codigo].precio = s.precio;
+                        grouped[s.codigo].precio_unitario = s.precio_unitario;
+                        grouped[s.codigo].detalle = s.detalle;
+                    }
+                }
+            });
+            catalog = Object.values(grouped);
+        }
+    }
 
     inputs.forEach(input => {
         const code = input.getAttribute('data-code');
@@ -13348,17 +14061,42 @@ window.recalcMecaExcelAll = function() {
         const qty = parseInt(input.value.replace(/[^0-9]/g, ''), 10) || 0;
         const secIdx = parseInt(input.getAttribute('data-sec')) || 0;
 
-        saveCustomItemPrice(code, price);
+        const itemObj = catalog.find(i => i.codigo === code);
+        const isMat = (priceInput && priceInput.getAttribute('data-is-material') === '1') || 
+                      (window.isMaterialItem ? window.isMaterialItem(itemObj || { codigo: code, subrubro: (secIdx === 0 ? 'Materiales y Equipos' : '') }, reqTipoPresupuesto) : false) || 
+                      (secIdx === 0);
+
+        // Update individual item total column display
+        const totalEl = document.getElementById(`meca-total-${code}`);
+        if (totalEl) {
+            if (isMat) {
+                const subUSD = qty * price;
+                const subARS = subUSD * cotizMat;
+                totalEl.innerHTML = `$${subARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${qty > 0 ? `<div style="font-size: 10px; color: #94a3b8; font-weight: normal;">(U$D ${subUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</div>` : ''}`;
+            } else {
+                const subARS = qty * price;
+                totalEl.innerText = `$${subARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            }
+        }
 
         if (qty > 0) {
-            const subtotal = qty * price;
-            if (subtotals[secIdx] !== undefined) {
-                subtotals[secIdx] += subtotal;
+            let subtotalPesos = 0;
+            if (isMat) {
+                const subUSD = qty * price;
+                subtotalPesos = subUSD * cotizMat;
+                materialsTotalUSD += subUSD;
+                materialsTotalPesos += subtotalPesos;
+            } else {
+                subtotalPesos = qty * price;
+                laborTotalPesos += subtotalPesos;
             }
-            grandTotal += subtotal;
+
+            if (subtotals[secIdx] !== undefined) {
+                subtotals[secIdx] += subtotalPesos;
+            }
+            grandTotal += subtotalPesos;
 
             // Find item original name and details from stock database
-            const itemObj = catalog.find(i => i.codigo === code);
             const secNames = [
                 "Materiales y Equipos",
                 "Mano de Obra EN TALLER",
@@ -13374,10 +14112,15 @@ window.recalcMecaExcelAll = function() {
                 codigo: code,
                 detalle: itemObj ? itemObj.detalle : 'Artículo',
                 precio: price,
+                precio_unitario: price,
+                precio_usd: isMat ? price : null,
+                cotizacion_aplicada: isMat ? cotizMat : null,
+                is_material: isMat,
                 cantidad: qty,
                 cantidad_original: qty,
-                subtotal: subtotal,
-                udm: (itemObj && itemObj.udm) ? itemObj.udm : 'horas',
+                subtotal: subtotalPesos,
+                subtotal_usd: isMat ? (qty * price) : null,
+                udm: (itemObj && itemObj.udm) ? itemObj.udm : (isMat ? 'UN' : 'horas'),
                 subrubro: resolvedSubr,
                 estado: 'Pendiente'
             });
@@ -13385,33 +14128,18 @@ window.recalcMecaExcelAll = function() {
     });
 
     if (reqTipoPresupuesto === 'Eléctrico') {
-        let materialsTotal = 0;
-        let laborTotal = 0;
-
-        pedidoItems.forEach(item => {
-            if (item.codigo.startsWith('ELE-')) {
-                const num = parseInt(item.codigo.substring(4));
-                if (num <= 27) {
-                    materialsTotal += item.subtotal;
-                } else {
-                    laborTotal += item.subtotal;
-                }
-            }
-        });
-
-        // Update displays for Eléctrico
         const subMatTop = document.getElementById('elec-subtotal-materials-total-header');
         const subMatBottom = document.getElementById('elec-materials-subtotal-bottom');
         const subMatRow = document.getElementById('elec-materials-subtotal');
         const subLab = document.getElementById('elec-labor-subtotal');
         const subElecGrand = document.getElementById('meca-excel-grand-total');
 
-        if (subMatTop) subMatTop.innerText = `$${materialsTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        if (subMatBottom) subMatBottom.innerText = `$${materialsTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        if (subMatRow) subMatRow.innerText = `$${materialsTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        if (subLab) subLab.innerText = `$${laborTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        if (subMatTop) subMatTop.innerText = `$${materialsTotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})} (U$D ${materialsTotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2})})`;
+        if (subMatBottom) subMatBottom.innerText = `$${materialsTotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        if (subMatRow) subMatRow.innerText = `$${materialsTotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        if (subLab) subLab.innerText = `$${laborTotalPesos.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         
-        const elecGrandVal = materialsTotal + laborTotal;
+        const elecGrandVal = materialsTotalPesos + laborTotalPesos;
         if (subElecGrand) {
             subElecGrand.innerText = `$${elecGrandVal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         }
@@ -13440,6 +14168,12 @@ window.recalcMecaExcelAll = function() {
             nvDisplay.innerText = `$${grandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         }
     }
+
+    // Update Summary Step 3 if elements exist
+    const sumCotizMat = document.getElementById('summary-cotiz-materiales');
+    if (sumCotizMat) sumCotizMat.innerText = `$${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+    const sumMecaCotizMat = document.getElementById('summary-meca-cotiz-materiales');
+    if (sumMecaCotizMat) sumMecaCotizMat.innerText = `$${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
 
     if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
         pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
@@ -13543,18 +14277,42 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
             }]);
 
             if (!qErr) {
-                console.log("✅ Email encolado exitosamente en Supabase (cola_emails):", mailId);
-                try {
-                    client.from('notificaciones').insert({
-                        id: String(Date.now()),
-                        tipo: 'email_despachado',
-                        titulo: `Cotización enviada a ${toArr.join(', ')}`,
-                        mensaje: subject,
-                        leida: false,
-                        fecha: new Date().toISOString()
-                    }).then(() => {});
-                } catch(nErr) {}
-                return { success: true, via: 'queue', id: mailId };
+                console.log("⏳ Email encolado en Supabase (cola_emails):", mailId, ". Verificando entrega...");
+                
+                // Esperar a que el worker procese el correo (hasta 10 segundos)
+                let pollAttempts = 0;
+                while (pollAttempts < 7) {
+                    await new Promise(r => setTimeout(r, 1500));
+                    pollAttempts++;
+                    try {
+                        const { data: qData, error: chkErr } = await client.from('cola_emails').select('estado, error_mensaje').eq('id', mailId).maybeSingle();
+                        if (!chkErr && qData) {
+                            if (qData.estado === 'enviado') {
+                                console.log("✅ Email despachado exitosamente por worker cloud:", mailId);
+                                try {
+                                    client.from('notificaciones').insert({
+                                        id: String(Date.now()),
+                                        tipo: 'email_despachado',
+                                        titulo: `Cotización enviada a ${toArr.join(', ')}`,
+                                        mensaje: subject,
+                                        leida: false,
+                                        fecha: new Date().toISOString()
+                                    }).then(() => {});
+                                } catch(nErr) {}
+                                return { success: true, via: 'queue', id: mailId };
+                            } else if (qData.estado === 'error') {
+                                console.warn("❌ El worker de correos reportó un error al despachar:", qData.error_mensaje);
+                                lastError = `Servidor de correo: ${qData.error_mensaje || 'No se pudo conectar al servidor SMTP'}`;
+                                break;
+                            }
+                        }
+                    } catch(pollE) {}
+                }
+
+                // Si no arrojó error explícito pero sigue pendiente tras el polling, continuar
+                if (!lastError) {
+                    return { success: true, via: 'queue', id: mailId };
+                }
             } else {
                 console.error("Error al insertar en cola_emails de Supabase:", qErr);
                 lastError = qErr.message || (typeof qErr === 'object' ? JSON.stringify(qErr) : String(qErr));
@@ -13582,7 +14340,7 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
     for (const endpoint of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            const timeoutId = setTimeout(() => controller.abort(), 60000);
             const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -13657,7 +14415,35 @@ window.enviarEmailPedido = function(id) {
     const clientEmail = (p.email || p.cliente_email || '').trim();
     const defaultTo = clientEmail || 'melanidaiana28@gmail.com';
     const defaultSubject = `Presupuesto Oficial SG MONTAJES Nro. ${nro} — ${cliente}`;
-    const initialReportFormat = (p.tipo_reporte || 'detallado').toLowerCase().trim();
+    const initialReportFormat = 'detallado';
+
+    const rawClientData = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
+        ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && p.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
+        : null;
+    const emailPlanta = (p.meca_planta || p.planta || (rawClientData && rawClientData.localidad && rawClientData.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
+
+    const buildEmailPlainBody = () => {
+        let plainMsg = `Estimados ${cliente},\n\n`;
+        plainMsg += `Adjuntamos la propuesta comercial formal correspondiente al Presupuesto Oficial SG MONTAJES Nro. ${nro}.\n\n`;
+        plainMsg += `• Presupuesto Nro.: ${nro}\n`;
+        plainMsg += `• Fecha: ${p.fecha || new Date().toLocaleDateString('es-AR')}\n`;
+        plainMsg += `• Obra / Denominación: ${(p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase()}\n`;
+        plainMsg += `• Planta: ${emailPlanta}\n`;
+        plainMsg += `• Importe Total: ${totalStr}\n`;
+        if (p.meca_nro_ot || p.nro_ot) {
+            plainMsg += `• Orden de Trabajo (OT): ${p.meca_nro_ot || p.nro_ot}\n`;
+        }
+        if (p.meca_nro_oc || p.nro_oc) {
+            plainMsg += `• Orden de Compra (OC): ${p.meca_nro_oc || p.nro_oc}\n`;
+        }
+        if (p.estado === 'Cargado sin orden de compra' || p.estado === 'Enviado sin OC') {
+            plainMsg += `⚠️ Recordatorio: Este presupuesto está pendiente de recepción de Orden de Compra. Fecha límite: ${p.oc_limite_fecha || '-'}\n`;
+        }
+        plainMsg += `\nEl detalle completo de los ítems cotizados, especificaciones técnicas y cómputo se encuentra en el archivo PDF oficial adjunto.\n\n`;
+        plainMsg += `Quedamos a su entera disposición ante cualquier consulta.\n\n`;
+        plainMsg += `Atentamente,\nSG MONTAJES S.R.L.\nMontajes Industriales & Servicios Electromecánicos\ncotizaciones@sgmontajes.com.ar | Tel: (0341) 5890126`;
+        return plainMsg;
+    };
 
     let modalEl = document.getElementById('modal-dispatch-email-quote');
     if (!modalEl) {
@@ -13694,7 +14480,7 @@ window.enviarEmailPedido = function(id) {
     };
 
     modalEl.innerHTML = `
-        <div style="width: 100%; max-width: 630px; background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); padding: 22px 24px; color: #f8fafc; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; position: relative;">
+        <div style="width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); padding: 22px 24px; color: #f8fafc; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; position: relative;">
             
             <!-- Cabecera -->
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; border-bottom: 1px solid #1e293b; padding-bottom: 14px;">
@@ -13783,10 +14569,27 @@ window.enviarEmailPedido = function(id) {
                 <input type="text" id="dispatch-email-subject" value="${defaultSubject}" style="width: 100%; box-sizing: border-box; background: #0b1329; border: 1px solid #334155; border-radius: 7px; padding: 8px 12px; color: #ffffff; font-size: 13px; font-weight: 600; outline: none;">
             </div>
 
-            <!-- Selector Oficial de Formato del Comprobante (Detallado / Resumido / Proyecto) -->
+            <!-- Cuerpo del Correo (Editable por el usuario) -->
+            <div style="margin-bottom: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label style="font-size: 12px; font-weight: 600; color: #cbd5e1; display: inline-flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-pen-to-square" style="color: #38bdf8;"></i> Cuerpo del Correo (editable):
+                    </label>
+                    <button type="button" id="btn-dispatch-reset-body" style="background: rgba(51, 65, 85, 0.8); color: #cbd5e1; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; border: 1px solid #475569; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;" title="Restablecer al texto predeterminado estándar">
+                        <i class="fas fa-rotate-left"></i> Restablecer estándar
+                    </button>
+                </div>
+                <textarea id="dispatch-email-body" rows="6" style="width: 100%; box-sizing: border-box; background: #0b1329; border: 1px solid #334155; border-radius: 7px; padding: 10px 12px; color: #ffffff; font-size: 12px; line-height: 1.5; outline: none; resize: vertical; font-family: inherit;">${(typeof escapeHtml === 'function' ? escapeHtml(buildEmailPlainBody()) : buildEmailPlainBody())}</textarea>
+                <div style="font-size: 11px; color: #94a3b8; margin-top: 4px; display: flex; align-items: center; gap: 5px;">
+                    <i class="fas fa-circle-info" style="color: #38bdf8;"></i>
+                    <span>Podés modificar el texto antes de enviar. El presupuesto oficial completo se incluye en el PDF adjunto.</span>
+                </div>
+            </div>
+
+            <!-- Selector Oficial de Formato del Comprobante PDF Adjunto -->
             <div style="margin-bottom: 14px; background: rgba(2, 132, 199, 0.1); border: 1.5px solid #0284c7; border-radius: 8px; padding: 10px 14px;">
                 <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #38bdf8; margin-bottom: 6px;">
-                    <i class="fas fa-file-invoice"></i> Formato Oficial del Comprobante (PDF y Correo):
+                    <i class="fas fa-file-invoice"></i> Formato Oficial del Comprobante PDF Adjunto:
                 </label>
                 <select id="dispatch-report-format" style="width: 100%; box-sizing: border-box; background: #0b1329; border: 1px solid #334155; border-radius: 6px; padding: 7px 10px; color: #ffffff; font-size: 12.5px; font-weight: 600; outline: none; cursor: pointer;">
                     <option value="detallado" ${(initialReportFormat === 'detallado') ? 'selected' : ''}>📄 Detallado (Desglose ítem por ítem con código, detalle, P. Unitario y subtotales)</option>
@@ -13933,6 +14736,21 @@ window.enviarEmailPedido = function(id) {
         };
     });
 
+    // Acciones Cuerpo de Correo (Editable & Restablecer)
+    const inputBody = document.getElementById('dispatch-email-body');
+    const resetBodyBtn = document.getElementById('btn-dispatch-reset-body');
+    if (resetBodyBtn && inputBody) {
+        resetBodyBtn.onclick = () => {
+            inputBody.value = buildEmailPlainBody();
+            if (typeof showToast === 'function') showToast('Cuerpo de correo restablecido al estándar.', 'info');
+        };
+    }
+
+    const getDispatchBodyText = () => {
+        const bodyEl = document.getElementById('dispatch-email-body');
+        return (bodyEl && bodyEl.value.trim()) ? bodyEl.value.trim() : buildEmailPlainBody();
+    };
+
     // Ver / Imprimir Comprobante
     const previewBtn = document.getElementById('btn-dispatch-preview-pdf');
     if (previewBtn) {
@@ -13968,23 +14786,6 @@ window.enviarEmailPedido = function(id) {
         };
     }
 
-    const buildEmailPlainBody = () => {
-        let plainMsg = `Estimados ${cliente},\n\n`;
-        plainMsg += `Adjuntamos la propuesta comercial formal correspondiente al Presupuesto Oficial SG MONTAJES Nro. ${nro}.\n\n`;
-        plainMsg += `• Nº Presupuesto: ${nro}\n`;
-        plainMsg += `• Fecha: ${p.fecha || '-'}\n`;
-        plainMsg += `• Obra / Denominación: ${p.meca_denominacion || p.denominacion || 'SERVICIOS Y MONTAJES'}\n`;
-        plainMsg += `• Planta: ${(p.meca_planta || p.planta || 'VGG').toUpperCase()}\n`;
-        plainMsg += `• Importe Total: ${totalStr}\n`;
-        plainMsg += `• Estado: ${p.estado || 'Pendiente de Recepción OC'}\n\n`;
-        if (p.estado === 'Cargado sin orden de compra' || p.estado === 'Enviado sin OC') {
-            plainMsg += `⚠️ Recordatorio: Este presupuesto está pendiente de recepción de Orden de Compra. Fecha límite: ${p.oc_limite_fecha || '-'}\n\n`;
-        }
-        plainMsg += `Se encuentra descargado el PDF oficial con el detalle de los ítems cotizados.\n\n`;
-        plainMsg += `Atentamente,\nSG MONTAJES S.R.L.`;
-        return plainMsg;
-    };
-
     // Función auxiliar para Despacho por Gmail Web
     const ejecutarDespachoGmailWeb = async () => {
         const toVal = inputTo.value.trim();
@@ -13995,15 +14796,18 @@ window.enviarEmailPedido = function(id) {
             showToast('📄 Descargando PDF oficial y abriendo Gmail...', 'info');
         }
 
+        const fmtSel = document.getElementById('dispatch-report-format');
+        const chosenFmt = (fmtSel ? fmtSel.value : 'detallado').toLowerCase().trim();
+
         if (typeof window.descargarPDFPresupuestoDirecto === 'function') {
             try {
-                await window.descargarPDFPresupuestoDirecto(p);
+                await window.descargarPDFPresupuestoDirecto(p, chosenFmt);
             } catch(pdfE) {
                 console.warn('Descarga PDF:', pdfE);
             }
         }
 
-        const plainMsg = buildEmailPlainBody();
+        const plainMsg = getDispatchBodyText();
         const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toVal)}&cc=${encodeURIComponent(ccVal)}&su=${encodeURIComponent(subjVal)}&body=${encodeURIComponent(plainMsg)}`;
         window.open(gmailUrl, '_blank');
 
@@ -14022,15 +14826,18 @@ window.enviarEmailPedido = function(id) {
             showToast('📄 Descargando PDF oficial y abriendo correo...', 'info');
         }
 
+        const fmtSel = document.getElementById('dispatch-report-format');
+        const chosenFmt = (fmtSel ? fmtSel.value : 'detallado').toLowerCase().trim();
+
         if (typeof window.descargarPDFPresupuestoDirecto === 'function') {
             try {
-                await window.descargarPDFPresupuestoDirecto(p);
+                await window.descargarPDFPresupuestoDirecto(p, chosenFmt);
             } catch(pdfE) {
                 console.warn('Descarga PDF:', pdfE);
             }
         }
 
-        const plainMsg = buildEmailPlainBody();
+        const plainMsg = getDispatchBodyText();
         const mailtoUrl = `mailto:${encodeURIComponent(toVal)}?cc=${encodeURIComponent(ccVal)}&subject=${encodeURIComponent(subjVal)}&body=${encodeURIComponent(plainMsg)}`;
 
         // Enlace invisible para garantizar ejecución en cualquier navegador
@@ -14064,7 +14871,7 @@ window.enviarEmailPedido = function(id) {
             btnSendNow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
 
             const fmtSel = document.getElementById('dispatch-report-format');
-            const chosenFmt = (fmtSel ? fmtSel.value : (p.tipo_reporte || 'detallado')).toLowerCase().trim();
+            const chosenFmt = (fmtSel ? fmtSel.value : 'detallado').toLowerCase().trim();
 
             // 1. Generar PDF oficial en Base64 con el formato oficial seleccionado (Detallado, Resumido o Proyecto)
             const attachments = [];
@@ -14092,144 +14899,61 @@ window.enviarEmailPedido = function(id) {
                 });
             }
 
-            // 3. Generar filas de ítems para el cuerpo oficial según los 3 formatos oficiales
-            const formattedItems = (typeof window.getPresupuestoFormattedItems === 'function')
-                ? window.getPresupuestoFormattedItems(p, chosenFmt)
-                : (p.items || []);
-
-            const htmlItemsRows = formattedItems.map(r => {
-                const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-' && chosenFmt === 'detallado');
-                const q = (r.cantidad === '-' || r.cantidad === undefined) ? '-' : r.cantidad;
-                const pr = (r.precio === '-' || r.precio === undefined) 
-                    ? '-' 
-                    : (typeof r.precio === 'number' ? `$${r.precio.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : r.precio);
-                const sub = (r.subtotal === '-' || r.subtotal === undefined) 
-                    ? '-' 
-                    : (typeof r.subtotal === 'number' ? `$${r.subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : r.subtotal);
-                
-                if (isHeaderRow) {
-                    return `
-                    <tr style="border-bottom: 1px solid #cbd5e1; font-size: 11.5px; background-color: #f1f5f9;">
-                        <td style="padding: 7px 9px; font-weight: bold; border-right: 1px solid #cbd5e1; text-align: center;">-</td>
-                        <td style="padding: 7px 9px; border-right: 1px solid #cbd5e1; color: #0284c7; font-weight: 800;">${r.detalle || '-'}</td>
-                        <td style="padding: 7px 9px; border-right: 1px solid #cbd5e1; text-align: center;">-</td>
-                        <td style="padding: 7px 9px; border-right: 1px solid #cbd5e1; text-align: right;">-</td>
-                        <td style="padding: 7px 9px; text-align: right;">-</td>
-                    </tr>
-                    `;
-                }
-
-                return `
-                <tr style="border-bottom: 1px solid #cbd5e1; font-size: 11.5px;">
-                    <td style="padding: 7px 9px; font-family: monospace; font-weight: bold; color: #0284c7; border-right: 1px solid #cbd5e1;">${r.codigo || '-'}</td>
-                    <td style="padding: 7px 9px; border-right: 1px solid #cbd5e1; color: #1e293b; font-weight: 600;">${r.detalle || '-'}</td>
-                    <td style="padding: 7px 9px; text-align: center; font-weight: bold; border-right: 1px solid #cbd5e1;">${q}</td>
-                    <td style="padding: 7px 9px; text-align: right; border-right: 1px solid #cbd5e1;">${pr}</td>
-                    <td style="padding: 7px 9px; text-align: right; font-weight: bold; color: #0f172a;">${sub}</td>
-                </tr>
-                `;
-            }).join('');
-
-            const rawClientEmail = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
-                ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && p.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
-                : null;
-            const emailDom = (p.domicilio && p.domicilio !== '-' && p.domicilio.trim() !== '') ? p.domicilio.trim().toUpperCase() : (rawClientEmail && rawClientEmail.domicilio ? rawClientEmail.domicilio.trim().toUpperCase() : '-');
-            const emailLoc = (p.localidad && p.localidad !== '-' && p.localidad.trim() !== '') ? p.localidad.trim().toUpperCase() : (rawClientEmail && rawClientEmail.localidad ? rawClientEmail.localidad.trim().toUpperCase() : '-');
-            const emailPlanta = (p.meca_planta || p.planta || (rawClientEmail && rawClientEmail.localidad && rawClientEmail.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
-
-            // 4. Cuerpo oficial del correo — idéntico visualmente al comprobante PDF impreso
-            const logoSrcEmail = (window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png';
-            const watermarkEmail = (window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : (window.LOGO_SG_BASE64 ? window.LOGO_SG_BASE64 : 'logo_sg_watermark_gold.png');
+            // 3. Obtener el cuerpo de correo redactado o editado por el usuario (sin logo en el cuerpo del correo; el logo y detalle van en el PDF adjunto)
+            const userBodyText = getDispatchBodyText();
             const nowStrEmail = new Date().toLocaleDateString('es-AR');
-            const htmlContent = `
-                <div style="font-family: 'Segoe UI', Arial, Helvetica, sans-serif; max-width: 720px; margin: 0 auto; background: #ffffff; color: #000000; border: 2px solid #0f766e; border-radius: 8px; overflow: hidden; padding: 20px;">
+            const userBodyHtml = (typeof escapeHtml === 'function' ? escapeHtml(userBodyText) : userBodyText).replace(/\n/g, '<br>');
 
-                    <!-- Cabecera: Logo + Título + Nro/Fecha (igual que PDF) -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f766e; padding-bottom: 12px; margin-bottom: 16px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <img src="${logoSrcEmail}" style="height: 36px; width: auto; object-fit: contain;" alt="SG Montajes">
-                            <div>
-                                <div style="margin: 0; font-size: 16px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px;">SG MONTAJES SRL</div>
-                                <div style="font-size: 10.5px; color: #64748b; display: block;">Montajes Industriales &amp; Servicios Electromecánicos</div>
-                            </div>
+            const htmlContent = `
+                <div style="font-family: 'Segoe UI', Arial, Helvetica, sans-serif; max-width: 680px; margin: 0 auto; background: #ffffff; color: #1e293b; border: 1.5px solid #0f766e; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+                    <!-- Cabecera Oficial SG Montajes (Sin logo en cuerpo de correo para mantenerlo limpio) -->
+                    <div style="background: #ffffff; border-bottom: 2px solid #0f766e; padding: 16px 22px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="margin: 0; font-size: 17px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px;">SG MONTAJES S.R.L.</div>
+                            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Montajes Industriales &amp; Servicios Electromecánicos</div>
                         </div>
                         <div style="text-align: right;">
-                            <div style="background: #0f766e; color: #ffffff; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 4px; display: inline-block; text-transform: uppercase;">
-                                PRESUPUESTO - ${chosenFmt.toUpperCase()}
+                            <div style="background: #0f766e; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 4px 10px; border-radius: 4px; display: inline-block; text-transform: uppercase;">
+                                PRESUPUESTO OFICIAL
                             </div>
-                            <div style="font-size: 11px; color: #334155; margin-top: 4px; font-weight: 600;">
+                            <div style="font-size: 11.5px; color: #334155; margin-top: 4px; font-weight: 600;">
                                 Nro. <strong style="color: #0284c7; font-family: monospace;">${nro}</strong>
                             </div>
-                            <div style="font-size: 11px; color: #334155; font-weight: 600;">
-                                Fecha: <strong style="font-weight: 800; color: #0f172a;">${p.fecha || nowStrEmail}</strong>
+                            <div style="font-size: 10.5px; color: #64748b;">
+                                Fecha: <strong style="color: #0f172a;">${p.fecha || nowStrEmail}</strong>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Ficha resumen: Cliente + Obra (igual que PDF) -->
-                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; font-size: 11.5px; line-height: 1.6;">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Cliente:</span> <strong style="color: #0f172a;">${cliente}</strong></td>
-                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">C.U.I.T.:</span> <span style="font-family: monospace; font-weight: bold;">${cuit}</span></td>
-                            </tr>
-                            <tr>
-                                <td colspan="2" style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Obra / Denominación:</span> <strong style="color: #0f172a;">${(p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase()}</strong></td>
-                            </tr>
-                            <tr>
-                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Domicilio:</span> <strong style="color: #0f172a;">${emailDom}</strong></td>
-                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Localidad:</span> <strong style="color: #0f172a;">${emailLoc}</strong></td>
-                            </tr>
-                            <tr>
-                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Planta:</span> <strong style="color: #0284c7;">${emailPlanta}</strong></td>
-                                <td style="width: 50%; padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">OT:</span> <span style="font-family: monospace; font-weight: bold; color: #0284c7;">${p.meca_nro_ot || p.nro_ot || '-'}</span>${(p.meca_nro_oc || p.nro_oc) ? ` &nbsp;|&nbsp; <span style="color: #64748b; font-weight: 600;">OC:</span> <strong style="color: #16a34a;">${p.meca_nro_oc || p.nro_oc}</strong>` : ''}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">F. Entrega:</span> ${p.fecha_entrega || p.meca_fecha_fin || p.fecha || '-'}</td>
-                                <td style="padding: 3px 6px;"><span style="color: #64748b; font-weight: 600;">Condición:</span> <strong>${cleanConditionName(p.condicion_nombre || p.forma_pago || 'CONTADO').toUpperCase()}</strong></td>
-                            </tr>
-                        </table>
+                    <!-- Mensaje del Correo -->
+                    <div style="padding: 22px 24px; font-size: 13px; line-height: 1.65; color: #1e293b;">
+                        ${userBodyHtml}
                     </div>
 
-                    <!-- Tabla de ítems con Marca de Agua de Fondo -->
-                    <div style="position: relative; margin-bottom: 20px;">
-                        <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.18; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
-                            <img src="${watermarkEmail}" style="width: 75%; max-width: 420px; object-fit: contain; transform: rotate(-25deg);" alt="Marca de Agua">
+                    <!-- Notificación de Archivo Adjunto (PDF Oficial) -->
+                    <div style="margin: 0 24px 20px 24px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px 16px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="font-size: 20px;">📎</div>
+                            <div>
+                                <div style="font-size: 12.5px; font-weight: 800; color: #166534;">
+                                    Presupuesto Oficial Adjunto en Formato PDF
+                                </div>
+                                <div style="font-size: 11.5px; color: #15803d; margin-top: 2px;">
+                                    El presupuesto oficial completo se encuentra adjunto en el archivo <strong>Presupuesto_${nro}_${chosenFmt.toUpperCase()}.pdf</strong>.
+                                </div>
+                            </div>
                         </div>
-                        <table style="width: 100%; border-collapse: collapse; text-align: left; border: 1px solid #cbd5e1; font-size: 11.5px; position: relative; z-index: 1; background: transparent;">
-                            <thead style="background: #0f766e; color: #ffffff; font-size: 12px;">
-                                <tr>
-                                    <th style="padding: 8px; font-weight: 700; border-right: 1px solid #0d9488; width: 15%;">CÓDIGO</th>
-                                    <th style="padding: 8px; font-weight: 700; border-right: 1px solid #0d9488; width: 45%;">DETALLE</th>
-                                    <th style="padding: 8px; font-weight: 700; text-align: center; border-right: 1px solid #0d9488; width: 10%;">CANT.</th>
-                                    <th style="padding: 8px; font-weight: 700; text-align: right; border-right: 1px solid #0d9488; width: 15%;">P. UNIT.</th>
-                                    <th style="padding: 8px; font-weight: 700; text-align: right; width: 15%;">SUBTOTAL</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${htmlItemsRows}
-                            </tbody>
-                            <tfoot>
-                                <tr style="background: #f0fdf4; border-top: 2px solid #0f766e; font-size: 14px;">
-                                    <td colspan="4" style="padding: 10px; text-align: right; font-weight: bold; border-right: 1px solid #cbd5e1; color: #166534;">TOTAL PRESUPUESTO:</td>
-                                    <td style="padding: 10px; text-align: right; font-weight: 900; color: #166534; font-family: monospace;">${totalStr}</td>
-                                </tr>
-                            </tfoot>
-                        </table>
                     </div>
 
-                    <!-- Pie: adjunto + firma (igual que PDF) -->
-                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #94a3b8; font-size: 12px; color: #0284c7; font-weight: bold;">
-                        📎 Se adjunta el comprobante en archivo PDF (${attachments.length} archivo(s)).
-                    </div>
-                    <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 11px; color: #475569; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+                    <!-- Pie Corporativo -->
+                    <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px 24px; font-size: 10.5px; color: #64748b; display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <strong style="color: #0f172a;">SG MONTAJES S.R.L.</strong><br>
+                            <strong style="color: #0f172a; font-size: 11.5px;">SG MONTAJES S.R.L.</strong><br>
                             Email: <a href="mailto:cotizaciones@sgmontajes.com.ar" style="color: #0284c7; text-decoration: none;">cotizaciones@sgmontajes.com.ar</a> | Tel: (0341) 5890126<br>
-                            <span style="font-size: 10px; color: #94a3b8;">C.U.I.T.: 30-71602466-7 — Comprobante generado por Sistema de Presupuestos SG MONTAJES S.R.L.</span>
+                            <span style="color: #94a3b8;">C.U.I.T.: 30-71602466-7 — Villa Gdor. Gálvez / Pto. Gral. San Martín, Santa Fe</span>
                         </div>
-                        <div style="text-align: center; width: 200px; border-top: 1px dotted #94a3b8; padding-top: 4px; font-size: 10px; color: #64748b;">
-                            Firma y Sello de Autorización
+                        <div style="text-align: right; color: #94a3b8; font-size: 10px;">
+                            Documento emitido por el Sistema de Presupuestos SG Montajes
                         </div>
                     </div>
                 </div>
@@ -14241,6 +14965,7 @@ window.enviarEmailPedido = function(id) {
                     to: toVal,
                     cc: ccVal,
                     subject: subjVal,
+                    text: userBodyText,
                     html: htmlContent,
                     attachments: attachments
                 });
@@ -14259,12 +14984,24 @@ window.enviarEmailPedido = function(id) {
                 }
                 const errBox = document.getElementById('dispatch-email-error-box');
                 if (errBox) {
+                    window._dispatchFallbackGmail = ejecutarDespachoGmailWeb;
+                    window._dispatchFallbackMailto = ejecutarDespachoLocalMailto;
                     errBox.style.display = 'block';
                     errBox.innerHTML = `
-                        <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 6px; padding: 10px; color: #fca5a5; font-size: 12px; line-height: 1.5;">
-                            <strong>❌ No se pudo enviar automáticamente:</strong><br>
-                            ${detailedError}<br><br>
-                            <span style="color: #cbd5e1;">Si aún no creaste la tabla <code>cola_emails</code> en Supabase, ejecutá el script SQL. Para enviarlo por Gmail manualmente mientras tanto, podés usar el botón rojo "Enviar con Gmail Web".</span>
+                        <div style="background: rgba(239, 68, 68, 0.15); border: 1.5px solid #ef4444; border-radius: 8px; padding: 12px 14px; color: #fca5a5; font-size: 12.5px; line-height: 1.5;">
+                            <div style="font-weight: 800; color: #f87171; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-triangle-exclamation"></i> No se pudo despachar por el servidor SMTP:
+                            </div>
+                            <div style="color: #cbd5e1; font-size: 12px; margin-bottom: 10px;">${detailedError}</div>
+                            <div style="font-size: 11.5px; color: #94a3b8; margin-bottom: 8px;">Podés despacharlo inmediatamente con un clic por las vías alternativas:</div>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <button type="button" onclick="if(window._dispatchFallbackGmail) window._dispatchFallbackGmail()" style="background: #ea4335; color: white; border: none; border-radius: 6px; padding: 7px 12px; font-weight: 700; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i class="fab fa-google"></i> Enviar con Gmail Web
+                                </button>
+                                <button type="button" onclick="if(window._dispatchFallbackMailto) window._dispatchFallbackMailto()" style="background: #334155; color: white; border: 1px solid #64748b; border-radius: 6px; padding: 7px 12px; font-weight: 700; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                                    <i class="fas fa-envelope"></i> Enviar con Mail / Outlook
+                                </button>
+                            </div>
                         </div>
                     `;
                 }
@@ -14925,35 +15662,135 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     const _activeWatermark = _isAcosta ? _watermarkAcostaB64 : _watermarkSgB64;
     const _activeLogo = _isAcosta ? _logoAcostaB64 : (logoSrc || ((typeof window !== 'undefined' && window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png'));
 
+    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
+    let laborTotalARS = 0;
+    let materialsTotalUSD = 0;
+
+    const rawItems = Array.isArray(p.items) ? p.items : [];
+    if (rawItems.length > 0) {
+        rawItems.forEach(it => {
+            if (it.estado === 'Rechazado') return;
+            const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
+            const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
+                          (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+                          (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
+            if (isMat) {
+                const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
+                    ? parseFloat(it.precio_usd) 
+                    : (parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0);
+                const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
+                    ? parseFloat(it.subtotal_usd) 
+                    : (q * prUSD);
+                materialsTotalUSD += subUSD;
+            } else {
+                const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
+                const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) 
+                    ? parseFloat(String(it.subtotal).replace(',', '.')) 
+                    : (q * pr);
+                laborTotalARS += sub;
+            }
+        });
+    } else {
+        items.forEach(r => {
+            const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-');
+            if (isHeaderRow) return;
+            const isMat = (r.is_material === true || r.is_material === 1 || r.is_material === '1');
+            if (isMat) {
+                materialsTotalUSD += (parseFloat(r.subtotal_usd) || 0);
+            } else {
+                laborTotalARS += (parseFloat(r.subtotal) || 0);
+            }
+        });
+    }
+    const materialsTotalARS = materialsTotalUSD * cotizMat;
+    const computedGrandTotal = (laborTotalARS + materialsTotalARS > 0) ? (laborTotalARS + materialsTotalARS) : total;
+
     let rowsHtml = items.map(r => {
         const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-');
+        const isMat = (r.is_material === true || r.is_material === 1 || r.is_material === '1');
         if (isHeaderRow) {
             return `
-            <tr style="border-bottom: 1px solid #000; font-size: 11px; background-color: #e2e8f0; font-weight: 800;">
-                <td style="padding: 6px; border-right: 1px solid #000; text-align:center;">-</td>
-                <td style="padding: 6px; border-right: 1px solid #000;">${r.detalle}</td>
-                <td style="padding: 6px; border-right: 1px solid #000; text-align: right;">-</td>
-                <td style="padding: 6px; border-right: 1px solid #000; text-align: center;">-</td>
-                <td style="padding: 6px; text-align: right;">-</td>
+            <tr style="border-bottom: 2px solid #000; font-size: 11px; background: rgba(226, 232, 240, 0.45); font-weight: 800; page-break-inside: avoid;">
+                <td style="padding: 6px; border-right: 1px solid #000; text-align:center; background: transparent;">-</td>
+                <td style="padding: 6px; border-right: 1px solid #000; background: transparent;">${r.detalle}</td>
+                <td style="padding: 6px; border-right: 1px solid #000; text-align: right; background: transparent;">-</td>
+                <td style="padding: 6px; border-right: 1px solid #000; text-align: center; background: transparent;">-</td>
+                <td style="padding: 6px; text-align: right; background: transparent;">-</td>
             </tr>`;
         }
+
+        let priceStr = '-';
+        let subStr = '-';
+        if (r.precio !== '-') {
+            const prVal = parseFloat(r.precio) || 0;
+            if (isMat) {
+                priceStr = 'U$D ' + prVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } else {
+                priceStr = '$' + prVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
+        }
+
+        if (r.subtotal !== '-') {
+            const sVal = parseFloat(r.subtotal) || 0;
+            if (isMat && r.subtotal_usd !== undefined && r.subtotal_usd !== null) {
+                const sUSD = parseFloat(r.subtotal_usd) || 0;
+                subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + 
+                    ` <br><span style="font-size: 9.5px; opacity: 0.85; font-weight: normal; color: #0369a1;">(U$D ${sUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>`;
+            } else {
+                subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
+        }
+
         return `
-        <tr style="border-bottom: 1px solid #000; font-size: 11px;">
-            <td style="padding: 6px; border-right: 1px solid #000; font-weight:bold; text-align:center;">${String(r.codigo).startsWith('TITLE-') ? '' : r.codigo}</td>
-            <td style="padding: 6px; border-right: 1px solid #000;">${r.detalle}</td>
-            <td style="padding: 6px; border-right: 1px solid #000; text-align: right;">${r.precio === '-' ? '-' : '$' + parseFloat(r.precio).toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-            <td style="padding: 6px; border-right: 1px solid #000; text-align: center; font-weight:bold;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
-            <td style="padding: 6px; text-align: right; font-weight: bold;">${r.subtotal === '-' ? '-' : '$' + parseFloat(r.subtotal).toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+        <tr style="border-bottom: 1px solid #000; font-size: 11px; background: transparent; page-break-inside: avoid;">
+            <td style="padding: 6px; border-right: 1px solid #000; font-weight:bold; text-align:center; background: transparent;">${String(r.codigo).startsWith('TITLE-') ? '' : r.codigo}</td>
+            <td style="padding: 6px; border-right: 1px solid #000; background: transparent;">${r.detalle}</td>
+            <td style="padding: 6px; border-right: 1px solid #000; text-align: right; background: transparent; ${isMat ? 'color: #0369a1; font-weight:bold;' : ''}">${priceStr}</td>
+            <td style="padding: 6px; border-right: 1px solid #000; text-align: center; font-weight:bold; background: transparent;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
+            <td style="padding: 6px; text-align: right; font-weight: bold; background: transparent;">${subStr}</td>
         </tr>`;
     }).join('');
 
+    let pdfBreakdownRows = '';
+    if (materialsTotalUSD > 0) {
+        pdfBreakdownRows = `
+            <tr style="border-top: 1px solid #000; font-size: 11px; background: transparent; page-break-inside: avoid;">
+                <td colspan="4" style="padding: 5px 8px; font-weight: 600; text-align: right; border-right: 1px solid #000; background: transparent;">Subtotal Mano de Obra ($ ARS):</td>
+                <td style="padding: 5px 8px; text-align: right; font-weight: bold; font-family: monospace; background: transparent;">$${laborTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+            <tr style="border-top: 1px solid #ccc; font-size: 11px; background: transparent; page-break-inside: avoid;">
+                <td colspan="4" style="padding: 5px 8px; font-weight: 600; text-align: right; border-right: 1px solid #000; color: #0369a1; background: transparent;">
+                    Subtotal Materiales (U$D) <span style="font-size: 10px; color: #b45309; font-weight: 700; margin-left: 5px; background: rgba(254, 243, 199, 0.6); border: 1px solid #fcd34d; padding: 1px 5px; border-radius: 3px;">[Cotiz. Dólar: $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}]</span>:
+                </td>
+                <td style="padding: 5px 8px; text-align: right; font-weight: bold; font-family: monospace; color: #0369a1; background: transparent;">U$D ${materialsTotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+            <tr style="border-top: 1px solid #ccc; font-size: 11px; background: transparent; page-break-inside: avoid;">
+                <td colspan="4" style="padding: 5px 8px; font-weight: 600; text-align: right; border-right: 1px solid #000; color: #0284c7; background: transparent;">Subtotal Materiales Pesificados:</td>
+                <td style="padding: 5px 8px; text-align: right; font-weight: bold; font-family: monospace; color: #0284c7; background: transparent;">$${materialsTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+        `;
+    }
+
     const htmlContent = `
+        <style>
+            #pdf-wrapper-download, #pdf-wrapper-download * {
+                box-sizing: border-box;
+            }
+            #pdf-wrapper-download tr {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+            #pdf-wrapper-download .no-page-break {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+        </style>
         <div id="pdf-wrapper-download" style="padding: 20px; font-family: 'Arial', sans-serif; background: #fff; color: #000; width: 800px; margin: 0 auto; position: relative;">
             
             <div style="position: relative; z-index: 1; padding: 20px;">
                 
                 <!-- Header -->
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border: 2px solid #000; border-radius: 8px; padding: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border: 2px solid #000; border-radius: 8px; padding: 15px; background: transparent;">
                     ${_isAcosta ? `
                     <div style="width: 30%;">
                         <img src="${_logoAcostaB64}" style="height: 48px; margin-bottom: 5px; object-fit: contain; max-width: 100%;">
@@ -14981,186 +15818,132 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     <div style="width: 30%; text-align: right; font-size: 10px; line-height: 1.4;">
                         <div style="font-size: 14px; font-weight: bold; margin-bottom: 4px;">Nro. ${nro}</div>
                         <div><strong>Fecha:</strong> ${fechaEmision} ${hora}</div>
-                        <div><strong>Orden de Compra:</strong> ${oc}</div>
+                        <div><strong>OC Mano de Obra:</strong> ${p.oc_mano_obra || p.meca_nro_oc || p.nro_oc || "-"}</div>
+                        <div><strong>OC Materiales:</strong> ${p.oc_materiales || "-"}</div>
                         ${_isAcosta ? `<div><strong>C.U.I.T.:</strong> 30-71868621-7</div>
                         <div><strong>Ini. Act.:</strong> 25/06/2024</div>` : `<div><strong>C.U.I.T.:</strong> 30-71602466-7</div>
                         <div><strong>Ing.Br.:</strong> 0916600761 | <strong>Ini. Act.:</strong> 21/12/2017</div>`}
                     </div>
                 </div>
 
-                <!-- Client Info Box -->
-                <div style="border: 2px solid #000; border-radius: 8px; margin-bottom: 15px; font-size: 11px; padding: 6px 8px;">
-                    ${((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
-                    <!-- Formato Eléctrico Equilibrado Sin Espacios Vacíos -->
-                    <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
-                        <div style="flex: 1.5; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">Cliente:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${cliName}</strong>
-                        </div>
-                        <div style="flex: 1; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">Código:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${codCliente}</strong>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
-                        <div style="flex: 1.5; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">Detalle:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${detalle}</strong>
-                        </div>
-                        <div style="flex: 1; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">Número OT:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${numOt}</strong>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
-                        <div style="flex: 1.5; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">Domicilio:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${domicilio}</strong>
-                        </div>
-                        <div style="flex: 1; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">Localidad:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${localidad}</strong>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
-                        <div style="flex: 1.5; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">C.U.I.T.:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${cuitCli}</strong>
-                        </div>
-                        <div style="flex: 1; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">F. Entrega:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${entrega}</strong>
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; gap: 8px;">
-                        <div style="flex: 1.5; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 70px; text-align: center;">Planta:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${planta}</strong>
-                        </div>
-                        <div style="flex: 1; display: flex; gap: 5px;">
-                            <span style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; width: 85px; text-align: center;">Nro Pres.:</span> 
-                            <strong style="border: 1px solid #000; border-radius: 3px; padding: 2px 5px; flex: 1;">${nro}</strong>
-                        </div>
-                    </div>
-                    ` : `
-                    <!-- Formato Mecánico Oficial -->
+                <!-- Client Info Box (Formato Unificado) -->
+                <div style="border: 2px solid #000; border-radius: 8px; margin-bottom: 15px; font-size: 11px; padding: 6px 8px; background: transparent;">
                     <div style="display: flex;">
                         <div style="width: 55%; border-right: 1px solid #000; padding: 2px 8px 2px 0;">
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Cliente:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${cliName}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Cliente:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${cliName}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Título:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${detalle}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Título:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${detalle}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Detalle:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; white-space: pre-wrap;">${propTecnica}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Detalle:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; white-space: pre-wrap; background: transparent;">${propTecnica}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Domicilio:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${domicilio}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Domicilio:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${domicilio}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">C.U.I.T.:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${cuitCli}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">C.U.I.T.:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${cuitCli}</strong>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center;">Condición:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${condicion}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Condición:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${condicion}</strong>
                             </div>
                         </div>
                         <div style="width: 45%; padding: 2px 0 2px 8px;">
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Código:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${codCliente}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Código:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${codCliente}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Número de OT:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${numOt}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Número de OT:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${numOt}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Planta:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${planta}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Planta:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${planta}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Localidad:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${localidad}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Localidad:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${localidad}</strong>
                             </div>
                             <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">F. Entrega:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${entrega}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">F. Entrega:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${entrega}</strong>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center;">Nro Pres.:</span> 
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1;">${nro}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Nro Pres.:</span> 
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${nro}</strong>
                             </div>
                         </div>
                     </div>
-                    `}
                 </div>
 
                 <!-- Items Table with Watermark -->
-                <div style="position: relative; margin-bottom: 10px;">
-                    <!-- Watermark -->
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.55; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
-                        <img src="${_activeWatermark}" style="width: 80%; max-width: 500px; object-fit: contain; transform: rotate(-25deg); filter: contrast(1.15);">
+                <div style="position: relative; margin-bottom: 10px; min-height: 320px;">
+                    <!-- Watermark Gota de Agua -->
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: ${_isAcosta ? '0.22' : '0.28'}; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                        <img src="${_activeWatermark}" style="width: 75%; max-width: 480px; max-height: 90%; object-fit: contain; transform: rotate(-20deg); ${_isAcosta ? 'opacity: 0.9; filter: contrast(0.95);' : 'filter: contrast(1.15);'}">
                     </div>
                     
                     <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; position: relative; z-index: 1; background: transparent;">
-                        <thead style="font-size: 11px;">
-                            <tr style="border-bottom: 2px solid #000;">
-                                <th style="padding: 6px; font-weight: bold; border-right: 1px solid #000; width: 10%;">CÓDIGO</th>
-                                <th style="padding: 6px; font-weight: bold; border-right: 1px solid #000; width: 45%;">DETALLE DE PRODUCTOS / SERVICIOS</th>
-                                <th style="padding: 6px; font-weight: bold; text-align: right; border-right: 1px solid #000; width: 15%;">PRECIO</th>
-                                <th style="padding: 6px; font-weight: bold; text-align: center; border-right: 1px solid #000; width: 10%;">CANTIDAD</th>
-                                <th style="padding: 6px; font-weight: bold; text-align: right; width: 20%;">TOTAL</th>
+                        <thead style="font-size: 11px; background: transparent;">
+                            <tr style="border-bottom: 2px solid #000; background: transparent; page-break-inside: avoid;">
+                                <th style="padding: 6px; font-weight: bold; border-right: 1px solid #000; width: 10%; background: transparent;">CÓDIGO</th>
+                                <th style="padding: 6px; font-weight: bold; border-right: 1px solid #000; width: 45%; background: transparent;">DETALLE DE PRODUCTOS / SERVICIOS</th>
+                                <th style="padding: 6px; font-weight: bold; text-align: right; border-right: 1px solid #000; width: 15%; background: transparent;">PRECIO</th>
+                                <th style="padding: 6px; font-weight: bold; text-align: center; border-right: 1px solid #000; width: 10%; background: transparent;">CANTIDAD</th>
+                                <th style="padding: 6px; font-weight: bold; text-align: right; width: 20%; background: transparent;">TOTAL ($ ARS)</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody style="background: transparent;">
                             ${rowsHtml}
                         </tbody>
-                        <tfoot>
-                            <tr style="border-top: 2px solid #000; font-size: 13px;">
-                                <td colspan="4" style="padding: 8px; font-weight: bold; border-right: 1px solid #000; background: #fff;">TOTAL:</td>
-                                <td style="padding: 8px; text-align: right; font-weight: bold; background: #fff;">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                        <tfoot style="background: transparent;">
+                            ${pdfBreakdownRows}
+                            <tr style="border-top: 2px solid #000; font-size: 13px; background: transparent; page-break-inside: avoid;">
+                                <td colspan="4" style="padding: 8px; font-weight: bold; border-right: 1px solid #000; background: transparent;">TOTAL GENERAL ($ ARS):</td>
+                                <td style="padding: 8px; text-align: right; font-weight: bold; background: transparent;">$${computedGrandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
 
-                <!-- Propuesta Tecnica (Solo Mecanico) -->
-                ${!((p.tipo_presupuesto || '').toLowerCase().includes('eléctrico') || (p.tipo_presupuesto || '').toLowerCase().includes('electrico')) ? `
-                <div style="border: 2px solid #000; margin-bottom: 10px; font-size: 11px;">
-                    <div style="padding: 6px; font-weight: bold; border-bottom: 1px solid #000;">PROPUESTA TÉCNICA / COMERCIAL</div>
+                <!-- Propuesta Tecnica (Unificada) -->
+                <div style="border: 2px solid #000; margin-bottom: 10px; font-size: 11px; background: transparent; page-break-inside: avoid;">
+                    <div style="padding: 6px; font-weight: bold; border-bottom: 1px solid #000; background: transparent;">PROPUESTA TÉCNICA / COMERCIAL</div>
 
-                    <div style="display: flex; border-bottom: 1px solid #000;">
-                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold;">SOLICITUD DE SUPERVISOR:</div>
-                        <div style="width: 70%; padding: 4px 6px;">${personal}</div>
+                    <div style="display: flex; border-bottom: 1px solid #000; background: transparent;">
+                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent;">SOLICITUD DE SUPERVISOR:</div>
+                        <div style="width: 70%; padding: 4px 6px; background: transparent;">${personal}</div>
                     </div>
-                    <div style="display: flex; border-bottom: 1px solid #000;">
-                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold;">INDICAR EXCLUSIONES:</div>
-                        <div style="width: 70%; padding: 4px 6px;">${exclus}</div>
+                    <div style="display: flex; border-bottom: 1px solid #000; background: transparent;">
+                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent;">INDICAR EXCLUSIONES:</div>
+                        <div style="width: 70%; padding: 4px 6px; background: transparent;">${exclus}</div>
                     </div>
-                    <div style="display: flex; background: #e0f2fe; padding: 4px 6px;">
+                    <div style="display: flex; background: rgba(224, 242, 254, 0.4); padding: 4px 6px;">
                         <div style="background: #3b82f6; color: white; padding: 1px 6px; border-radius: 4px; margin-right: 10px; font-weight: bold;">Observaciones:</div>
-                        <div>${obs}</div>
+                        <div style="background: transparent;">${obs}</div>
                     </div>
-                </div>` : ''}
+                </div>
 
                 <div style="background: #94a3b8; color: white; text-align: center; padding: 6px; font-size: 11px; font-weight: bold; margin-bottom: 10px; border-radius: 4px;">
                     PRECIOS DEL PRESUPUESTO, SUJETOS A MODIFICACIONES SIN PREVIO AVISO
                 </div>
 
-                <div style="border: 1px solid #f59e0b; border-radius: 6px; padding: 10px; font-size: 11px; color: #b45309; line-height: 1.5; margin-bottom: 15px;">
+                <div style="border: 1px solid #f59e0b; border-radius: 6px; padding: 10px; font-size: 11px; color: #b45309; line-height: 1.5; margin-bottom: 15px; background: transparent;">
                     <div style="font-weight: bold;">⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.</div>
                     <div><strong>i. Garantía Requerida:</strong> 6 MESES</div>
                     <div><strong>ii. Convenio:</strong> La Mano de Obra contempla el Convenio UOCRA vigente. Los trabajos en planta contemplan el convenio Agroexportador.</div>
                     <div><strong>iii. Forma de Pago:</strong> 30 días fecha de factura</div>
                 </div>
 
-                <div style="display: flex; justify-content: space-between; border: 1px solid #38bdf8; border-radius: 4px; padding: 4px 10px; font-size: 10px; color: #0284c7; font-weight: bold;">
+                <div style="display: flex; justify-content: space-between; border: 1px solid #38bdf8; border-radius: 4px; padding: 4px 10px; font-size: 10px; color: #0284c7; font-weight: bold; background: transparent; page-break-inside: avoid;">
                     <span>Usuario: ${p.operador || 'mel'}</span>
                     <span>Fecha: ${nowStr} 10:38:14</span>
                     <span>Item: ${items.length}</span>
@@ -15176,7 +15959,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 
 window.generarPDFPresupuestoBase64 = async function(p, format = null) {
     if (!p) return null;
-    const finalFormat = format || p.tipo_reporte || 'detallado';
+    const finalFormat = format || 'detallado';
     const items = window.getPresupuestoFormattedItems(p, finalFormat);
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
@@ -15190,11 +15973,12 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
         document.body.appendChild(container);
         
         const opt = {
-            margin: 5,
+            margin: [6, 6, 6, 6],
             filename: `Presupuesto_${nro}.pdf`,
-            image: { type: 'jpeg', quality: 1 },
-            html2canvas: { scale: 4, useCORS: true, logging: false },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
         
         html2pdf().set(opt).from(container.firstElementChild).outputPdf('datauristring').then(function(pdfAsString) {
@@ -15210,7 +15994,7 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
 
 window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
     if (!p) return false;
-    const finalFormat = format || p.tipo_reporte || 'detallado';
+    const finalFormat = format || 'detallado';
     const items = (typeof window.getPresupuestoFormattedItems === 'function') ? window.getPresupuestoFormattedItems(p, finalFormat) : [];
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
@@ -15224,11 +16008,12 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
         document.body.appendChild(container);
 
         const opt = {
-            margin: 5,
+            margin: [6, 6, 6, 6],
             filename: `Presupuesto_${nro}.pdf`,
-            image: { type: 'jpeg', quality: 1 },
-            html2canvas: { scale: 3, useCORS: true, logging: false },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
 
         if (typeof html2pdf !== 'undefined') {
@@ -15250,7 +16035,7 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
 window.abrirPDFPresupuesto = function(id, format = null) {
     const p = appData.pedidos.find(x => x.id === id);
     if (!p) return;
-    const finalFormat = format || p.tipo_reporte || 'detallado';
+    const finalFormat = format || 'detallado';
     const items = window.getPresupuestoFormattedItems(p, finalFormat);
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
@@ -15600,15 +16385,31 @@ window.getPresupuestoFormattedItems = function(p, format) {
         const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
         const sub = parseFloat(String(item.subtotal || '0').replace(',', '.')) || 0;
         const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0;
-        return (q > 0 || sub > 0 || pr > 0) && item.estado !== 'Rechazado';
+        const hasText = Boolean((item.detalle && String(item.detalle).trim() !== '') || (item.descripcion && String(item.descripcion).trim() !== '') || (item.denominacion && String(item.denominacion).trim() !== '') || (item.nombre && String(item.nombre).trim() !== ''));
+        return (q > 0 || sub > 0 || pr > 0 || hasText) && item.estado !== 'Rechazado';
     });
+
+    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
 
     let computedGrandTotal = 0;
     validItems.forEach(it => {
         const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-        const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
-        const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
-        computedGrandTotal += sub;
+        const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
+                      (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+                      (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
+        if (isMat) {
+            const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
+                ? parseFloat(it.precio_usd) 
+                : (parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0);
+            const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
+                ? parseFloat(it.subtotal_usd) 
+                : (q * prUSD);
+            computedGrandTotal += (subUSD * cotizMat);
+        } else {
+            const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
+            const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
+            computedGrandTotal += sub;
+        }
     });
 
     if (finalFormat === 'resumido') {
@@ -15619,7 +16420,8 @@ window.getPresupuestoFormattedItems = function(p, format) {
             detalle: devText,
             precio: totalVal,
             cantidad: 1,
-            subtotal: totalVal
+            subtotal: totalVal,
+            is_material: false
         }];
     }
 
@@ -15635,14 +16437,34 @@ window.getPresupuestoFormattedItems = function(p, format) {
                  if (foundCat && foundCat.subrubro) subrubro = foundCat.subrubro.trim();
             }
             const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
-            const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0;
-            const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.')))) ? parseFloat(String(item.subtotal).replace(',', '.')) : (q * pr);
+            const isMat = (item.is_material === true || item.is_material === 1 || item.is_material === '1') || 
+                          (window.isMaterialItem ? window.isMaterialItem(item, p.tipo_presupuesto) : false) || 
+                          (subrubro.toLowerCase().includes('material') || subrubro.toLowerCase().includes('equipo'));
 
-            if (subrubro.toLowerCase().includes('material') || subrubro.toLowerCase().includes('equipo')) {
+            if (isMat) {
                 const code = item.codigo || item.id || '-';
                 const desc = item.detalle || item.descripcion || item.denominacion || item.nombre || 'Material';
-                materials.push({ codigo: code, detalle: desc, precio: pr, cantidad: q, subtotal: sub });
+                const prUSD = (item.precio_usd !== undefined && item.precio_usd !== null && !isNaN(parseFloat(item.precio_usd))) 
+                    ? parseFloat(item.precio_usd) 
+                    : (parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0);
+                const subUSD = (item.subtotal_usd !== undefined && item.subtotal_usd !== null && !isNaN(parseFloat(item.subtotal_usd))) 
+                    ? parseFloat(item.subtotal_usd) 
+                    : (q * prUSD);
+                const subPesos = (subUSD * cotizMat);
+
+                materials.push({ 
+                    codigo: code, 
+                    detalle: desc, 
+                    precio: prUSD, 
+                    precio_usd: prUSD,
+                    is_material: true, 
+                    cantidad: q, 
+                    subtotal: subPesos,
+                    subtotal_usd: subUSD
+                });
             } else {
+                const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0;
+                const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.')))) ? parseFloat(String(item.subtotal).replace(',', '.')) : (q * pr);
                 const groupName = subrubro || 'MANO DE OBRA';
                 if (!groupedLabor[groupName]) groupedLabor[groupName] = { sub: 0 };
                 groupedLabor[groupName].sub += sub;
@@ -15651,57 +16473,25 @@ window.getPresupuestoFormattedItems = function(p, format) {
 
         const formatted = [];
         for (const [key, g] of Object.entries(groupedLabor)) {
-            formatted.push({ codigo: '-', detalle: key.toUpperCase(), precio: '-', cantidad: '-', subtotal: g.sub });
+            formatted.push({ codigo: '-', detalle: key.toUpperCase(), precio: '-', cantidad: '-', subtotal: g.sub, is_material: false });
         }
         
         if (materials.length > 0) {
-            formatted.push({ codigo: '-', detalle: 'MATERIALES Y EQUIPOS', precio: '-', cantidad: '-', subtotal: '-' });
+            formatted.push({ codigo: '-', detalle: 'MATERIALES Y EQUIPOS', precio: '-', cantidad: '-', subtotal: '-', is_material: false });
             materials.forEach(m => formatted.push(m));
         }
 
         if (formatted.length === 0) {
             const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
-            const totalVal = parseFloat(String(p.importe || '0').replace(',', '.')) || 0;
-            formatted.push({ codigo: '-', detalle: devText, precio: '-', cantidad: '-', subtotal: totalVal });
+            const totalVal = (computedGrandTotal > 0) ? computedGrandTotal : (parseFloat(String(p.importe || '0').replace(',', '.')) || 0);
+            formatted.push({ codigo: '-', detalle: devText, precio: '-', cantidad: '-', subtotal: totalVal, is_material: false });
         }
 
         return formatted;
     }
 
-    const isMecanico = (
-        (p.tipo_presupuesto || '').toLowerCase().includes('mecánico') ||
-        (p.tipo_presupuesto || '').toLowerCase().includes('mecanico') ||
-        (p.rubro || '').toLowerCase().includes('mecánico') ||
-        (p.rubro || '').toLowerCase().includes('mecanico') ||
-        (p.id && String(p.id).toUpperCase().includes('MEC')) ||
-        (p.id && String(p.id).startsWith('101'))
-    );
-
-    // En Eléctrico: NO se separan con títulos (detalle plano continuo de ítems)
-    if (!isMecanico) {
-        const formattedElectrico = validItems.map((it, idx) => {
-            const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-            const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
-            const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
-            return {
-                codigo: it.codigo || `ITM-${idx+1}`,
-                detalle: it.detalle || it.descripcion || it.denominacion || it.nombre || '-',
-                precio: pr,
-                cantidad: q,
-                subtotal: sub
-            };
-        });
-
-        if (formattedElectrico.length === 0) {
-            const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
-            const totalVal = parseFloat(String(p.importe || '0').replace(',', '.')) || 0;
-            formattedElectrico.push({ codigo: '-', detalle: devText, precio: '-', cantidad: '-', subtotal: totalVal });
-        }
-        return formattedElectrico;
-    }
-
-    // En Mecánico: SEPARAR CON TÍTULOS SEGÚN SUBRUBRO (Mano de Obra Taller, Mantenimiento, Parada de Planta, Emergencia, Materiales)
-    const catalog = window.presupuestoMecanicoDB || [];
+    // Separar con títulos según subrubro unificado (Mecánico y Eléctrico)
+    const catalog = [...(window.presupuestoMecanicoDB || []), ...(window.presupuestosCatalogDB || [])];
     const groupsMap = {};
 
     validItems.forEach((it, idx) => {
@@ -15726,7 +16516,6 @@ window.getPresupuestoFormattedItems = function(p, format) {
         } else if (subrubro) {
             catKey = subrubro.toUpperCase();
         } else {
-            // Inferencia si no tiene subrubro cargado
             const detLow = (it.detalle || it.descripcion || '').toLowerCase();
             if (detLow.includes('taller')) {
                 catKey = 'MANO DE OBRA EN TALLER';
@@ -15742,15 +16531,35 @@ window.getPresupuestoFormattedItems = function(p, format) {
         }
 
         const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-        const pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
-        const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
+        const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') || 
+                      (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) || 
+                      (catKey === 'MATERIALES Y EQUIPOS');
+
+        let pr = parseFloat(String(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)).replace(',', '.')) || 0;
+        let priceUSD = null;
+        let subUSD = null;
+        let subPesos = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(String(it.subtotal).replace(',', '.')))) ? parseFloat(String(it.subtotal).replace(',', '.')) : (q * pr);
+
+        if (isMat) {
+            priceUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) 
+                ? parseFloat(it.precio_usd) 
+                : pr;
+            subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) 
+                ? parseFloat(it.subtotal_usd) 
+                : (q * priceUSD);
+            subPesos = subUSD * cotizMat;
+            pr = priceUSD;
+        }
 
         groupsMap[catKey].push({
             codigo: it.codigo || `ITM-${idx+1}`,
             detalle: it.detalle || it.descripcion || it.denominacion || it.nombre || '-',
             precio: pr,
+            precio_usd: priceUSD,
+            is_material: isMat,
             cantidad: q,
-            subtotal: sub
+            subtotal: subPesos,
+            subtotal_usd: subUSD
         });
     });
 
@@ -15776,15 +16585,15 @@ window.getPresupuestoFormattedItems = function(p, format) {
     sortedCategoryKeys.forEach(catTitle => {
         const catItems = groupsMap[catTitle];
         if (catItems && catItems.length > 0) {
-            formatted.push({ codigo: '-', detalle: catTitle, precio: '-', cantidad: '-', subtotal: '-' });
+            formatted.push({ codigo: '-', detalle: catTitle, precio: '-', cantidad: '-', subtotal: '-', is_material: false });
             catItems.forEach(item => formatted.push(item));
         }
     });
 
     if (formatted.length === 0) {
         const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
-        const totalVal = parseFloat(String(p.importe || '0').replace(',', '.')) || 0;
-        formatted.push({ codigo: '-', detalle: devText, precio: '-', cantidad: '-', subtotal: totalVal });
+        const totalVal = (computedGrandTotal > 0) ? computedGrandTotal : (parseFloat(String(p.importe || '0').replace(',', '.')) || 0);
+        formatted.push({ codigo: '-', detalle: devText, precio: '-', cantidad: '-', subtotal: totalVal, is_material: false });
     }
 
     return formatted;
@@ -15964,7 +16773,7 @@ window.getPlantas = function() {
             }
         }
     } catch(e) {}
-    const defaultPlantas = ['PPA', 'APS', 'APG', 'VGG', 'PGSM'];
+    const defaultPlantas = ['APS', 'APG', 'PPA'];
     if (window.appData) window.appData.plantas = defaultPlantas;
     return defaultPlantas;
 };
@@ -15974,12 +16783,64 @@ window.savePlantas = function(plantasArr) {
     try {
         localStorage.setItem('sg_plantas', JSON.stringify(plantasArr));
     } catch(e) {}
+    
+    // Save to supabase as well if client exists
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        // Attempt to sync to supabase
+        const rules = (window.appData && window.appData.plantasRules) ? window.appData.plantasRules : {};
+        const payload = plantasArr.map(p => ({ nombre: p, usa_lista_de: rules[p] || p }));
+        supabaseClient.from('plantas').upsert(payload, { onConflict: 'nombre' }).then(res => {
+            if (res.error) {
+                console.warn("Supabase plantas sync error:", res.error);
+                alert("Error guardando todas las plantas en Supabase: " + res.error.message);
+            }
+        });
+    }
+
     if (typeof guardarPedidosEnArchivo === 'function') {
         guardarPedidosEnArchivo(false);
     } else if (typeof saveData === 'function') {
         saveData();
     }
     window.actualizarSelectsPlantas();
+};
+
+window.fetchPlantasFromSupabase = async function() {
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        try {
+            const { data, error } = await supabaseClient.from('plantas').select('nombre, usa_lista_de');
+            if (error) {
+                console.warn('Error fetching plantas from Supabase:', error);
+                alert('No se pudo conectar a la tabla Plantas en Supabase: ' + error.message);
+                return;
+            }
+            if (data) {
+                // Mapear reglas de listas de precios
+                window.appData.plantasRules = {};
+                data.forEach(r => {
+                    if (r.nombre && r.usa_lista_de) {
+                        window.appData.plantasRules[r.nombre.trim().toUpperCase()] = r.usa_lista_de.trim().toUpperCase();
+                    }
+                });
+
+                let plantasList = data.map(r => r.nombre).filter(n => n && n.trim() !== '');
+                if (plantasList.length === 0) {
+                    // Fallback inicial para que no desaparezcan las por defecto si Supabase está vacío
+                    plantasList = ['APS', 'APG', 'PPA'];
+                    // Intentar guardar este fallback en Supabase para inicializar la tabla vacía
+                    const payload = plantasList.map(p => ({ nombre: p, usa_lista_de: p }));
+                    supabaseClient.from('plantas').upsert(payload, { onConflict: 'nombre' }).catch(()=>{});
+                }
+                
+                // Forzar la limpieza de la memoria vieja y reemplazarla 100% por Supabase
+                if (window.appData) window.appData.plantas = plantasList;
+                localStorage.setItem('sg_plantas', JSON.stringify(plantasList));
+                window.actualizarSelectsPlantas();
+            }
+        } catch(e) {
+            console.warn('Exception fetching plantas:', e);
+        }
+    }
 };
 
 window.actualizarSelectsPlantas = function() {
@@ -16036,10 +16897,18 @@ window.renderModalGestionarPlantas = function() {
 
             <div style="margin-bottom: 20px;">
                 <label style="font-size: 12px; font-weight: 600; color: #94a3b8; display: block; margin-bottom: 6px;">Agregar nueva planta:</label>
-                <div style="display: flex; gap: 8px;">
-                    <input type="text" id="input-nueva-planta" placeholder="Ej: APS, PPA, Bahia Blanca..." 
-                           style="flex: 1; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 13px; outline: none;"
-                           onkeydown="if(event.key==='Enter'){ event.preventDefault(); agregarNuevaPlanta(); }">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <input type="text" id="input-nueva-planta" placeholder="Ej: VGG" 
+                           style="flex: 1; min-width: 120px; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px; font-size: 13px; outline: none;"
+                           onkeydown="if(event.key==='Enter'){ event.preventDefault(); document.getElementById('input-nueva-planta-alias').focus(); }">
+                           
+                    <select id="input-nueva-planta-alias" style="width: 130px; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 6px; padding: 8px; font-size: 12px; outline: none; display: ${(typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') ? 'none' : 'block'};"
+                            onkeydown="if(event.key==='Enter'){ event.preventDefault(); agregarNuevaPlanta(); }">
+                        <option value="">Usa listado propio</option>
+                        <option value="APG">Usa lista de APG</option>
+                        <option value="APS">Usa lista de APS</option>
+                    </select>
+
                     <button type="button" onclick="agregarNuevaPlanta()" 
                             style="background: #10b981; color: #ffffff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap;">
                         <i class="fas fa-plus"></i> Agregar
@@ -16076,28 +16945,52 @@ window.renderModalGestionarPlantas = function() {
 };
 
 window.agregarNuevaPlanta = function() {
-    const input = document.getElementById('input-nueva-planta');
-    if (!input) return;
-    const val = input.value.trim();
-    if (!val) return;
+    try {
+        const input = document.getElementById('input-nueva-planta');
+        const aliasSelect = document.getElementById('input-nueva-planta-alias');
+        if (!input) return;
+        const val = input.value.trim().toUpperCase();
+        if (!val) return;
 
-    const plantas = window.getPlantas();
-    const existe = plantas.some(p => p.trim().toLowerCase() === val.toLowerCase());
-    if (existe) {
-        if (typeof showToast === 'function') {
-            showToast('La planta ya existe', 'warning');
-        } else {
-            alert('La planta ya existe');
+        const plantas = window.getPlantas() || [];
+        const existe = plantas.some(p => p.trim().toLowerCase() === val.toLowerCase());
+        if (existe) {
+            if (typeof showToast === 'function') {
+                showToast('La planta ya existe', 'warning');
+            } else {
+                alert('La planta ya existe');
+            }
+            return;
         }
-        return;
-    }
 
-    plantas.push(val.toUpperCase());
-    window.savePlantas(plantas);
-    if (typeof showToast === 'function') {
-        showToast(`Planta "${val.toUpperCase()}" agregada con éxito`, 'success');
+        const aliasVal = aliasSelect && aliasSelect.value ? aliasSelect.value.toUpperCase() : val;
+
+        plantas.push(val);
+        
+        // Save to window.appData.plantasRules right away
+        if (!window.appData) window.appData = {};
+        if (!window.appData.plantasRules) window.appData.plantasRules = {};
+        window.appData.plantasRules[val] = aliasVal;
+
+        // Explicitly upsert the new plant with its alias to Supabase
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            supabaseClient.from('plantas').upsert([{ nombre: val, usa_lista_de: aliasVal }], { onConflict: 'nombre' }).then(res => {
+                if (res.error) {
+                    console.warn(res.error);
+                    alert("Error en Supabase (upsert 1): " + res.error.message);
+                }
+            });
+        }
+
+        window.savePlantas(plantas);
+        if (typeof showToast === 'function') {
+            showToast(`Planta "${val}" agregada con éxito`, 'success');
+        }
+        window.renderModalGestionarPlantas();
+    } catch (error) {
+        alert("Error agregando planta: " + error.message);
+        console.error(error);
     }
-    window.renderModalGestionarPlantas();
 };
 
 window.eliminarPlanta = function(nombre) {
@@ -16106,6 +16999,22 @@ window.eliminarPlanta = function(nombre) {
 
     let plantas = window.getPlantas();
     plantas = plantas.filter(p => p.trim().toLowerCase() !== nombre.trim().toLowerCase());
+    
+    // Eliminar también de las reglas locales
+    if (window.appData && window.appData.plantasRules && window.appData.plantasRules[nombre]) {
+        delete window.appData.plantasRules[nombre];
+    }
+
+    // Borrar físicamente de Supabase
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        supabaseClient.from('plantas').delete().eq('nombre', nombre).then(res => {
+            if (res.error) {
+                console.warn("Error borrando planta en Supabase:", res.error);
+                alert("Error borrando de la base de datos: " + res.error.message);
+            }
+        });
+    }
+
     window.savePlantas(plantas);
     if (typeof showToast === 'function') {
         showToast(`Planta "${nombre}" eliminada`, 'info');
@@ -16163,31 +17072,56 @@ window.canUserEditUnitPrices = function(user) {
 };
 
 window.generateNextCorrelativeCode = function(catalog, customPrefix) {
-    const cat = catalog || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' ? window.presupuestoMecanicoDB : window.presupuestosCatalogDB) || [];
-    let maxNum = 0;
-    let detectedPrefix = customPrefix || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' ? 'MEC-' : 'ELE-');
+    const isMec = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico');
+    const prefix = customPrefix || (isMec ? 'MEC-' : 'ELE-');
+    
+    // Collect all existing codes across all catalogs, pedidoItems, and local storage
+    const allCatalogs = [];
+    if (catalog && Array.isArray(catalog)) allCatalogs.push(...catalog);
+    if (window.presupuestoMecanicoDB && Array.isArray(window.presupuestoMecanicoDB)) allCatalogs.push(...window.presupuestoMecanicoDB);
+    if (window.presupuestosCatalogDB && Array.isArray(window.presupuestosCatalogDB)) allCatalogs.push(...window.presupuestosCatalogDB);
+    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) allCatalogs.push(...PRESUPUESTO_MECANICO_STOCK);
+    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) allCatalogs.push(...PRESUPUESTO_ELECTRICO_STOCK);
+    if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems)) allCatalogs.push(...pedidoItems);
 
-    cat.forEach(item => {
-        if (item && item.codigo) {
-            const str = String(item.codigo).trim();
-            if (str.startsWith('TITLE-')) return; // Ignore titles for ID generation
-            
-            const match = str.match(/(\d+)/);
-            if (match) {
-                const num = parseInt(match[1], 10);
-                if (num > maxNum) maxNum = num;
-            }
-            if (!customPrefix && str.includes('-') && !str.startsWith('TITLE-')) {
-                const parts = str.split('-');
-                if (parts[0] && isNaN(parseInt(parts[0], 10))) {
-                    detectedPrefix = parts[0] + '-';
-                }
+    const existingCodes = new Set();
+    allCatalogs.forEach(it => {
+        if (it && it.codigo) {
+            existingCodes.add(String(it.codigo).trim().toUpperCase());
+        }
+    });
+
+    // Also collect from custom prices in localStorage
+    try {
+        const cp = JSON.parse(localStorage.getItem('PRESUPUESTO_CUSTOM_PRICES') || '{}');
+        Object.keys(cp).forEach(k => existingCodes.add(String(k).trim().toUpperCase()));
+    } catch(e) {}
+
+    // Find the max number strictly matching prefix + digits (e.g. ^MEC-(\d+)$)
+    const escPrefix = prefix.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const rx = new RegExp(`^${escPrefix}(\\d+)$`, 'i');
+
+    let maxNum = 0;
+    existingCodes.forEach(code => {
+        const m = code.match(rx);
+        if (m) {
+            const num = parseInt(m[1], 10);
+            if (!isNaN(num) && num > maxNum) {
+                maxNum = num;
             }
         }
     });
 
-    const nextNum = maxNum + 1;
-    return `${detectedPrefix}${String(nextNum).padStart(3, '0')}`;
+    let nextNum = maxNum + 1;
+    let candidate = `${prefix}${String(nextNum).padStart(3, '0')}`;
+    
+    // Ensure uniqueness guaranteed: while candidate exists in any source, increment
+    while (existingCodes.has(candidate.toUpperCase())) {
+        nextNum++;
+        candidate = `${prefix}${String(nextNum).padStart(3, '0')}`;
+    }
+
+    return candidate;
 };
 
 window.abrirModalNuevoItemTarifario = function(subrubroDefault) {
@@ -16199,28 +17133,54 @@ window.abrirModalNuevoItemTarifario = function(subrubroDefault) {
     }
 
     setTimeout(() => {
+        // Clear previous input values so the modal is clean and fresh
+        const detInput = document.getElementById('nuevo-item-detalle');
+        if (detInput) detInput.value = '';
+
+        const priceInput = document.getElementById('nuevo-item-precio');
+        if (priceInput) priceInput.value = '';
+
+        const cantInput = document.getElementById('nuevo-item-cantidad');
+        if (cantInput) cantInput.value = '1';
+
         const subSelect = document.getElementById('nuevo-item-subrubro');
         if (subSelect) {
             const cat = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') 
                 ? (window.presupuestoMecanicoDB || []) 
                 : (window.presupuestosCatalogDB || []);
             const subrubros = Array.from(new Set(cat.map(i => i.subrubro).filter(Boolean)));
-            if (subrubros.length === 0) subrubros.push('MANO DE OBRA', 'MATERIALES Y EQUIPOS', 'VARIOS');
+            if (subrubros.length === 0) subrubros.push('MANO DE OBRA EN TALLER', 'Materiales y Equipos', 'Mano de Obra MANTENIMIENTO', 'Mano de Obra PARADA DE PLANTA', 'Mano de Obra EMERGENCIA MANTENIMIENTO');
             subSelect.innerHTML = subrubros.map(s => `<option value="${s}">${s}</option>`).join('');
             if (subrubroDefault && subrubros.includes(subrubroDefault)) {
                 subSelect.value = subrubroDefault;
+            } else if (typeof window.activeMecaTab !== 'undefined') {
+                const secNames = [
+                    "Materiales y Equipos",
+                    "Mano de Obra EN TALLER",
+                    "Mano de Obra MANTENIMIENTO",
+                    "Mano de Obra PARADA DE PLANTA",
+                    "Mano de Obra EMERGENCIA MANTENIMIENTO"
+                ];
+                const activeSec = secNames[window.activeMecaTab];
+                if (activeSec && subrubros.includes(activeSec)) {
+                    subSelect.value = activeSec;
+                }
             }
         }
 
-        const priceInput = document.getElementById('nuevo-item-precio');
+        // Allow all users to enter initial price when adding a new item
         if (priceInput) {
-            const canEdit = window.canUserEditUnitPrices ? window.canUserEditUnitPrices() : true;
-            priceInput.readOnly = !canEdit;
-            priceInput.style.opacity = canEdit ? '1' : '0.6';
-            if (!canEdit) priceInput.title = 'No tiene permisos para modificar precios unitarios';
+            priceInput.readOnly = false;
+            priceInput.disabled = false;
+            priceInput.style.opacity = '1';
+            priceInput.title = 'Ingrese el precio unitario del nuevo ítem';
         }
 
-        const detInput = document.getElementById('nuevo-item-detalle');
+        // Sync currency label (U$D for materials vs ARS for MO)
+        if (typeof window.onNuevoItemSubrubroChange === 'function') {
+            window.onNuevoItemSubrubroChange();
+        }
+
         if (detInput) detInput.focus();
     }, 100);
 };
@@ -16229,16 +17189,16 @@ window.confirmarNuevoItemTarifario = function() {
     const subrubro = (document.getElementById('nuevo-item-subrubro')?.value || '').trim();
     const detalle = (document.getElementById('nuevo-item-detalle')?.value || '').trim();
     const udm = (document.getElementById('nuevo-item-udm')?.value || 'Hs').trim();
-    const rawPrecio = (document.getElementById('nuevo-item-precio')?.value || '0').replace(',', '.');
-    const rawCantidad = (document.getElementById('nuevo-item-cantidad')?.value || '0').replace(',', '.');
+    const rawPrecio = (document.getElementById('nuevo-item-precio')?.value || '0');
+    const rawCantidad = (document.getElementById('nuevo-item-cantidad')?.value || '0');
 
     if (!detalle) {
         if (typeof showToast === 'function') showToast('Ingrese la descripción del ítem', 'warning');
         return;
     }
 
-    const precio = parseFloat(rawPrecio) || 0;
-    const cantidad = parseFloat(rawCantidad) || 0;
+    const precio = window.parseArgNumber ? window.parseArgNumber(rawPrecio) : (parseFloat(rawPrecio.replace(',', '.')) || 0);
+    const cantidad = window.parseArgNumber ? window.parseArgNumber(rawCantidad) : (parseFloat(rawCantidad.replace(',', '.')) || 0);
 
     const catalog = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') 
         ? (window.presupuestoMecanicoDB || []) 
@@ -16246,16 +17206,25 @@ window.confirmarNuevoItemTarifario = function() {
 
     const nextCode = window.generateNextCorrelativeCode(catalog);
 
+    const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
+    const isMat = window.isMaterialItem ? window.isMaterialItem({ subrubro: subrubro }, reqTipoPresupuesto) : (subrubro.toLowerCase().includes('material') || subrubro.toLowerCase().includes('equipo'));
+
+    const subtotalPesos = isMat ? (cantidad * precio * cotizMat) : (cantidad * precio);
+
     const newItem = {
         codigo: nextCode,
         detalle: detalle,
         descripcion: detalle,
         udm: udm,
-        precio: precio,
+        precio: precio, // U$D if material, ARS if labor
         precio_unitario: precio,
+        precio_usd: isMat ? precio : null,
+        cotizacion_aplicada: isMat ? cotizMat : null,
+        is_material: isMat,
         cantidad: cantidad,
-        subtotal: cantidad * precio,
-        subrubro: subrubro || 'Materiales y Equipos',
+        subtotal: subtotalPesos,
+        subtotal_usd: isMat ? (cantidad * precio) : null,
+        subrubro: subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra EN TALLER'),
         stock: 999
     };
 
@@ -16265,13 +17234,27 @@ window.confirmarNuevoItemTarifario = function() {
             PRESUPUESTO_ELECTRICO_STOCK.push(newItem);
         }
     }
+    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
+        if (!PRESUPUESTO_MECANICO_STOCK.includes(newItem)) {
+            PRESUPUESTO_MECANICO_STOCK.push(newItem);
+        }
+    }
+
+    // Save unit price into customPrices so it persists across sessions
+    if (typeof saveCustomItemPrice === 'function') {
+        saveCustomItemPrice(nextCode, precio);
+    }
 
     if (cantidad > 0) {
         const existing = pedidoItems.find(pi => pi.codigo === nextCode);
         if (existing) {
             existing.cantidad = cantidad;
             existing.precio = precio;
-            existing.subtotal = cantidad * precio;
+            existing.precio_usd = isMat ? precio : null;
+            existing.cotizacion_aplicada = isMat ? cotizMat : null;
+            existing.is_material = isMat;
+            existing.subtotal = subtotalPesos;
+            existing.subtotal_usd = isMat ? (cantidad * precio) : null;
         } else {
             pedidoItems.push({
                 codigo: nextCode,
@@ -16279,8 +17262,12 @@ window.confirmarNuevoItemTarifario = function() {
                 descripcion: detalle,
                 udm: udm,
                 precio: precio,
+                precio_usd: isMat ? precio : null,
+                cotizacion_aplicada: isMat ? cotizMat : null,
+                is_material: isMat,
                 cantidad: cantidad,
-                subtotal: cantidad * precio,
+                subtotal: subtotalPesos,
+                subtotal_usd: isMat ? (cantidad * precio) : null,
                 subrubro: newItem.subrubro
             });
         }
@@ -16294,7 +17281,7 @@ window.confirmarNuevoItemTarifario = function() {
         "Mano de Obra PARADA DE PLANTA",
         "Mano de Obra EMERGENCIA MANTENIMIENTO"
     ];
-    const targetIdx = secNames.findIndex(sn => sn.toLowerCase() === (subrubro || '').toLowerCase() || (sn === "Materiales y Equipos" && (subrubro.includes("Material") || subrubro.includes("Equipo"))));
+    const targetIdx = secNames.findIndex(sn => sn.toLowerCase() === (subrubro || '').toLowerCase() || (sn === "Materiales y Equipos" && (subrubro.toLowerCase().includes("material") || subrubro.toLowerCase().includes("equipo"))));
     if (targetIdx !== -1) {
         window.activeMecaTab = targetIdx;
     }
@@ -16312,18 +17299,34 @@ window.confirmarNuevoItemTarifario = function() {
         const dbClient = (typeof getDbClient === 'function') ? getDbClient() : null;
         if (dbClient) {
             const rubroVal = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') ? 'Mecánico' : 'Eléctrico';
-            dbClient.from('tarifario').upsert([{
-                id: nextCode,
+            
+            // Detectar si hay una planta seleccionada actualmente
+            let curPlanta = null;
+            const reqPlantaSelect = document.getElementById('req-meca-planta');
+            if (reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect && reqPlantaSelect.value) {
+                curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+                // Resolver alias si existe
+                if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+                    curPlanta = window.appData.plantasRules[curPlanta];
+                }
+            }
+            
+            const allPlantas = (rubroVal === 'Mecánico') ? ['APS', 'APG', ''] : [''];
+            const upsertData = allPlantas.map(p => ({
+                id: p ? `${nextCode}_${p}` : nextCode,
                 codigo: nextCode,
                 detalle: detalle,
                 rubro: rubroVal,
-                subrubro: subrubro || 'Materiales y Equipos',
+                subrubro: subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra EN TALLER'),
                 unidad: udm,
                 precio: precio,
                 stock: 999,
                 estado: 'ACTIVOS',
-                is_custom: true
-            }], { onConflict: 'codigo' }).then(function(res) {
+                is_custom: true,
+                planta: p
+            }));
+
+            dbClient.from('tarifario').upsert(upsertData, { onConflict: 'id' }).then(function(res) {
                 if (res && res.error) console.warn("Aviso guardando en tarifario Supabase:", res.error);
                 else console.log("☁️ Supabase: Ítem", nextCode, "sincronizado en tabla tarifario.");
             }).catch(function() {});
@@ -16333,7 +17336,7 @@ window.confirmarNuevoItemTarifario = function() {
     }
 
     if (typeof showToast === 'function') {
-        showToast(`Ítem ${nextCode} agregado con éxito al tarifario`, 'success');
+        showToast(`Ítem ${nextCode} agregado con éxito al tarifario ($${precio.toLocaleString('es-AR', {minimumFractionDigits: 2})})`, 'success');
     }
 };
 
@@ -16420,5 +17423,81 @@ window.eliminarItemDelTarifario = function(code) {
     }
     if (typeof showToast === 'function') {
         showToast('Ítem ' + code + ' eliminado del tarifario', 'info');
+    }
+};
+
+window.recalcularPreciosPorPlanta = function() {
+    const isMeca = typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico';
+    const isElec = typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico';
+    
+    if (isMeca && typeof window.renderMecanicoExcelGrid === 'function') {
+        window.renderMecanicoExcelGrid();
+        if (typeof window.recalcMecaExcelAll === 'function') {
+            window.recalcMecaExcelAll();
+        }
+        // Feedback visual
+        const container = document.getElementById('meca-excel-grid-container');
+        if (container) {
+            container.style.opacity = '0.5';
+            setTimeout(() => { container.style.opacity = '1'; }, 150);
+        }
+        return;
+    }
+    
+    if (typeof reqItemsData === 'undefined' || !reqItemsData || !reqItemsData.length) return;
+    
+    const catalog = window.getActiveStockCatalog ? window.getActiveStockCatalog() : [];
+    if (!catalog.length) return;
+    
+    const reqPlantaSelect = document.getElementById('req-meca-planta');
+    if (!reqPlantaSelect) return;
+    
+    let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
+    if (curPlanta !== 'APS' && curPlanta !== 'APG' && curPlanta !== 'PPA' && curPlanta && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+        curPlanta = window.appData.plantasRules[curPlanta];
+    } else if (curPlanta === 'APA') {
+        curPlanta = 'APS';
+    }
+    
+    // Group catalog by logic
+    const grouped = {};
+    catalog.forEach(s => {
+        if (!grouped[s.codigo] && (!(s.planta || '').trim() || (s.planta || '').trim().toUpperCase() === curPlanta)) grouped[s.codigo] = { ...s, precio: 0, precio_unitario: 0, planta: curPlanta };
+    });
+    catalog.forEach(s => {
+        if (!(s.planta || '').trim()) {
+            if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                grouped[s.codigo].precio = s.precio;
+                grouped[s.codigo].precio_unitario = s.precio_unitario;
+            }
+        }
+    });
+    catalog.forEach(s => {
+        if ((s.planta || '').trim().toUpperCase() === curPlanta) {
+            if (s.precio > 0 || grouped[s.codigo].precio === 0) {
+                grouped[s.codigo].precio = s.precio;
+                grouped[s.codigo].precio_unitario = s.precio_unitario;
+            }
+        }
+    });
+    
+    let updated = false;
+    reqItemsData.forEach(item => {
+        const cItem = grouped[item.codigo];
+        if (cItem && cItem.precio !== undefined) {
+            if (item.precio_unitario !== cItem.precio) {
+                item.precio_unitario = cItem.precio;
+                updated = true;
+            }
+        }
+    });
+    
+    if (updated) {
+        if (typeof window.actualizarTablaItemsRequerimiento === 'function') {
+            window.actualizarTablaItemsRequerimiento();
+        }
+        if (typeof window.calcularTotalesPresupuesto === 'function') {
+            window.calcularTotalesPresupuesto();
+        }
     }
 };

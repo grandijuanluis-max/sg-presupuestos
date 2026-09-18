@@ -3,14 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Gestión de Presupuestos</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="html2pdf.bundle.min.js"></script>
-    <script src="logo_base64.js?v=1"></script>
-    <link rel="stylesheet" href="styles.css?v=332">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="logo_base64.js?v=2"></script>
+    <link rel="stylesheet" href="styles.css?v=336">
 </head>
 <body>
     <div id="app">
@@ -641,6 +645,7 @@
     </template>
 
     <!-- Template: Ingreso de Pedido (Solicitante) -->
+
     <template id="tpl-request-ped">
         <form id="form-request-ped" class="glass-card" style="padding: 24px; display: flex; flex-direction: column; gap: 20px; max-width: 1400px; margin: 0 auto; padding-bottom: 25px;" novalidate>
             
@@ -714,7 +719,7 @@
                         </div>
 
                         <!-- Moneda & Cotización (Column 1) -->
-                        <div class="form-row" style="gap: 15px; margin-bottom: 0; grid-column: span 3;">
+                        <div class="form-row" style="gap: 15px; margin-bottom: 0; grid-column: span 3; display: flex; flex-wrap: wrap; align-items: flex-end;">
                             <div class="form-group" style="max-width: 250px; margin-bottom: 0;">
                                 <label>Moneda</label>
                                 <select id="req-currency" required onchange="onReqCurrencyChange()" style="cursor: pointer; height: 42px;">
@@ -724,8 +729,19 @@
                                 </select>
                             </div>
                             <div id="req-exchange-rate-container" class="form-group" style="display: none; max-width: 200px; margin-bottom: 0;">
-                                <label>Cotización</label>
+                                <label>Cotización General</label>
                                 <input type="text" id="req-exchange-rate" value="1.00000000" style="font-family: monospace; text-align: right; height: 42px;">
+                            </div>
+                            <div id="req-cotiz-mat-container" class="form-group" style="max-width: 260px; margin-bottom: 0;">
+                                <label style="color: #38bdf8; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                                    💵 Cotización U$D (Solo Materiales) <span style="color: #fde047;">*</span>
+                                </label>
+                                <div style="position: relative; display: flex; align-items: center;">
+                                    <span style="position: absolute; left: 10px; color: #fde047; font-weight: 800; font-family: monospace;">$</span>
+                                    <input type="text" id="req-cotizacion-materiales" value="1.450,00" placeholder="1.450,00" inputmode="decimal"
+                                           style="font-family: monospace; text-align: right; height: 42px; font-weight: 800; color: #fde047; border: 1.5px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); padding-left: 24px;"
+                                           oninput="if(typeof onReqCotizacionMaterialesInput==='function') onReqCotizacionMaterialesInput(this)">
+                                </div>
                             </div>
                         </div>
 
@@ -802,15 +818,15 @@
                             </div>
 
                             <!-- vi. Planta de Cargill -->
-                            <div style="display: grid; grid-template-columns: 240px 1fr; gap: 10px; align-items: center;">
+                            <div id="row-meca-planta" style="display: grid; grid-template-columns: 240px 1fr; gap: 10px; align-items: center;">
                                 <label id="lbl-meca-planta" style="font-size: 12px; font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">vi. <u>Planta de Cargill:</u></label>
                                 <div style="display: flex; gap: 8px; width: 100%;">
-                                    <select id="req-meca-planta" style="flex: 1; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer;" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('req-meca-fecha-inicio')?.focus();}">
+                                    <select id="req-meca-planta" style="flex: 1; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer;" onchange="if(typeof window.recalcularPreciosPorPlanta === 'function') window.recalcularPreciosPorPlanta()" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('req-meca-fecha-inicio')?.focus();}">
                                         <option value="PPA" style="background: #0f172a; color: #ffffff;">PPA</option>
                                         <option value="APS" style="background: #0f172a; color: #ffffff;" selected>APS</option>
                                         <option value="APG" style="background: #0f172a; color: #ffffff;">APG</option>
                                     </select>
-                                    <button type="button" onclick="gestionarPlantasABM()" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1.5px solid rgba(16, 185, 129, 0.35); border-radius: 6px; padding: 0 14px; font-size: 14px; cursor: pointer; transition: all 0.2s;" title="Gestionar Plantas (ABM)">
+                                    <button id="btn-gestionar-plantas" type="button" onclick="gestionarPlantasABM()" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1.5px solid rgba(16, 185, 129, 0.35); border-radius: 6px; padding: 0 14px; font-size: 14px; cursor: pointer; transition: all 0.2s;" title="Gestionar Plantas (ABM)">
                                         <i class="fas fa-cog"></i>
                                     </button>
                                 </div>
@@ -841,7 +857,22 @@
                             <!-- x. Plazo Máximo de Finalización -->
                             <div style="display: grid; grid-template-columns: 240px 1fr; gap: 10px; align-items: center;">
                                 <label id="lbl-meca-fin" style="font-size: 12px; font-style: italic; font-weight: 700; color: rgba(255,255,255,0.75);">x. <u>Plazo Máximo de Finalización:</u></label>
-                                <input type="date" id="req-meca-fecha-fin" style="background: rgba(234, 179, 8, 0.08); color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 700;" onkeydown="if(event.key==='Enter'){event.preventDefault();const pBox=document.getElementById('req-meca-propuesta-box');if(pBox&&pBox.style.display!=='none'){document.getElementById('req-meca-propuesta')?.focus();}else{document.getElementById('btn-next-step1')?.click();}}">
+                                <input type="date" id="req-meca-fecha-fin" style="background: rgba(234, 179, 8, 0.08); color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-weight: 700;" onkeydown="if(event.key==='Enter'){event.preventDefault();const cotEl=document.getElementById('req-meca-cotizacion-materiales');if(cotEl){cotEl.focus();cotEl.select();}}">
+                            </div>
+
+                            <!-- xi. Cotización Dólar (Solo Materiales) -->
+                            <div style="display: grid; grid-template-columns: 240px 1fr; gap: 10px; align-items: center;">
+                                <label id="lbl-meca-cotiz-mat" style="font-size: 12px; font-style: italic; font-weight: 700; color: #38bdf8;">xi. <u>Cotización U$D (Solo Materiales):</u></label>
+                                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                    <div style="position: relative; display: flex; align-items: center;">
+                                        <span style="position: absolute; left: 10px; color: #fde047; font-weight: 800; font-family: monospace;">$</span>
+                                        <input type="text" id="req-meca-cotizacion-materiales" value="1.450,00" placeholder="1.450,00" inputmode="decimal"
+                                               style="background: rgba(56, 189, 248, 0.1); color: #fde047; border: 1.5px solid rgba(56, 189, 248, 0.4); border-radius: 6px; padding: 8px 12px 8px 24px; font-size: 13px; font-weight: 800; font-family: monospace; width: 150px; text-align: right;"
+                                               oninput="if(typeof onReqCotizacionMaterialesInput==='function') onReqCotizacionMaterialesInput(this)"
+                                               onkeydown="if(event.key==='Enter'){event.preventDefault();const pBox=document.getElementById('req-meca-propuesta-box');if(pBox&&pBox.style.display!=='none'){document.getElementById('req-meca-propuesta')?.focus();}else{document.getElementById('btn-next-step1')?.click();}}">
+                                    </div>
+                                    <span style="font-size: 11px; color: #94a3b8;">💡 Aplica <strong>únicamente</strong> a los ítems de <strong>Materiales y Equipos</strong>. La Mano de Obra se calcula en Pesos ($).</span>
+                                </div>
                             </div>
                         </div>
 
@@ -1002,6 +1033,10 @@
                             <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 2px;">AUTORIZACIÓN COMERCIAL</span>
                             <strong id="summary-requiere-auth" style="color: #fde68a; font-size: 12px; font-weight: 800;">SÍ (Va a Autorización)</strong>
                         </div>
+                        <div>
+                            <span style="color: #38bdf8; font-size: 11px; display: block; margin-bottom: 2px;">COTIZACIÓN MATERIALES (U$D)</span>
+                            <strong id="summary-cotiz-materiales" style="color: #fde047; font-family: monospace; font-size: 13px;">$1.450,00</strong>
+                        </div>
                     </div>
 
                     <!-- Caja de Datos Resumidos Mecánico (Ficha Excel) -->
@@ -1040,6 +1075,10 @@
                         <div>
                             <span id="lbl-summary-meca-fin" style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 2px;">PLAZO MÁXIMO DE FINALIZACIÓN</span>
                             <strong id="summary-meca-plazo-fin" style="color: white;">-</strong>
+                        </div>
+                        <div>
+                            <span style="color: #38bdf8; font-size: 11px; display: block; margin-bottom: 2px;">COTIZACIÓN MATERIALES (U$D)</span>
+                            <strong id="summary-meca-cotiz-materiales" style="color: #fde047; font-family: monospace; font-size: 13px;">$1.450,00</strong>
                         </div>
                         <div id="summary-meca-propuesta-box" style="grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 15px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px; margin-top: 10px;">
                             <div style="grid-column: span 2;">
@@ -1505,7 +1544,8 @@
                         <div class="invoice-number" style="text-align: right; width: 100%;">Nro. <span id="auth-id" style="color: #38bdf8; font-weight: 800;">00000-00014873</span></div>
                         <div class="invoice-date" style="text-align: right; width: 100%;">Fecha: <span id="auth-date-val" style="color: #f8fafc; font-weight: 600;">17/09/2023</span></div>
                         <div id="auth-header-oc-container" style="font-size: 10px; font-weight: 800; margin-top: 3px; color: #38bdf8; text-align: right; width: 100%;">
-                            Orden de Compra: <span id="auth-header-nro-oc-val" style="color: #38bdf8; font-weight: 800;">-</span>
+                            OC Mano de Obra: <span id="auth-header-nro-oc-mo-val" style="color: #38bdf8; font-weight: 800;">-</span><br>
+                            OC Materiales: <span id="auth-header-nro-oc-mat-val" style="color: #38bdf8; font-weight: 800;">-</span>
                         </div>
                         <div id="modal-header-fiscal-details" class="company-fiscal-details" style="font-size: 10.5px; margin-top: 4px; color: #f8fafc; line-height: 1.4; display: inline-flex; flex-direction: column; text-align: left;">
                             <div style="display: flex; justify-content: space-between; gap: 8px;">
@@ -2348,7 +2388,7 @@
             <form id="form-nuevo-item-tarifario" onsubmit="event.preventDefault(); confirmarNuevoItemTarifario();" style="display: flex; flex-direction: column; gap: 14px;">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Sección / Pestaña de Destino <span style="color: #22d3ee;">*</span></label>
-                    <select id="nuevo-item-subrubro" required style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
+                    <select id="nuevo-item-subrubro" required onchange="if(typeof onNuevoItemSubrubroChange==='function') onNuevoItemSubrubroChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
                         <!-- Llenado dinámicamente -->
                     </select>
                 </div>
@@ -2375,7 +2415,7 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Precio Unitario ($)</label>
+                        <label id="nuevo-item-precio-label" style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Precio Unitario ($)</label>
                         <input type="text" id="nuevo-item-precio" placeholder="0,00" inputmode="decimal"
                                style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #fde047; font-family: monospace; font-size: 13px; font-weight: 800; text-align: right;"
                                oninput="this.value=this.value.replace(/[^0-9,.]/g,'');">
@@ -3017,7 +3057,13 @@
     <script src="supabase_config.js?v=3"></script>
     
     <!-- Script principal de lógica de negocio -->
-    <script src="app.js?v=347"></script>
+    <script>
+        // Limpiar basura vieja de plantas para forzar sincronización limpia
+        try {
+            localStorage.removeItem('sg_plantas');
+        } catch(e) {}
+    </script>
+    <script src="app.js?v=400"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

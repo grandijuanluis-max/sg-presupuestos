@@ -35,9 +35,9 @@
 body {
     font-family: 'Inter', sans-serif;
     font-weight: 500; /* Bolder text for readability */
-    background: url('fondo_presupuesto.png') no-repeat center center fixed;
+    background: linear-gradient(rgba(0, 34, 68, 0.6), rgba(0, 34, 68, 0.6)), url('fondo_presupuesto.png') no-repeat center center fixed;
     background-size: cover;
-    background-color: var(--warning); /* Fallback */
+    background-color: var(--primary); /* Fallback less yellow */
     color: var(--text-main);
     text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9); /* Hard shadow to make text pop against image */
     min-height: 100vh;
@@ -3901,3 +3901,17 @@ td:first-child:not(.auth-edit-col):not([colspan]),
 th:first-child:not(.auth-edit-col):not([colspan]) {
     white-space: nowrap !important;
 }
+
+/* ==========================================================================
+   TEMA ELÉCTRICO: Solo fondo amarillo general para organización (Modales quedan estándar)
+   ========================================================================== */
+body.theme-electrico {
+    background: linear-gradient(rgba(133, 77, 14, 0.7), rgba(133, 77, 14, 0.7)), url('fondo_presupuesto.png') no-repeat center center fixed !important;
+    background-size: cover !important;
+    background-color: #ca8a04 !important; /* Amarillo más sutil y oscuro para que se lea todo */
+}
+
+
+
+
+
