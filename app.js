@@ -497,10 +497,34 @@ function mergeUsersList(localUsers, remoteUsers) {
 let isFirstLoad = true;
 let supabaseRealtimeChannel = null;
 
+let supabaseSyncRetries = 0;
 function initSupabaseSync(callback) {
     const client = getDbClient();
     if (!client) {
-        console.warn("⚠️ No se pudo inicializar cliente de Supabase.");
+        console.warn("⚠️ Cliente SDK Supabase no disponible inmediatamente. Reintentando y usando carga REST de respaldo...");
+        if (supabaseSyncRetries < 5) {
+            supabaseSyncRetries++;
+            setTimeout(() => {
+                initSupabaseSync(callback);
+            }, 1000);
+        }
+
+        // Carga REST de respaldo inmediata
+        try {
+            const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+            const rHeaders = { 'apikey': config.anonKey, 'Authorization': `Bearer ${config.anonKey}` };
+            fetch(`${config.url}/rest/v1/presupuestos?select=*&order=id.asc`, { headers: rHeaders })
+                .then(r => r.json())
+                .then(data => {
+                    if (Array.isArray(data) && data.length > 0) {
+                        appData.pedidos = normalizePresupuestosRubro(data);
+                        try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                        if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                        if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+                    }
+                }).catch(() => {});
+        } catch(e) {}
+
         if (callback) callback();
         return;
     }
@@ -1367,109 +1391,158 @@ window.resolveItemSubrubro = function(it, tipoPresupuesto = '') {
 
 window.guardarPresupuestoEnSupabase = async function(p) {
     if (!p || !p.id) return { success: false, error: 'No presupuesto data' };
+
+    let uploadedSuccessfully = false;
     const client = (typeof getDbClient === 'function') ? getDbClient() : null;
-    if (!client) {
-        console.warn("⚠️ No se pudo obtener cliente de base de datos Supabase.");
-        return { success: false, error: 'No client' };
-    }
-
     const row = window.buildPresupuestoSupabaseRow(p);
-    let presError = null;
-    try {
-        const { error } = await client.from('presupuestos').upsert([row], { onConflict: 'id' });
-        if (error) {
-            presError = error;
-            console.error("❌ Error guardando presupuesto en Supabase:", error);
-            return { success: false, error: presError };
-        } else {
-            console.log("☁️ Supabase: Presupuesto " + row.id + " guardado con éxito en tabla 'presupuestos'.");
-        }
-    } catch (err) {
-        presError = err;
-        console.error("❌ Excepción al guardar presupuesto en Supabase:", err);
-        return { success: false, error: presError };
-    }
 
-    // Sincronizar items en la tabla relacional presupuesto_items y guardar precios nuevos en tarifario
-    if (Array.isArray(p.items) && p.items.length > 0) {
+    // CAPA 1: Cliente SDK de Supabase (si está disponible)
+    if (client) {
         try {
-            // Guardar precios del presupuesto en el tarifario global de Supabase (solo items válidos con código real)
-            const tarifarioUpserts = p.items
-                .filter(it => it && it.codigo && it.codigo !== '-' && it.codigo.trim() !== '')
-                .map(it => {
-                    const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
-                    let pPlanta = (p.tipo_presupuesto === 'Mecánico') ? (p.meca_planta || p.planta || '') : '';
+            const { error: presError } = await client.from('presupuestos').upsert([row], { onConflict: 'id' });
+            if (!presError) {
+                uploadedSuccessfully = true;
+                console.log("☁️ Supabase SDK: Presupuesto " + row.id + " guardado con éxito.");
 
-                    // Aplicar regla de planta dinámica si existe
-                    if (pPlanta && pPlanta !== 'APS' && pPlanta !== 'APG' && pPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[pPlanta]) {
-                        pPlanta = window.appData.plantasRules[pPlanta];
+                if (Array.isArray(p.items) && p.items.length > 0) {
+                    try {
+                        await client.from('presupuesto_items').delete().eq('presupuesto_id', String(p.id).trim());
+                        const itemRows = p.items.map((it, idx) => {
+                            const cant = (it.cantidad === '-' || it.cantidad === undefined || it.cantidad === null) ? 1 : (parseFloat(it.cantidad) || 0);
+                            const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
+                            const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
+                            const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
+                            const finalSubrubro = (typeof window.resolveItemSubrubro === 'function')
+                                ? window.resolveItemSubrubro(it, p.tipo_presupuesto)
+                                : (it.subrubro || 'Materiales y Equipos');
+                            it.subrubro = finalSubrubro;
+
+                            return {
+                                id: itemId,
+                                presupuesto_id: String(p.id).trim(),
+                                codigo: String(it.codigo || '-'),
+                                detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
+                                rubro: p.tipo_presupuesto || 'Eléctrico',
+                                subrubro: finalSubrubro,
+                                cantidad: cant,
+                                unidad: String(it.unidad || it.udm || 'UN'),
+                                precio_unitario: pu,
+                                subtotal: sub,
+                                orden: idx + 1
+                            };
+                        });
+                        await client.from('presupuesto_items').upsert(itemRows, { onConflict: 'id' });
+                    } catch(itErr) {
+                        console.warn("Aviso items en SDK:", itErr);
                     }
-
-                    const newId = pPlanta ? `${it.codigo}_${pPlanta.toUpperCase()}` : it.codigo;
-                    return {
-                        id: newId,
-                        codigo: it.codigo,
-                        precio: pu,
-                        planta: pPlanta.toUpperCase(),
-                        detalle: it.detalle || it.codigo,
-                        rubro: p.tipo_presupuesto || 'Eléctrico',
-                        subrubro: it.subrubro || 'Mano de Obra EN TALLER',
-                        unidad: it.unidad || 'UN',
-                        stock: 999,
-                        estado: 'ACTIVOS'
-                    };
-                });
-
-            if (tarifarioUpserts.length > 0 && client) {
-                client.from('tarifario').upsert(tarifarioUpserts, { onConflict: 'id' }).then(res => {
-                    if (res && res.error) console.error("Error actualizando tarifario desde presupuesto:", res.error);
-                    else console.log("☁️ Supabase: Tarifario actualizado con los precios del presupuesto confirmado.");
-                }).catch(e => console.error("Aviso tarifario:", e));
-            }
-        } catch(e) {
-            console.error("Aviso actualizando tarifario post-presupuesto:", e);
-        }
-
-        try {
-            await client.from('presupuesto_items').delete().eq('presupuesto_id', String(p.id));
-            const itemRows = p.items.map((it, idx) => {
-                const cant = (it.cantidad === '-' || it.cantidad === undefined || it.cantidad === null) ? 1 : (parseFloat(it.cantidad) || 0);
-                const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
-                const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
-                const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
-                const finalSubrubro = (typeof window.resolveItemSubrubro === 'function')
-                    ? window.resolveItemSubrubro(it, p.tipo_presupuesto)
-                    : (it.subrubro || 'Materiales y Equipos');
-                it.subrubro = finalSubrubro;
-
-                return {
-                    id: itemId,
-                    presupuesto_id: String(p.id).trim(),
-                    codigo: String(it.codigo || '-'),
-                    detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
-                    rubro: p.tipo_presupuesto || 'Eléctrico',
-                    subrubro: finalSubrubro,
-                    cantidad: cant,
-                    unidad: String(it.unidad || it.udm || 'UN'),
-                    precio_unitario: pu,
-                    subtotal: sub,
-                    orden: idx + 1
-                };
-            });
-            const { error: itErr } = await client.from('presupuesto_items').upsert(itemRows, { onConflict: 'id' });
-            if (itErr) {
-                console.error("❌ Error guardando presupuesto_items:", itErr);
-                return { success: false, error: itErr };
+                }
             } else {
-                console.log("☁️ Supabase: " + itemRows.length + " items guardados en 'presupuesto_items' para " + p.id);
+                console.warn("Aviso SDK Supabase al guardar presupuesto:", presError);
             }
-        } catch(itErr) {
-            console.error("Aviso guardando presupuesto_items:", itErr);
-            return { success: false, error: itErr };
+        } catch(sdkErr) {
+            console.warn("Excepción en SDK Supabase:", sdkErr);
         }
     }
 
-    return { success: true };
+    // CAPA 2: Petición Fetch REST Directa a Supabase (Funciona nativamente en cualquier navegador sin depender del SDK)
+    if (!uploadedSuccessfully) {
+        try {
+            const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+            const headers = {
+                'apikey': config.anonKey,
+                'Authorization': `Bearer ${config.anonKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates'
+            };
+
+            const presRes = await fetch(`${config.url}/rest/v1/presupuestos`, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify([row])
+            });
+
+            if (presRes.ok) {
+                uploadedSuccessfully = true;
+                console.log("☁️ Supabase REST Directo: Presupuesto " + row.id + " guardado con éxito.");
+
+                if (Array.isArray(p.items) && p.items.length > 0) {
+                    await fetch(`${config.url}/rest/v1/presupuesto_items?presupuesto_id=eq.${encodeURIComponent(String(p.id).trim())}`, {
+                        method: 'DELETE',
+                        headers: headers
+                    });
+                    const itemRows = p.items.map((it, idx) => {
+                        const cant = (it.cantidad === '-' || it.cantidad === undefined || it.cantidad === null) ? 1 : (parseFloat(it.cantidad) || 0);
+                        const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
+                        const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
+                        const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
+                        const finalSubrubro = (typeof window.resolveItemSubrubro === 'function')
+                            ? window.resolveItemSubrubro(it, p.tipo_presupuesto)
+                            : (it.subrubro || 'Materiales y Equipos');
+
+                        return {
+                            id: itemId,
+                            presupuesto_id: String(p.id).trim(),
+                            codigo: String(it.codigo || '-'),
+                            detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
+                            rubro: p.tipo_presupuesto || 'Eléctrico',
+                            subrubro: finalSubrubro,
+                            cantidad: cant,
+                            unidad: String(it.unidad || it.udm || 'UN'),
+                            precio_unitario: pu,
+                            subtotal: sub,
+                            orden: idx + 1
+                        };
+                    });
+                    await fetch(`${config.url}/rest/v1/presupuesto_items`, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(itemRows)
+                    });
+                }
+            }
+        } catch(restErr) {
+            console.warn("Aviso REST Supabase:", restErr);
+        }
+    }
+
+    // CAPA 3: Servidor Local Python Backend (/api/sync-presupuesto)
+    if (!uploadedSuccessfully) {
+        try {
+            const beRes = await fetch('/api/sync-presupuesto', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ presupuesto: p })
+            });
+            if (beRes.ok) {
+                uploadedSuccessfully = true;
+                console.log("☁️ Supabase Backend Proxy: Presupuesto " + p.id + " guardado con éxito.");
+            }
+        } catch(beErr) {
+            console.warn("Aviso Backend Proxy:", beErr);
+        }
+    }
+
+    // Sincronizar también app_state.pedidos para que Supabase Table Editor y Realtime tengan la lista consolidada
+    try {
+        if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
+            const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+            const headers = {
+                'apikey': config.anonKey,
+                'Authorization': `Bearer ${config.anonKey}`,
+                'Content-Type': 'application/json'
+            };
+            fetch(`${config.url}/rest/v1/app_state?id=eq.globalData`, {
+                method: 'PATCH',
+                headers: headers,
+                body: JSON.stringify({
+                    pedidos: appData.pedidos,
+                    updated_at: new Date().toISOString()
+                })
+            }).catch(() => {});
+        }
+    } catch(e) {}
+
+    return { success: uploadedSuccessfully };
 };
 
 window.forzarSincronizacionSupabase = async function() {
@@ -1519,9 +1592,10 @@ function saveData() {
     // Guardar en Supabase para sincronización global y tiempo real
     const client = getDbClient();
     if (client) {
-        // 1. Estado global en app_state (permisos, notificaciones para Realtime)
+        // 1. Estado global en app_state (pedidos, permisos, notificaciones para Realtime)
         client.from('app_state').upsert({
             id: 'globalData',
+            pedidos: appData.pedidos || [],
             notifications: appData.notifications || [],
             user_permissions: (appData.userPermissions && typeof appData.userPermissions === 'object' && Object.keys(appData.userPermissions).length > 0)
                 ? Object.assign({}, defaultUserPermissions, appData.userPermissions)
@@ -1618,6 +1692,24 @@ function saveData() {
                 console.error("Error sincronizando notificaciones:", err);
             });
         }
+    } else {
+        // Fallback REST si el cliente SDK aún no está conectado
+        try {
+            const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+            const rHeaders = {
+                'apikey': config.anonKey,
+                'Authorization': `Bearer ${config.anonKey}`,
+                'Content-Type': 'application/json'
+            };
+            fetch(`${config.url}/rest/v1/app_state?id=eq.globalData`, {
+                method: 'PATCH',
+                headers: rHeaders,
+                body: JSON.stringify({
+                    pedidos: appData.pedidos || [],
+                    updated_at: new Date().toISOString()
+                })
+            }).catch(() => {});
+        } catch(e) {}
     }
 }
 window.saveData = saveData;
@@ -13835,91 +13927,10 @@ function startApp() {
     }
 }
 
-// Función global para purgar y vaciar presupuestos y datos de prueba
+// Función protegida: purgado deshabilitado para evitar pérdida accidental de datos
 async function purgarPresupuestosDePrueba(silencioso = false) {
-    if (!silencioso) {
-        const confirmacion = confirm(
-            "⚠️ ¿Está seguro que desea BORRAR TODOS los presupuestos y datos de prueba para dejar la base limpia en cero?\n\nEsta acción vaciará la lista de presupuestos tanto en su navegador como en Supabase para que comience con presupuestos reales.\n(Los clientes y usuarios oficiales se mantendrán intactos)."
-        );
-        if (!confirmacion) return false;
-    }
-
-    try {
-        appData.pedidos = [];
-        appData.notifications = [];
-        try {
-            localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData));
-            localStorage.setItem('PRESUPUESTOS_PURGED', 'true');
-        } catch(e) {}
-
-        const client = getDbClient();
-        if (client) {
-            // 1. Eliminar dependencias primero (items y avances)
-            try { await client.from('presupuesto_items').delete().neq('id', '___ROOT_DUMMY___'); } catch(e) {}
-            try { await client.from('avances_obra').delete().neq('id', '___ROOT_DUMMY___'); } catch(e) {}
-
-            // 2. Eliminar cabeceras de presupuestos
-            let res2 = await client.from('presupuestos').delete().neq('id', '___ROOT_DUMMY___');
-            if (res2 && res2.error) {
-                console.warn("Aviso al vaciar presupuestos:", res2.error.message);
-            }
-
-            // 3. Eliminar notificaciones
-            try { await client.from('notificaciones').delete().neq('id', '___ROOT_DUMMY___'); } catch(e) {}
-
-            // 4. Actualizar estado global limpio
-            let res = await client.from('app_state').upsert({
-                id: 'globalData',
-                pedidos: [],
-                users: appData.users || [],
-                notifications: [],
-                user_permissions: appData.userPermissions || {},
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'id' });
-
-            if (res && res.error) {
-                console.warn("Aviso al vaciar app_state:", res.error.message);
-            }
-
-            if (!silencioso) {
-                showToast("Base de datos limpiada con éxito.", "success");
-            }
-        }
-
-        // Actualizar vistas si están cargadas en el DOM
-        if (typeof renderAllPresupuestosTable === 'function') {
-            try { renderAllPresupuestosTable(); } catch(e) {}
-        }
-        if (typeof renderAssignmentsTable === 'function') {
-            try { renderAssignmentsTable(); } catch(e) {}
-        }
-        if (typeof renderAssignments === 'function') {
-            try { renderAssignments(); } catch(e) {}
-        }
-        if (typeof renderStats === 'function') {
-            try { renderStats(); } catch(e) {}
-        }
-        if (typeof renderNotificationsBadge === 'function') {
-            try { renderNotificationsBadge(); } catch(e) {}
-        }
-        if (typeof renderPresupuestosTable === 'function') {
-            try { renderPresupuestosTable(); } catch(e) {}
-        }
-        if (typeof window.renderFacturacionTable === 'function') {
-            try { window.renderFacturacionTable(); } catch(e) {}
-        }
-
-        if (!silencioso) {
-            showToast("✅ Base de datos limpiada con éxito. El sistema está listo para cargar presupuestos reales desde cero.", "success");
-        }
-        return true;
-    } catch(err) {
-        console.error("Error al purgar base de datos:", err);
-        if (!silencioso) {
-            showToast("Aviso: se limpiaron los datos locales. " + (err.message || ''), "info");
-        }
-        return false;
-    }
+    console.log("ℹ️ La función de vaciado de presupuestos está deshabilitada para proteger los datos.");
+    return true;
 }
 window.purgarPresupuestosDePrueba = purgarPresupuestosDePrueba;
 

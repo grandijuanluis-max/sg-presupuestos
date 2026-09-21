@@ -471,6 +471,85 @@ class SGBackendHandler(SimpleHTTPRequestHandler):
             })
             return
 
+        # 4. Sincronización Automática de Presupuesto a Supabase desde Frontend
+        if path == "/api/sync-presupuesto":
+            p = payload.get("presupuesto") or payload
+            if not p or not p.get("id"):
+                self.send_json_response({"success": False, "error": "Faltan datos del presupuesto"}, status=400)
+                return
+
+            p_id = str(p.get("id")).strip()
+            amt = float(p.get("importe") or p.get("importe_neto") or 0.0)
+            planta_val = str(p.get("planta") or p.get("meca_planta") or "VGG").strip().upper()
+
+            pres_row = {
+                "id": p_id,
+                "fecha": p.get("fecha") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "tipo_presupuesto": p.get("tipo_presupuesto") or ("Mecánico" if "101" in p_id else "Eléctrico"),
+                "cliente_id": str(p.get("cliente_id") or "3").strip(),
+                "cliente_nombre": str(p.get("cliente_nombre") or "CARGILL SACI").strip(),
+                "importe_neto": amt,
+                "estado": p.get("estado") or "Enviado sin OC",
+                "nro_oc": str(p.get("nro_oc") or p.get("meca_nro_oc") or "").strip(),
+                "motivo_rechazo": p.get("motivo_rechazo") or "",
+                "operador": p.get("operador") or "admin",
+                "avance_porcentaje_acumulado": float(p.get("avance_porcentaje_acumulado") or 0),
+                "facturado_porcentaje": float(p.get("facturado_porcentaje") or 0),
+                "monto_facturado": float(p.get("monto_facturado") or 0),
+                "nro_ot": str(p.get("nro_ot") or p.get("meca_nro_ot") or "").strip(),
+                "denominacion": str(p.get("denominacion") or p.get("meca_denominacion") or p.get("motivo") or "").strip(),
+                "planta": planta_val,
+                "proveedor": str(p.get("proveedor") or p.get("meca_proveedor") or "SG MONTAJES SRL").strip(),
+                "fecha_oferta": p.get("fecha_oferta") or "",
+                "validez": p.get("validez") or "",
+                "fecha_inicio": p.get("fecha_inicio") or "",
+                "duracion": p.get("duracion") or "",
+                "fecha_fin": p.get("fecha_fin") or "",
+                "propuesta": p.get("propuesta") or "",
+                "personal": p.get("personal") or "",
+                "exclusiones": p.get("exclusiones") or ""
+            }
+
+            res_pres = supabase_request("presupuestos", method="POST", data=[pres_row])
+            if isinstance(res_pres, dict) and res_pres.get("error"):
+                print(f"❌ [Backend Sync Error Presupuesto] {res_pres}")
+                self.send_json_response({"success": False, "error": res_pres}, status=500)
+                return
+
+            raw_items = p.get("items") or []
+            if isinstance(raw_items, list) and len(raw_items) > 0:
+                item_rows = []
+                for idx, it in enumerate(raw_items):
+                    cant = float(it.get("cantidad") if it.get("cantidad") not in ("-", None, "") else 1)
+                    pu = float(it.get("precio") if it.get("precio") not in ("-", None, "") else (it.get("precio_unitario") or 0))
+                    sub = float(it.get("subtotal") if it.get("subtotal") not in ("-", None, "") else (cant * pu))
+                    item_rows.append({
+                        "id": f"{p_id}-ITM-{str(idx + 1).zfill(2)}",
+                        "presupuesto_id": p_id,
+                        "codigo": str(it.get("codigo") or "-"),
+                        "detalle": str(it.get("detalle") or it.get("descripcion") or "Item de Presupuesto"),
+                        "rubro": p.get("tipo_presupuesto") or "Eléctrico",
+                        "subrubro": str(it.get("subrubro") or "Materiales y Equipos"),
+                        "cantidad": cant,
+                        "unidad": str(it.get("unidad") or it.get("udm") or "UN"),
+                        "precio_unitario": pu,
+                        "subtotal": sub,
+                        "orden": idx + 1
+                    })
+                supabase_request("presupuesto_items", method="POST", data=item_rows)
+
+            # Mantener app_state.pedidos sincronizado para que Supabase Table Editor y Realtime reflejen los cambios
+            try:
+                all_pres = supabase_request("presupuestos?select=*&order=id.asc")
+                if isinstance(all_pres, list):
+                    supabase_request("app_state?id=eq.globalData", method="PATCH", data={"pedidos": all_pres, "updated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")})
+            except Exception as e_st:
+                print(f"Aviso app_state sync: {e_st}")
+
+            print(f"☁️ [BACKEND SYNC] Presupuesto #{p_id} y sus {len(raw_items)} ítems sincronizados con Supabase.")
+            self.send_json_response({"success": True, "id": p_id, "items_count": len(raw_items)})
+            return
+
         self.send_json_response({"error": "Ruta POST no encontrada"}, status=404)
 
 from socketserver import ThreadingMixIn
