@@ -14942,9 +14942,9 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
             if (!qErr) {
                 console.log("⏳ Email encolado en Supabase (cola_emails):", mailId, ". Verificando entrega...");
 
-                // Esperar a que el worker procese el correo (hasta 10 segundos)
+                // Esperar a que el worker procese el correo (hasta 18 segundos)
                 let pollAttempts = 0;
-                while (pollAttempts < 7) {
+                while (pollAttempts < 12) {
                     await new Promise(r => setTimeout(r, 1500));
                     pollAttempts++;
                     try {
@@ -14972,8 +14972,9 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
                     } catch(pollE) {}
                 }
 
-                // Si no arrojó error explícito pero sigue pendiente tras el polling, continuar
+                // Si no arrojó error explícito y sigue pendiente tras el polling, el worker lo procesará en segundo plano
                 if (!lastError) {
+                    console.log("⏳ El correo continúa encolado y en procesamiento por el worker:", mailId);
                     return { success: true, via: 'queue', id: mailId };
                 }
             } else {
@@ -15003,7 +15004,7 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
     for (const endpoint of endpoints) {
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            const timeoutId = setTimeout(() => controller.abort(), 35000);
             const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -15030,7 +15031,7 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
                     } catch(dbErr) {}
                     return data;
                 } else if (data && data.error) {
-                    return { success: false, error: data.error };
+                    lastError = data.error;
                 }
             }
         } catch(err) {
@@ -16405,12 +16406,12 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
         }
 
         return `
-        <tr style="border-bottom: 1px solid #000; font-size: 11px; background: transparent; page-break-inside: avoid;">
-            <td style="padding: 6px; border-right: 1px solid #000; font-weight:bold; text-align:center; background: transparent;">${String(r.codigo).startsWith('TITLE-') ? '' : r.codigo}</td>
-            <td style="padding: 6px; border-right: 1px solid #000; background: transparent;">${r.detalle}</td>
-            <td style="padding: 6px; border-right: 1px solid #000; text-align: right; background: transparent; ${isMat ? 'color: #0369a1; font-weight:bold;' : ''}">${priceStr}</td>
-            <td style="padding: 6px; border-right: 1px solid #000; text-align: center; font-weight:bold; background: transparent;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
-            <td style="padding: 6px; text-align: right; font-weight: bold; background: transparent;">${subStr}</td>
+        <tr style="border-bottom: 1px solid #000; font-size: 10px; background: transparent; page-break-inside: avoid;">
+            <td style="padding: 4px 5px; border-right: 1px solid #000; font-weight:bold; text-align:center; background: transparent; word-break: break-word;">${String(r.codigo).startsWith('TITLE-') ? '' : r.codigo}</td>
+            <td style="padding: 4px 6px; border-right: 1px solid #000; background: transparent; word-break: break-word;">${r.detalle}</td>
+            <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: right; background: transparent; word-break: break-word; ${isMat ? 'color: #0369a1; font-weight:bold;' : ''}">${priceStr}</td>
+            <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: center; font-weight:bold; background: transparent; word-break: break-word;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
+            <td style="padding: 4px 5px; text-align: right; font-weight: bold; background: transparent; word-break: break-word;">${subStr}</td>
         </tr>`;
     }).join('');
 
@@ -16435,37 +16436,40 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     }
 
     const htmlContent = `
-        <style>
-            #pdf-wrapper-download, #pdf-wrapper-download * {
-                box-sizing: border-box;
-            }
-            #pdf-wrapper-download tr {
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-            }
-            #pdf-wrapper-download .no-page-break {
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-            }
-        </style>
-        <div id="pdf-wrapper-download" style="padding: 20px; font-family: 'Arial', sans-serif; background: #fff; color: #000; width: 800px; margin: 0 auto; position: relative;">
+        <div id="pdf-wrapper-download" style="box-sizing: border-box; width: 100%; max-width: 100%; padding: 6px 10px; font-family: Arial, sans-serif; background: #ffffff; color: #000000; margin: 0 auto; position: relative;">
+            <style>
+                #pdf-wrapper-download, #pdf-wrapper-download * {
+                    box-sizing: border-box;
+                }
+                #pdf-wrapper-download tr,
+                #pdf-wrapper-download .no-page-break {
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
+                @media print {
+                    #pdf-wrapper-download {
+                        width: 100% !important;
+                        max-width: 100% !important;
+                    }
+                }
+            </style>
 
-            <div style="position: relative; z-index: 1; padding: 20px;">
+            <div style="position: relative; z-index: 1;">
 
                 <!-- Header -->
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; border: 2px solid #000; border-radius: 8px; padding: 15px; background: transparent;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; border: 2px solid #000; border-radius: 6px; padding: 8px 12px; background: transparent;">
                     ${_isAcosta ? `
                     <div style="width: 30%;">
-                        <img src="${_logoAcostaB64}" style="height: 48px; margin-bottom: 5px; object-fit: contain; max-width: 100%;">
-                        <div style="font-size: 10px; line-height: 1.3;">
+                        <img src="${_logoAcostaB64}" style="height: 44px; margin-bottom: 4px; object-fit: contain; max-width: 100%;">
+                        <div style="font-size: 9.5px; line-height: 1.25;">
                             <strong>I.V.A. Responsable Inscripto</strong><br>
                             Estanislao López<br>
                             Timbues - Pcia. Santa Fe
                         </div>
                     </div>` : `
                     <div style="width: 30%;">
-                        <img src="${_activeLogo}" style="height: 40px; margin-bottom: 5px; object-fit: contain; max-width: 100%;">
-                        <div style="font-size: 10px; line-height: 1.3;">
+                        <img src="${_activeLogo}" style="height: 38px; margin-bottom: 4px; object-fit: contain; max-width: 100%;">
+                        <div style="font-size: 9.5px; line-height: 1.25;">
                             <strong>I.V.A. Responsable Inscripto</strong><br>
                             Estanislao López (CP S2204)<br>
                             Timbues - Pcia. Santa Fe
@@ -16473,13 +16477,13 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     </div>`}
 
                     <div style="width: 40%; text-align: center;">
-                        <h2 style="margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 1px;">PRESUPUESTO</h2>
-                        <div style="display: inline-block; border: 2px solid #000; border-radius: 4px; padding: 2px 12px; font-size: 18px; font-weight: bold; margin-top: 4px; margin-bottom: 4px;">X</div>
-                        <div style="font-size: 8px; font-weight: bold;">COMPROBANTE NO<br>VÁLIDO COMO FACTURA</div>
+                        <h2 style="margin: 0; font-size: 17px; font-weight: 800; letter-spacing: 1px;">PRESUPUESTO</h2>
+                        <div style="display: inline-block; border: 2px solid #000; border-radius: 4px; padding: 1px 10px; font-size: 16px; font-weight: bold; margin-top: 3px; margin-bottom: 3px;">X</div>
+                        <div style="font-size: 8px; font-weight: bold; line-height: 1.2;">COMPROBANTE NO<br>VÁLIDO COMO FACTURA</div>
                     </div>
 
-                    <div style="width: 30%; text-align: right; font-size: 10px; line-height: 1.4;">
-                        <div style="font-size: 14px; font-weight: bold; margin-bottom: 4px;">Nro. ${nro}</div>
+                    <div style="width: 30%; text-align: right; font-size: 9.5px; line-height: 1.35;">
+                        <div style="font-size: 13px; font-weight: bold; margin-bottom: 3px;">Nro. ${nro}</div>
                         <div><strong>Fecha:</strong> ${fechaEmision} ${hora}</div>
                         <div><strong>OC Mano de Obra:</strong> ${p.oc_mano_obra || p.meca_nro_oc || p.nro_oc || "-"}</div>
                         <div><strong>OC Materiales:</strong> ${p.oc_materiales || "-"}</div>
@@ -16490,78 +16494,78 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 </div>
 
                 <!-- Client Info Box (Formato Unificado) -->
-                <div style="border: 2px solid #000; border-radius: 8px; margin-bottom: 15px; font-size: 11px; padding: 6px 8px; background: transparent;">
+                <div style="border: 2px solid #000; border-radius: 6px; margin-bottom: 6px; font-size: 10px; padding: 5px 8px; background: transparent;">
                     <div style="display: flex;">
                         <div style="width: 55%; border-right: 1px solid #000; padding: 2px 8px 2px 0;">
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Cliente:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${cliName}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 68px; text-align:center; background: transparent; font-weight: 600;">Cliente:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${cliName}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Título:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${detalle}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 68px; text-align:center; background: transparent; font-weight: 600;">Título:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${detalle}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Detalle:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; white-space: pre-wrap; background: transparent;">${propTecnica}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 68px; text-align:center; background: transparent; font-weight: 600;">Detalle:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; white-space: pre-wrap; background: transparent;">${propTecnica}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Domicilio:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${domicilio}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 68px; text-align:center; background: transparent; font-weight: 600;">Domicilio:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${domicilio}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">C.U.I.T.:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${cuitCli}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 68px; text-align:center; background: transparent; font-weight: 600;">C.U.I.T.:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${cuitCli}</strong>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 70px; text-align:center; background: transparent;">Condición:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${condicion}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 68px; text-align:center; background: transparent; font-weight: 600;">Condición:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${condicion}</strong>
                             </div>
                         </div>
                         <div style="width: 45%; padding: 2px 0 2px 8px;">
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Código:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${codCliente}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 80px; text-align:center; background: transparent; font-weight: 600;">Código:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${codCliente}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Número de OT:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${numOt}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 80px; text-align:center; background: transparent; font-weight: 600;">Número de OT:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${numOt}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Planta:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${planta}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 80px; text-align:center; background: transparent; font-weight: 600;">Planta:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${planta}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Localidad:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${localidad}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 80px; text-align:center; background: transparent; font-weight: 600;">Localidad:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${localidad}</strong>
                             </div>
-                            <div style="margin-bottom: 4px; display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">F. Entrega:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${entrega}</strong>
+                            <div style="margin-bottom: 3px; display:flex; gap:5px;">
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 80px; text-align:center; background: transparent; font-weight: 600;">F. Entrega:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${entrega}</strong>
                             </div>
                             <div style="display:flex; gap:5px;">
-                                <span style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; width: 85px; text-align:center; background: transparent;">Nro Pres.:</span>
-                                <strong style="border: 1px solid #000; border-radius:3px; padding: 2px 5px; flex:1; background: transparent;">${nro}</strong>
+                                <span style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; width: 80px; text-align:center; background: transparent; font-weight: 600;">Nro Pres.:</span>
+                                <strong style="border: 1px solid #000; border-radius:3px; padding: 1px 5px; flex:1; background: transparent;">${nro}</strong>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Items Table with Watermark -->
-                <div style="position: relative; margin-bottom: 10px; min-height: 320px;">
+                <div style="position: relative; margin-bottom: 6px;">
                     <!-- Watermark Gota de Agua -->
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: ${_isAcosta ? '0.22' : '0.28'}; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
-                        <img src="${_activeWatermark}" style="width: 75%; max-width: 480px; max-height: 90%; object-fit: contain; transform: rotate(-20deg); ${_isAcosta ? 'opacity: 0.9; filter: contrast(0.95);' : 'filter: contrast(1.15);'}">
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: ${_isAcosta ? '0.22' : '0.25'}; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                        <img src="${_activeWatermark}" style="width: 70%; max-width: 420px; max-height: 85%; object-fit: contain; transform: rotate(-20deg); ${_isAcosta ? 'opacity: 0.9; filter: contrast(0.95);' : 'filter: contrast(1.15);'}">
                     </div>
 
-                    <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; position: relative; z-index: 1; background: transparent;">
-                        <thead style="font-size: 11px; background: transparent;">
+                    <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; position: relative; z-index: 1; background: transparent; table-layout: fixed;">
+                        <thead style="font-size: 10px; background: transparent;">
                             <tr style="border-bottom: 2px solid #000; background: transparent; page-break-inside: avoid;">
-                                <th style="padding: 6px; font-weight: bold; border-right: 1px solid #000; width: 10%; background: transparent;">CÓDIGO</th>
-                                <th style="padding: 6px; font-weight: bold; border-right: 1px solid #000; width: 45%; background: transparent;">DETALLE DE PRODUCTOS / SERVICIOS</th>
-                                <th style="padding: 6px; font-weight: bold; text-align: right; border-right: 1px solid #000; width: 15%; background: transparent;">PRECIO</th>
-                                <th style="padding: 6px; font-weight: bold; text-align: center; border-right: 1px solid #000; width: 10%; background: transparent;">CANTIDAD</th>
-                                <th style="padding: 6px; font-weight: bold; text-align: right; width: 20%; background: transparent;">TOTAL ($ ARS)</th>
+                                <th style="padding: 5px; font-weight: bold; border-right: 1px solid #000; width: 14%; background: transparent; word-break: break-word;">CÓDIGO</th>
+                                <th style="padding: 5px; font-weight: bold; border-right: 1px solid #000; width: 44%; background: transparent; word-break: break-word;">DETALLE DE PRODUCTOS / SERVICIOS</th>
+                                <th style="padding: 5px; font-weight: bold; text-align: right; border-right: 1px solid #000; width: 15%; background: transparent; word-break: break-word;">PRECIO</th>
+                                <th style="padding: 5px; font-weight: bold; text-align: center; border-right: 1px solid #000; width: 11%; background: transparent; word-break: break-word;">CANTIDAD</th>
+                                <th style="padding: 5px; font-weight: bold; text-align: right; width: 16%; background: transparent; word-break: break-word;">TOTAL ($ ARS)</th>
                             </tr>
                         </thead>
                         <tbody style="background: transparent;">
@@ -16569,44 +16573,44 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                         </tbody>
                         <tfoot style="background: transparent;">
                             ${pdfBreakdownRows}
-                            <tr style="border-top: 2px solid #000; font-size: 13px; background: transparent; page-break-inside: avoid;">
-                                <td colspan="4" style="padding: 8px; font-weight: bold; border-right: 1px solid #000; background: transparent;">TOTAL GENERAL ($ ARS):</td>
-                                <td style="padding: 8px; text-align: right; font-weight: bold; background: transparent;">$${computedGrandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                            <tr style="border-top: 2px solid #000; font-size: 12px; background: transparent; page-break-inside: avoid;">
+                                <td colspan="4" style="padding: 6px 8px; font-weight: bold; border-right: 1px solid #000; background: transparent;">TOTAL GENERAL ($ ARS):</td>
+                                <td style="padding: 6px 8px; text-align: right; font-weight: bold; background: transparent;">$${computedGrandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
 
                 <!-- Propuesta Tecnica (Unificada) -->
-                <div style="border: 2px solid #000; margin-bottom: 10px; font-size: 11px; background: transparent; page-break-inside: avoid;">
-                    <div style="padding: 6px; font-weight: bold; border-bottom: 1px solid #000; background: transparent;">PROPUESTA TÉCNICA / COMERCIAL</div>
+                <div class="no-page-break" style="border: 2px solid #000; margin-bottom: 5px; font-size: 10px; background: transparent; page-break-inside: avoid; break-inside: avoid;">
+                    <div style="padding: 4px 6px; font-weight: bold; border-bottom: 1px solid #000; background: transparent;">PROPUESTA TÉCNICA / COMERCIAL</div>
 
                     <div style="display: flex; border-bottom: 1px solid #000; background: transparent;">
-                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent;">SOLICITUD DE SUPERVISOR:</div>
-                        <div style="width: 70%; padding: 4px 6px; background: transparent;">${personal}</div>
+                        <div style="width: 30%; padding: 3px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent;">SOLICITUD DE SUPERVISOR:</div>
+                        <div style="width: 70%; padding: 3px 6px; background: transparent;">${personal}</div>
                     </div>
                     <div style="display: flex; border-bottom: 1px solid #000; background: transparent;">
-                        <div style="width: 30%; padding: 4px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent;">INDICAR EXCLUSIONES:</div>
-                        <div style="width: 70%; padding: 4px 6px; background: transparent;">${exclus}</div>
+                        <div style="width: 30%; padding: 3px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent;">INDICAR EXCLUSIONES:</div>
+                        <div style="width: 70%; padding: 3px 6px; background: transparent;">${exclus}</div>
                     </div>
-                    <div style="display: flex; background: rgba(224, 242, 254, 0.4); padding: 4px 6px;">
-                        <div style="background: #3b82f6; color: white; padding: 1px 6px; border-radius: 4px; margin-right: 10px; font-weight: bold;">Observaciones:</div>
+                    <div style="display: flex; background: rgba(224, 242, 254, 0.4); padding: 3px 6px;">
+                        <div style="background: #3b82f6; color: white; padding: 1px 5px; border-radius: 3px; margin-right: 8px; font-weight: bold;">Observaciones:</div>
                         <div style="background: transparent;">${obs}</div>
                     </div>
                 </div>
 
-                <div style="background: #94a3b8; color: white; text-align: center; padding: 6px; font-size: 11px; font-weight: bold; margin-bottom: 10px; border-radius: 4px;">
+                <div class="no-page-break" style="background: #94a3b8; color: white; text-align: center; padding: 4px 6px; font-size: 9.5px; font-weight: bold; margin-bottom: 5px; border-radius: 4px; page-break-inside: avoid; break-inside: avoid;">
                     PRECIOS DEL PRESUPUESTO, SUJETOS A MODIFICACIONES SIN PREVIO AVISO
                 </div>
 
-                <div style="border: 1px solid #f59e0b; border-radius: 6px; padding: 10px; font-size: 11px; color: #b45309; line-height: 1.5; margin-bottom: 15px; background: transparent;">
+                <div class="no-page-break" style="border: 1px solid #f59e0b; border-radius: 5px; padding: 5px 8px; font-size: 9.5px; color: #b45309; line-height: 1.35; margin-bottom: 5px; background: transparent; page-break-inside: avoid; break-inside: avoid;">
                     <div style="font-weight: bold;">⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.</div>
                     <div><strong>i. Garantía Requerida:</strong> 6 MESES</div>
                     <div><strong>ii. Convenio:</strong> La Mano de Obra contempla el Convenio UOCRA vigente. Los trabajos en planta contemplan el convenio Agroexportador.</div>
                     <div><strong>iii. Forma de Pago:</strong> 30 días fecha de factura</div>
                 </div>
 
-                <div style="display: flex; justify-content: space-between; border: 1px solid #38bdf8; border-radius: 4px; padding: 4px 10px; font-size: 10px; color: #0284c7; font-weight: bold; background: transparent; page-break-inside: avoid;">
+                <div class="no-page-break" style="display: flex; justify-content: space-between; border: 1px solid #38bdf8; border-radius: 4px; padding: 3px 8px; font-size: 9px; color: #0284c7; font-weight: bold; background: transparent; page-break-inside: avoid; break-inside: avoid;">
                     <span>Usuario: ${p.operador || 'mel'}</span>
                     <span>Fecha: ${nowStr} 10:38:14</span>
                     <span>Item: ${items.length}</span>
@@ -16632,26 +16636,46 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
     const htmlContent = window.generarHTMLPresupuestoNuevo(p, finalFormat, items, total, nro, cliName, logoSrc, nowStr);
     return new Promise((resolve) => {
         const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.width = '100%';
+        container.style.height = '0';
+        container.style.overflow = 'hidden';
+        container.style.zIndex = '-99999';
         container.innerHTML = htmlContent;
         document.body.appendChild(container);
 
+        const targetEl = container.querySelector('#pdf-wrapper-download') || container.firstElementChild || container;
+
         const opt = {
-            margin: [6, 6, 6, 6],
+            margin: [5, 5, 5, 5],
             filename: `Presupuesto_${nro}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, logging: false },
+            image: { type: 'jpeg', quality: 0.95 },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                letterRendering: true
+            },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            pagebreak: { mode: ['css', 'legacy'] }
         };
 
-        html2pdf().set(opt).from(container.firstElementChild).outputPdf('datauristring').then(function(pdfAsString) {
-            document.body.removeChild(container);
-            resolve(pdfAsString);
-        }).catch(err => {
-            console.error('Error in html2pdf:', err);
-            document.body.removeChild(container);
+        if (typeof html2pdf !== 'undefined') {
+            html2pdf().set(opt).from(targetEl).outputPdf('datauristring').then(function(pdfAsString) {
+                if (container.parentNode) document.body.removeChild(container);
+                resolve(pdfAsString);
+            }).catch(err => {
+                console.error('Error in html2pdf:', err);
+                if (container.parentNode) document.body.removeChild(container);
+                resolve(null);
+            });
+        } else {
+            console.error('html2pdf no está disponible');
+            if (container.parentNode) document.body.removeChild(container);
             resolve(null);
-        });
+        }
     });
 };
 
@@ -16667,29 +16691,44 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
     const htmlContent = window.generarHTMLPresupuestoNuevo(p, finalFormat, items, total, nro, cliName, logoSrc, nowStr);
     return new Promise((resolve) => {
         const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.width = '100%';
+        container.style.height = '0';
+        container.style.overflow = 'hidden';
+        container.style.zIndex = '-99999';
         container.innerHTML = htmlContent;
         document.body.appendChild(container);
 
+        const targetEl = container.querySelector('#pdf-wrapper-download') || container.firstElementChild || container;
+
         const opt = {
-            margin: [6, 6, 6, 6],
+            margin: [5, 5, 5, 5],
             filename: `Presupuesto_${nro}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, logging: false },
+            image: { type: 'jpeg', quality: 0.95 },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                letterRendering: true
+            },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            pagebreak: { mode: ['css', 'legacy'] }
         };
 
         if (typeof html2pdf !== 'undefined') {
-            html2pdf().set(opt).from(container.firstElementChild).save().then(() => {
-                document.body.removeChild(container);
+            html2pdf().set(opt).from(targetEl).save().then(() => {
+                if (container.parentNode) document.body.removeChild(container);
                 resolve(true);
             }).catch(err => {
                 console.error('Error al guardar PDF:', err);
-                document.body.removeChild(container);
+                if (container.parentNode) document.body.removeChild(container);
                 resolve(false);
             });
         } else {
-            document.body.removeChild(container);
+            console.error('html2pdf no está disponible');
+            if (container.parentNode) document.body.removeChild(container);
             resolve(false);
         }
     });
@@ -16712,8 +16751,8 @@ window.abrirPDFPresupuesto = function(id, format = null) {
         <head>
             <title>Presupuesto - ${nro}</title>
             <style>
-                @page { size: A4 portrait; margin: 15mm; }
-                body { font-family: 'Arial', sans-serif; background: #ffffff; color: #000000; margin: 0; padding: 0; }
+                @page { size: A4 portrait; margin: 8mm; }
+                body { font-family: Arial, sans-serif; background: #ffffff; color: #000000; margin: 0; padding: 0; }
             </style>
         </head>
         <body>
