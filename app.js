@@ -767,10 +767,18 @@ function initSupabaseSync(callback) {
         .then(function(pRes) {
             if (pRes.data && pRes.data.length > 0) {
                 const existingItemsMap = {};
+                const localPendingMap = {};
+                const remoteIds = new Set(pRes.data.map(r => String(r.id)));
                 if (Array.isArray(appData.pedidos)) {
                     appData.pedidos.forEach(oldP => {
-                        if (Array.isArray(oldP.items) && oldP.items.length > 0) {
-                            existingItemsMap[String(oldP.id)] = oldP.items;
+                        if (oldP && oldP.id) {
+                            const pid = String(oldP.id);
+                            if (Array.isArray(oldP.items) && oldP.items.length > 0) {
+                                existingItemsMap[pid] = oldP.items;
+                            }
+                            if (!remoteIds.has(pid)) {
+                                localPendingMap[pid] = oldP;
+                            }
                         }
                     });
                 }
@@ -781,17 +789,36 @@ function initSupabaseSync(callback) {
                         p.items = existingItemsMap[pid];
                     }
                 });
-                console.log("✅ " + pRes.data.length + " presupuestos leídos DIRECTAMENTE de la tabla 'presupuestos' en Supabase.");
+
+                // Preservar y subir presupuestos locales que aún no estaban en Supabase
+                const pendingIds = Object.keys(localPendingMap);
+                if (pendingIds.length > 0) {
+                    console.log("☁️ Preservando " + pendingIds.length + " presupuestos locales creados pendientes de subida a Supabase:", pendingIds);
+                    pendingIds.forEach(pId => {
+                        const localPed = localPendingMap[pId];
+                        appData.pedidos.push(localPed);
+                        if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+                            window.guardarPresupuestoEnSupabase(localPed);
+                        }
+                    });
+                }
+
+                console.log("✅ " + appData.pedidos.length + " presupuestos consolidados (Supabase + locales).");
                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
                 if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
                 syncPresupuestoItemsFromSupabase();
             } else if (pRes.data && pRes.data.length === 0) {
                 console.log("☁️ Supabase: Tabla 'presupuestos' vacía.");
-                appData.pedidos = [];
-                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
-                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-                if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+                if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
+                    console.log("☁️ Presupuestos existentes en memoria local (" + appData.pedidos.length + "). Sincronizando a Supabase...");
+                    saveData();
+                } else {
+                    appData.pedidos = [];
+                    try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                    if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                    if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+                }
             }
         })
         .catch(function(pErr) {
@@ -1258,9 +1285,7 @@ window.buildPresupuestoSupabaseRow = function(p) {
         fecha_fin: p.fecha_fin || p.meca_fecha_fin || '',
         propuesta: p.propuesta || p.meca_propuesta || '',
         personal: p.personal || p.meca_personal || '',
-        exclusiones: p.exclusiones || p.meca_exclusiones || '',
-        tipo_reporte: p.tipo_reporte || 'detallado',
-        items: Array.isArray(p.items) ? p.items : []
+        exclusiones: p.exclusiones || p.meca_exclusiones || ''
     };
 };
 
@@ -1349,17 +1374,20 @@ window.guardarPresupuestoEnSupabase = async function(p) {
     }
 
     const row = window.buildPresupuestoSupabaseRow(p);
+    let presError = null;
     try {
         const { error } = await client.from('presupuestos').upsert([row], { onConflict: 'id' });
         if (error) {
+            presError = error;
             console.error("❌ Error guardando presupuesto en Supabase:", error);
-            return { success: false, error };
+            return { success: false, error: presError };
         } else {
             console.log("☁️ Supabase: Presupuesto " + row.id + " guardado con éxito en tabla 'presupuestos'.");
         }
     } catch (err) {
+        presError = err;
         console.error("❌ Excepción al guardar presupuesto en Supabase:", err);
-        return { success: false, error: err };
+        return { success: false, error: presError };
     }
 
     // Sincronizar items en la tabla relacional presupuesto_items y guardar precios nuevos en tarifario
@@ -1394,14 +1422,13 @@ window.guardarPresupuestoEnSupabase = async function(p) {
 
             if (tarifarioUpserts.length > 0 && client) {
                 client.from('tarifario').upsert(tarifarioUpserts, { onConflict: 'id' }).then(res => {
-                    if (res.error) console.error("Error actualizando tarifario desde presupuesto:", res.error);
+                    if (res && res.error) console.error("Error actualizando tarifario desde presupuesto:", res.error);
                     else console.log("☁️ Supabase: Tarifario actualizado con los precios del presupuesto confirmado.");
-                });
+                }).catch(e => console.error("Aviso tarifario:", e));
             }
         } catch(e) {
             console.error("Aviso actualizando tarifario post-presupuesto:", e);
         }
-
 
         try {
             await client.from('presupuesto_items').delete().eq('presupuesto_id', String(p.id));
@@ -1410,13 +1437,15 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                 const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
                 const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
                 const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
-                const finalSubrubro = window.resolveItemSubrubro(it, p.tipo_presupuesto);
+                const finalSubrubro = (typeof window.resolveItemSubrubro === 'function')
+                    ? window.resolveItemSubrubro(it, p.tipo_presupuesto)
+                    : (it.subrubro || 'Materiales y Equipos');
                 it.subrubro = finalSubrubro;
 
                 return {
                     id: itemId,
                     presupuesto_id: String(p.id).trim(),
-                    codigo: String(it.codigo || ''),
+                    codigo: String(it.codigo || '-'),
                     detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
                     rubro: p.tipo_presupuesto || 'Eléctrico',
                     subrubro: finalSubrubro,
@@ -1430,15 +1459,54 @@ window.guardarPresupuestoEnSupabase = async function(p) {
             const { error: itErr } = await client.from('presupuesto_items').upsert(itemRows, { onConflict: 'id' });
             if (itErr) {
                 console.error("❌ Error guardando presupuesto_items:", itErr);
+                return { success: false, error: itErr };
             } else {
                 console.log("☁️ Supabase: " + itemRows.length + " items guardados en 'presupuesto_items' para " + p.id);
             }
         } catch(itErr) {
-            console.warn("Aviso guardando presupuesto_items:", itErr);
+            console.error("Aviso guardando presupuesto_items:", itErr);
+            return { success: false, error: itErr };
         }
     }
 
     return { success: true };
+};
+
+window.forzarSincronizacionSupabase = async function() {
+    const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+    if (!client) return;
+
+    try {
+        if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
+            for (const p of appData.pedidos) {
+                if (p && p.id) {
+                    await window.guardarPresupuestoEnSupabase(p);
+                }
+            }
+        }
+
+        const { data: allRemote, error: aErr } = await client.from('presupuestos').select('*').order('id', { ascending: true });
+        if (!aErr && allRemote && allRemote.length > 0) {
+            const existingItemsMap = {};
+            if (Array.isArray(appData.pedidos)) {
+                appData.pedidos.forEach(p => {
+                    if (Array.isArray(p.items) && p.items.length > 0) existingItemsMap[String(p.id)] = p.items;
+                });
+            }
+            appData.pedidos = normalizePresupuestosRubro(allRemote);
+            appData.pedidos.forEach(p => {
+                const pid = String(p.id);
+                if ((!Array.isArray(p.items) || p.items.length === 0) && existingItemsMap[pid]) {
+                    p.items = existingItemsMap[pid];
+                }
+            });
+            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+            if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+            if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+        }
+    } catch(err) {
+        console.error("Error en sincronización automática con Supabase:", err);
+    }
 };
 
 function saveData() {
@@ -1471,19 +1539,12 @@ function saveData() {
 
         // 2. USUARIOS: NO se hace upsert masivo aquí (tabla usuarios es independiente)
 
-        // 3. PRESUPUESTOS: Sincronización en la tabla 'presupuestos' de Supabase
+        // 3. PRESUPUESTOS & ITEMS: Sincronización relacional en Supabase (presupuestos primero, luego items)
         if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
             const presupuestosRows = appData.pedidos.map(function(p) {
                 return window.buildPresupuestoSupabaseRow(p);
             });
-            client.from('presupuestos').upsert(presupuestosRows, { onConflict: 'id' }).then(function(res) {
-                if (res && res.error) console.warn("⚠️ Supabase presupuestos warning:", res.error);
-                else console.log("☁️ Supabase: " + presupuestosRows.length + " presupuestos sincronizados con éxito en tabla 'presupuestos'.");
-            }).catch(function(err) {
-                console.error("Error sincronizando presupuestos:", err);
-            });
 
-            // 5. ITEMS: Sincronización en la tabla 'presupuesto_items' de Supabase
             const allItemsRows = [];
             appData.pedidos.forEach(function(p) {
                 if (Array.isArray(p.items) && p.items.length > 0) {
@@ -1513,14 +1574,23 @@ function saveData() {
                 }
             });
 
-            if (allItemsRows.length > 0) {
-                client.from('presupuesto_items').upsert(allItemsRows, { onConflict: 'id' }).then(function(res) {
-                    if (res && res.error) console.warn("⚠️ Supabase presupuesto_items warning:", res.error);
-                    else console.log("☁️ Supabase: " + allItemsRows.length + " items sincronizados con éxito en 'presupuesto_items'.");
-                }).catch(function(err) {
-                    console.error("Error sincronizando presupuesto_items:", err);
-                });
-            }
+            client.from('presupuestos').upsert(presupuestosRows, { onConflict: 'id' }).then(function(res) {
+                if (res && res.error) {
+                    console.warn("⚠️ Supabase presupuestos warning:", res.error);
+                    return;
+                }
+                console.log("☁️ Supabase: " + presupuestosRows.length + " presupuestos sincronizados con éxito en tabla 'presupuestos'.");
+                if (allItemsRows.length > 0) {
+                    client.from('presupuesto_items').upsert(allItemsRows, { onConflict: 'id' }).then(function(iRes) {
+                        if (iRes && iRes.error) console.warn("⚠️ Supabase presupuesto_items warning:", iRes.error);
+                        else console.log("☁️ Supabase: " + allItemsRows.length + " items sincronizados con éxito en 'presupuesto_items'.");
+                    }).catch(function(err) {
+                        console.error("Error sincronizando presupuesto_items:", err);
+                    });
+                }
+            }).catch(function(err) {
+                console.error("Error sincronizando presupuestos:", err);
+            });
         }
 
         // 4. AVANCES DE OBRA: NO se hace upsert masivo aquí.
@@ -6269,7 +6339,7 @@ function confirmarPedido() {
     openModal('tpl-modal-tipo-reporte');
 }
 
-window.confirmarConTipoReporte = function(tipoReporte) {
+window.confirmarConTipoReporte = async function(tipoReporte) {
     closeModal();
 
     try {
@@ -6381,7 +6451,7 @@ window.confirmarConTipoReporte = function(tipoReporte) {
             window.pedidoEnEdicionId = null;
             try { saveData(); } catch(e) {}
             if (typeof window.guardarPresupuestoEnSupabase === 'function') {
-                window.guardarPresupuestoEnSupabase(targetPedido);
+                await window.guardarPresupuestoEnSupabase(targetPedido);
             }
             showToast(`Presupuesto ${targetId} modificado correctamente.`, 'success');
             try { verDetallePedido(targetId); } catch(e) {}
@@ -6481,8 +6551,15 @@ window.confirmarConTipoReporte = function(tipoReporte) {
 
             appData.pedidos.push(newPedido);
             try { saveData(); } catch(e) {}
+            let supOk = false;
             if (typeof window.guardarPresupuestoEnSupabase === 'function') {
-                window.guardarPresupuestoEnSupabase(newPedido);
+                const supRes = await window.guardarPresupuestoEnSupabase(newPedido);
+                if (supRes && supRes.success) {
+                    supOk = true;
+                    console.log(`☁️ Supabase: Presupuesto ${targetId} guardado y sincronizado con éxito.`);
+                } else {
+                    console.error("Aviso al guardar en Supabase:", supRes ? supRes.error : 'Unknown');
+                }
             }
 
             if (isReqAuth) {

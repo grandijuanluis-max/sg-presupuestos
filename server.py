@@ -245,7 +245,7 @@ class SGBackendHandler(SimpleHTTPRequestHandler):
         # 2. Listar presupuestos
         if path == "/api/presupuestos":
             limit = params.get("limit", [100])[0]
-            data = supabase_request(f"presupuestos?select=*&order=created_at.desc&limit={limit}")
+            data = supabase_request(f"presupuestos?select=*&order=fecha.desc&limit={limit}")
             self.send_json_response(data)
             return
 
