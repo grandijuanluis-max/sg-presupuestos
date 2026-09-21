@@ -588,8 +588,17 @@ function initSupabaseSync(callback) {
 
             // Map de la base de datos a un diccionario rápido por código
             const dbByCode = {};
+            let deletedStock = [];
+            try {
+                deletedStock = JSON.parse(localStorage.getItem('PRESUPUESTO_DELETED_STOCK') || '[]');
+            } catch(e) {}
+
             tarRes.data.forEach(function(row) {
                 if (!row || !row.codigo) return;
+                if (row.estado === 'ELIMINADOS') {
+                    if (!deletedStock.includes(row.codigo)) deletedStock.push(row.codigo);
+                    return;
+                }
                 const cPrice = parseFloat(row.precio) || 0;
                 let key = row.codigo;
                 if (row.planta) key = key + '_' + row.planta.trim().toUpperCase();
@@ -602,43 +611,47 @@ function initSupabaseSync(callback) {
 
             // Reconstruir catálogo Eléctrico (toma el primer precio disponible)
             if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
-                window.presupuestosCatalogDB = PRESUPUESTO_ELECTRICO_STOCK.map(baseItem => {
-                    const rows = dbByCode[baseItem.codigo];
-                    if (!rows || rows.length === 0) return { ...baseItem };
-                    // Priorizar el que no tenga planta (o la vacía) para Eléctrico
-                    const row = rows.find(r => !r.planta || r.planta.trim() === '') || rows[0];
-                    return {
-                        ...baseItem,
-                        precio: parseFloat(row.precio) || 0,
-                        precio_unitario: parseFloat(row.precio) || 0,
-                        detalle: row.detalle || baseItem.detalle,
-                        descripcion: row.detalle || baseItem.descripcion,
-                        subrubro: row.subrubro || baseItem.subrubro
-                    };
-                });
+                window.presupuestosCatalogDB = PRESUPUESTO_ELECTRICO_STOCK
+                    .filter(baseItem => !deletedStock.includes(baseItem.codigo))
+                    .map(baseItem => {
+                        const rows = dbByCode[baseItem.codigo];
+                        if (!rows || rows.length === 0) return { ...baseItem };
+                        // Priorizar el que no tenga planta (o la vacía) para Eléctrico
+                        const row = rows.find(r => !r.planta || r.planta.trim() === '') || rows[0];
+                        return {
+                            ...baseItem,
+                            precio: parseFloat(row.precio) || 0,
+                            precio_unitario: parseFloat(row.precio) || 0,
+                            detalle: row.detalle || baseItem.detalle,
+                            descripcion: row.detalle || baseItem.descripcion,
+                            subrubro: row.subrubro || baseItem.subrubro
+                        };
+                    });
             }
 
             // Reconstruir catálogo Mecánico (Mantener todas las variantes de planta)
             if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
                 let mecaArr = [];
-                PRESUPUESTO_MECANICO_STOCK.forEach(baseItem => {
-                    const rows = dbByCode[baseItem.codigo];
-                    if (!rows || rows.length === 0) {
-                        mecaArr.push({ ...baseItem });
-                    } else {
-                        rows.forEach(row => {
-                            mecaArr.push({
-                                ...baseItem,
-                                precio: parseFloat(row.precio) || 0,
-                                precio_unitario: parseFloat(row.precio) || 0,
-                                planta: row.planta || '',
-                                detalle: row.detalle || baseItem.detalle,
-                                descripcion: row.detalle || baseItem.descripcion,
-                                subrubro: row.subrubro || baseItem.subrubro
+                PRESUPUESTO_MECANICO_STOCK
+                    .filter(baseItem => !deletedStock.includes(baseItem.codigo))
+                    .forEach(baseItem => {
+                        const rows = dbByCode[baseItem.codigo];
+                        if (!rows || rows.length === 0) {
+                            mecaArr.push({ ...baseItem });
+                        } else {
+                            rows.forEach(row => {
+                                mecaArr.push({
+                                    ...baseItem,
+                                    precio: parseFloat(row.precio) || 0,
+                                    precio_unitario: parseFloat(row.precio) || 0,
+                                    planta: row.planta || '',
+                                    detalle: row.detalle || baseItem.detalle,
+                                    descripcion: row.detalle || baseItem.descripcion,
+                                    subrubro: row.subrubro || baseItem.subrubro
+                                });
                             });
-                        });
-                    }
-                });
+                        }
+                    });
 
                 // Agregar ítems que estén en Supabase pero no en el stock base
                 tarRes.data.forEach(row => {
@@ -704,21 +717,79 @@ function initSupabaseSync(callback) {
     });
 
     // 3. LECTURA DIRECTA Y EXCLUSIVA DE LA TABLA 'presupuestos' (Fuente Única de Verdad)
+    const syncPresupuestoItemsFromSupabase = function() {
+        if (!client) return;
+        client.from('presupuesto_items').select('*').then(function(itemsRes) {
+            if (itemsRes.data && itemsRes.data.length > 0 && Array.isArray(appData.pedidos)) {
+                const itemsMap = {};
+                itemsRes.data.forEach(function(it) {
+                    const pid = String(it.presupuesto_id || '');
+                    if (!itemsMap[pid]) itemsMap[pid] = [];
+                    const cant = parseFloat(it.cantidad) || 1;
+                    const pu = parseFloat(it.precio_unitario || it.precio) || 0;
+                    const rawSubr = (it.subrubro && it.subrubro !== 'None' && it.subrubro !== 'null') ? String(it.subrubro).trim() : '';
+                    const resolvedSubr = rawSubr || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(it, it.rubro) : 'Materiales y Equipos');
+                    itemsMap[pid].push({
+                        codigo: String(it.codigo || ''),
+                        detalle: String(it.detalle || ''),
+                        rubro: it.rubro || 'Eléctrico',
+                        subrubro: resolvedSubr,
+                        cantidad: cant,
+                        unidad: it.unidad || 'UN',
+                        udm: it.unidad || 'UN',
+                        precio: pu,
+                        precio_unitario: pu,
+                        subtotal: parseFloat(it.subtotal) || (cant * pu),
+                        estado: 'Pendiente'
+                    });
+                });
+                let changed = false;
+                appData.pedidos.forEach(function(p) {
+                    const pid = String(p.id);
+                    if ((!Array.isArray(p.items) || p.items.length === 0) && itemsMap[pid] && itemsMap[pid].length > 0) {
+                        p.items = itemsMap[pid];
+                        changed = true;
+                    }
+                });
+                if (changed) {
+                    try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                    if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                }
+            }
+        }).catch(function(err) { console.warn("Aviso presupuesto_items:", err); });
+    };
+
+    // 3. LECTURA DIRECTA Y EXCLUSIVA DE LA TABLA 'presupuestos' (Fuente Única de Verdad)
     client
         .from('presupuestos')
         .select('*')
         .order('id', { ascending: true })
         .then(function(pRes) {
             if (pRes.data && pRes.data.length > 0) {
+                const existingItemsMap = {};
+                if (Array.isArray(appData.pedidos)) {
+                    appData.pedidos.forEach(oldP => {
+                        if (Array.isArray(oldP.items) && oldP.items.length > 0) {
+                            existingItemsMap[String(oldP.id)] = oldP.items;
+                        }
+                    });
+                }
                 appData.pedidos = normalizePresupuestosRubro(pRes.data);
+                appData.pedidos.forEach(p => {
+                    const pid = String(p.id);
+                    if ((!Array.isArray(p.items) || p.items.length === 0) && existingItemsMap[pid]) {
+                        p.items = existingItemsMap[pid];
+                    }
+                });
                 console.log("✅ " + pRes.data.length + " presupuestos leídos DIRECTAMENTE de la tabla 'presupuestos' en Supabase.");
                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
                 if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
-            } else if (pRes.data && pRes.data.length === 0 && appData.pedidos && appData.pedidos.length > 0) {
-                // Solo sincronizar local hacia Supabase si la base remota está realmente vacía (primer setup)
-                console.log("☁️ Sincronizando " + appData.pedidos.length + " presupuestos locales hacia tabla 'presupuestos' de Supabase...");
-                saveData();
+                syncPresupuestoItemsFromSupabase();
+            } else if (pRes.data && pRes.data.length === 0) {
+                console.log("☁️ Supabase: Tabla 'presupuestos' vacía.");
+                appData.pedidos = [];
+                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
                 if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
             }
@@ -756,46 +827,7 @@ function initSupabaseSync(callback) {
                 }
             }
 
-            // Sincronizar items desde tabla presupuesto_items de Supabase
-            client.from('presupuesto_items').select('*').then(function(itemsRes) {
-                if (itemsRes.data && itemsRes.data.length > 0 && Array.isArray(appData.pedidos)) {
-                    const itemsMap = {};
-                    itemsRes.data.forEach(function(it) {
-                        const pid = String(it.presupuesto_id || '');
-                        if (!itemsMap[pid]) itemsMap[pid] = [];
-                        const cant = parseFloat(it.cantidad) || 1;
-                        const pu = parseFloat(it.precio_unitario || it.precio) || 0;
-                        const rawSubr = (it.subrubro && it.subrubro !== 'None' && it.subrubro !== 'null') ? String(it.subrubro).trim() : '';
-                        const resolvedSubr = rawSubr || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(it, it.rubro) : 'Materiales y Equipos');
-                        itemsMap[pid].push({
-                            codigo: String(it.codigo || ''),
-                            detalle: String(it.detalle || ''),
-                            rubro: it.rubro || 'Eléctrico',
-                            subrubro: resolvedSubr,
-                            cantidad: cant,
-                            unidad: it.unidad || 'UN',
-                            udm: it.unidad || 'UN',
-                            precio: pu,
-                            precio_unitario: pu,
-                            subtotal: parseFloat(it.subtotal) || (cant * pu),
-                            estado: 'Pendiente'
-                        });
-                    });
-                    let changed = false;
-                    appData.pedidos.forEach(function(p) {
-                        const pid = String(p.id);
-                        if ((!Array.isArray(p.items) || p.items.length === 0) && itemsMap[pid] && itemsMap[pid].length > 0) {
-                            p.items = itemsMap[pid];
-                            changed = true;
-                        }
-                    });
-                    if (changed) {
-                        try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
-                        if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-                    }
-                }
-            }).catch(function(err) { console.warn("Aviso presupuesto_items:", err); });
-
+            syncPresupuestoItemsFromSupabase();
             console.log("⚡ Supabase conectado y sincronizado en tiempo real.");
 
             // 4. SUSCRIPCIÓN EN TIEMPO REAL A TODAS LAS TABLAS DE SUPABASE
@@ -1226,7 +1258,9 @@ window.buildPresupuestoSupabaseRow = function(p) {
         fecha_fin: p.fecha_fin || p.meca_fecha_fin || '',
         propuesta: p.propuesta || p.meca_propuesta || '',
         personal: p.personal || p.meca_personal || '',
-        exclusiones: p.exclusiones || p.meca_exclusiones || ''
+        exclusiones: p.exclusiones || p.meca_exclusiones || '',
+        tipo_reporte: p.tipo_reporte || 'detallado',
+        items: Array.isArray(p.items) ? p.items : []
     };
 };
 
@@ -1331,30 +1365,32 @@ window.guardarPresupuestoEnSupabase = async function(p) {
     // Sincronizar items en la tabla relacional presupuesto_items y guardar precios nuevos en tarifario
     if (Array.isArray(p.items) && p.items.length > 0) {
         try {
-            // Guardar precios del presupuesto en el tarifario global de Supabase
-            const tarifarioUpserts = p.items.map(it => {
-                const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
-                let pPlanta = (p.tipo_presupuesto === 'Mecánico') ? (p.meca_planta || p.planta || '') : '';
+            // Guardar precios del presupuesto en el tarifario global de Supabase (solo items válidos con código real)
+            const tarifarioUpserts = p.items
+                .filter(it => it && it.codigo && it.codigo !== '-' && it.codigo.trim() !== '')
+                .map(it => {
+                    const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
+                    let pPlanta = (p.tipo_presupuesto === 'Mecánico') ? (p.meca_planta || p.planta || '') : '';
 
-                // Aplicar regla de planta dinámica si existe
-                if (pPlanta && pPlanta !== 'APS' && pPlanta !== 'APG' && pPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[pPlanta]) {
-                    pPlanta = window.appData.plantasRules[pPlanta];
-                }
+                    // Aplicar regla de planta dinámica si existe
+                    if (pPlanta && pPlanta !== 'APS' && pPlanta !== 'APG' && pPlanta !== 'PPA' && window.appData && window.appData.plantasRules && window.appData.plantasRules[pPlanta]) {
+                        pPlanta = window.appData.plantasRules[pPlanta];
+                    }
 
-                const newId = pPlanta ? `${it.codigo}_${pPlanta.toUpperCase()}` : it.codigo;
-                return {
-                    id: newId,
-                    codigo: it.codigo,
-                    precio: pu,
-                    planta: pPlanta.toUpperCase(),
-                    detalle: it.detalle || it.codigo,
-                    rubro: p.tipo_presupuesto || 'Eléctrico',
-                    subrubro: it.subrubro || 'Mano de Obra EN TALLER',
-                    unidad: it.unidad || 'UN',
-                    stock: 999,
-                    estado: 'ACTIVOS'
-                };
-            });
+                    const newId = pPlanta ? `${it.codigo}_${pPlanta.toUpperCase()}` : it.codigo;
+                    return {
+                        id: newId,
+                        codigo: it.codigo,
+                        precio: pu,
+                        planta: pPlanta.toUpperCase(),
+                        detalle: it.detalle || it.codigo,
+                        rubro: p.tipo_presupuesto || 'Eléctrico',
+                        subrubro: it.subrubro || 'Mano de Obra EN TALLER',
+                        unidad: it.unidad || 'UN',
+                        stock: 999,
+                        estado: 'ACTIVOS'
+                    };
+                });
 
             if (tarifarioUpserts.length > 0 && client) {
                 client.from('tarifario').upsert(tarifarioUpserts, { onConflict: 'id' }).then(res => {
@@ -1415,14 +1451,13 @@ function saveData() {
     // Guardar en Supabase para sincronización global y tiempo real
     const client = getDbClient();
     if (client) {
-        // 1. Estado global en app_state (permisos, notificaciones, precios para Realtime)
+        // 1. Estado global en app_state (permisos, notificaciones para Realtime)
         client.from('app_state').upsert({
             id: 'globalData',
             notifications: appData.notifications || [],
             user_permissions: (appData.userPermissions && typeof appData.userPermissions === 'object' && Object.keys(appData.userPermissions).length > 0)
                 ? Object.assign({}, defaultUserPermissions, appData.userPermissions)
                 : Object.assign({}, defaultUserPermissions),
-            custom_prices: (typeof appData !== 'undefined' && appData && appData.customPrices) ? appData.customPrices : (typeof getCustomItemPrices === 'function' ? getCustomItemPrices() : {}),
             updated_at: new Date().toISOString()
         }, { onConflict: 'id' }).then(function(res) {
             if (res && res.error) {
@@ -1447,15 +1482,50 @@ function saveData() {
             }).catch(function(err) {
                 console.error("Error sincronizando presupuestos:", err);
             });
-        }
 
+            // 5. ITEMS: Sincronización en la tabla 'presupuesto_items' de Supabase
+            const allItemsRows = [];
+            appData.pedidos.forEach(function(p) {
+                if (Array.isArray(p.items) && p.items.length > 0) {
+                    p.items.forEach(function(it, idx) {
+                        const cant = (it.cantidad === '-' || it.cantidad === undefined || it.cantidad === null) ? 1 : (parseFloat(it.cantidad) || 0);
+                        const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
+                        const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
+                        const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
+                        const finalSubrubro = (typeof window.resolveItemSubrubro === 'function')
+                            ? window.resolveItemSubrubro(it, p.tipo_presupuesto)
+                            : (it.subrubro || 'Materiales y Equipos');
+
+                        allItemsRows.push({
+                            id: itemId,
+                            presupuesto_id: String(p.id).trim(),
+                            codigo: String(it.codigo || '-'),
+                            detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
+                            rubro: p.tipo_presupuesto || 'Eléctrico',
+                            subrubro: finalSubrubro,
+                            cantidad: cant,
+                            unidad: String(it.unidad || it.udm || 'UN'),
+                            precio_unitario: pu,
+                            subtotal: sub,
+                            orden: idx + 1
+                        });
+                    });
+                }
+            });
+
+            if (allItemsRows.length > 0) {
+                client.from('presupuesto_items').upsert(allItemsRows, { onConflict: 'id' }).then(function(res) {
+                    if (res && res.error) console.warn("⚠️ Supabase presupuesto_items warning:", res.error);
+                    else console.log("☁️ Supabase: " + allItemsRows.length + " items sincronizados con éxito en 'presupuesto_items'.");
+                }).catch(function(err) {
+                    console.error("Error sincronizando presupuesto_items:", err);
+                });
+            }
+        }
 
         // 4. AVANCES DE OBRA: NO se hace upsert masivo aquí.
         // Los avances se sincronizan individualmente cuando se cargan desde abrirModalAvanceObra.
         // El upsert masivo recrea avances de presupuestos borrados en Supabase.
-
-        // 5. ITEMS: NO se hace upsert masivo aquí.
-        // Los items se sincronizan individualmente cuando se guarda cada presupuesto.
 
 
         // 6. Sincronizar notificaciones en la tabla notificaciones de Supabase
@@ -9272,7 +9342,7 @@ window.guardarModificacionesPedido = function() {
     realOrder.moneda_id = pedidoActivo.moneda_id;
     realOrder.cotizacion = pedidoActivo.cotizacion;
 
-    realOrder.items = pedidoActivo.items.map(item => {
+    realOrder.items = activeItems.map(item => {
         const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
         const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
         const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
@@ -9657,6 +9727,7 @@ window.verDetallePedido = function(id, explicitMode) {
         const canShowAvance = (viewMode === 'Modificacion' && segPerms.canEdit && p.estado !== 'Rechazado');
         btnAvanceModal.style.display = canShowAvance ? 'inline-flex' : 'none';
     }
+
 
     const setElemText = (elId, txt) => {
         const el = document.getElementById(elId);
@@ -10155,10 +10226,11 @@ window.verDetallePedido = function(id, explicitMode) {
                     </tr>
                 `;
             } else {
+                const safeDet = (r.detalle || r.descripcion || r.denominacion || r.nombre || '-');
                 itemsRowsHtml += `
                     <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: ${idx % 2 === 0 ? 'rgba(15, 23, 42, 0.15)' : 'transparent'};">
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${codeStr}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-weight: 600; color: #f8fafc;">${r.detalle}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-weight: 600; color: #f8fafc;">${safeDet}</td>
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; color: ${isMat ? '#38bdf8' : '#f8fafc'}; font-weight: 600;">${priceStr}</td>
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: center; font-weight: 800; font-family: monospace; color: #f8fafc;">${qtyStr}</td>
                         <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">${subStr}</td>
@@ -10298,21 +10370,25 @@ window.verDetallePedido = function(id, explicitMode) {
         `;
     };
 
-        window.cambiarTipoReporteEnVista = function(nuevoTipo) {
+    window.cambiarTipoReporteEnVista = function(nuevoTipo) {
         const normTipo = String(nuevoTipo || 'detallado').toLowerCase().trim();
-        if (pedidoActivo) {
-            pedidoActivo.tipo_reporte = normTipo;
+        const p = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo;
+        if (p) {
+            p.tipo_reporte = normTipo;
             if (window.appData && Array.isArray(window.appData.pedidos)) {
-                const pOrig = window.appData.pedidos.find(x => x.id === pedidoActivo.id);
+                const pOrig = window.appData.pedidos.find(x => x.id === p.id);
                 if (pOrig) pOrig.tipo_reporte = normTipo;
             }
             if (typeof saveData === 'function') {
                 try { saveData(); } catch(e) {}
             }
             if (typeof window.getBudgetDocTitle === 'function') {
-                document.title = window.getBudgetDocTitle(pedidoActivo);
+                document.title = window.getBudgetDocTitle(p);
             }
-            renderModalReportTable(pedidoActivo, normTipo);
+            renderModalReportTable(p, normTipo);
+            if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+                window.guardarPresupuestoEnSupabase(p);
+            }
         }
     };
 
@@ -13694,31 +13770,39 @@ async function purgarPresupuestosDePrueba(silencioso = false) {
     try {
         appData.pedidos = [];
         appData.notifications = [];
-        saveData();
+        try {
+            localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData));
+            localStorage.setItem('PRESUPUESTOS_PURGED', 'true');
+        } catch(e) {}
 
         const client = getDbClient();
         if (client) {
+            // 1. Eliminar dependencias primero (items y avances)
+            try { await client.from('presupuesto_items').delete().neq('id', '___ROOT_DUMMY___'); } catch(e) {}
+            try { await client.from('avances_obra').delete().neq('id', '___ROOT_DUMMY___'); } catch(e) {}
+
+            // 2. Eliminar cabeceras de presupuestos
+            let res2 = await client.from('presupuestos').delete().neq('id', '___ROOT_DUMMY___');
+            if (res2 && res2.error) {
+                console.warn("Aviso al vaciar presupuestos:", res2.error.message);
+            }
+
+            // 3. Eliminar notificaciones
+            try { await client.from('notificaciones').delete().neq('id', '___ROOT_DUMMY___'); } catch(e) {}
+
+            // 4. Actualizar estado global limpio
             let res = await client.from('app_state').upsert({
                 id: 'globalData',
                 pedidos: [],
                 users: appData.users || [],
                 notifications: [],
                 user_permissions: appData.userPermissions || {},
-                // custom_prices: (typeof appData !== 'undefined' && appData && appData.customPrices) ? appData.customPrices : {},
                 updated_at: new Date().toISOString()
             }, { onConflict: 'id' });
 
             if (res && res.error) {
-                alert("Error al vaciar estado global: " + res.error.message);
+                console.warn("Aviso al vaciar app_state:", res.error.message);
             }
-
-            let res2 = await client.from('presupuestos').delete().neq('id', '___ROOT_DUMMY___');
-            if (res2 && res2.error) {
-                alert("Atención: No se pudieron borrar presupuestos individuales. Puede haber restricciones de seguridad (RLS) en la base de datos: " + res2.error.message);
-            }
-            await client.from('presupuesto_items').delete().neq('id', '___ROOT_DUMMY___');
-            await client.from('avances_obra').delete().neq('id', '___ROOT_DUMMY___');
-            await client.from('notificaciones').delete().neq('id', '___ROOT_DUMMY___');
 
             if (!silencioso) {
                 showToast("Base de datos limpiada con éxito.", "success");
@@ -13728,6 +13812,9 @@ async function purgarPresupuestosDePrueba(silencioso = false) {
         // Actualizar vistas si están cargadas en el DOM
         if (typeof renderAllPresupuestosTable === 'function') {
             try { renderAllPresupuestosTable(); } catch(e) {}
+        }
+        if (typeof renderAssignmentsTable === 'function') {
+            try { renderAssignmentsTable(); } catch(e) {}
         }
         if (typeof renderAssignments === 'function') {
             try { renderAssignments(); } catch(e) {}
@@ -13740,6 +13827,9 @@ async function purgarPresupuestosDePrueba(silencioso = false) {
         }
         if (typeof renderPresupuestosTable === 'function') {
             try { renderPresupuestosTable(); } catch(e) {}
+        }
+        if (typeof window.renderFacturacionTable === 'function') {
+            try { window.renderFacturacionTable(); } catch(e) {}
         }
 
         if (!silencioso) {
@@ -13755,6 +13845,54 @@ async function purgarPresupuestosDePrueba(silencioso = false) {
     }
 }
 window.purgarPresupuestosDePrueba = purgarPresupuestosDePrueba;
+
+// Función global para eliminar un presupuesto individual permanentemente
+window.eliminarPresupuestoIndividual = async function(id) {
+    if (!id) return;
+    const p = (appData.pedidos || []).find(x => String(x.id) === String(id));
+    const denom = p ? (p.meca_denominacion || p.motivo || p.cliente_nombre || '') : '';
+    const confirmMsg = `¿Está seguro que desea ELIMINAR definitivamente el presupuesto ${id}${denom ? ' (' + denom + ')' : ''}?\n\nEsta acción borrará el presupuesto y todos sus ítems asociados de forma permanente en Supabase.`;
+    if (!confirm(confirmMsg)) return;
+
+    // 1. Eliminar en memoria local y actualizar localStorage
+    appData.pedidos = (appData.pedidos || []).filter(x => String(x.id) !== String(id));
+    try {
+        localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData));
+    } catch(e) {}
+
+    // 2. Eliminar en Supabase de forma relacional y segura
+    const client = getDbClient();
+    if (client) {
+        try {
+            await client.from('presupuesto_items').delete().eq('presupuesto_id', String(id));
+            await client.from('avances_obra').delete().eq('presupuesto_id', String(id));
+            const { error: delErr } = await client.from('presupuestos').delete().eq('id', String(id));
+            if (delErr) {
+                console.error("Error al eliminar presupuesto en Supabase:", delErr);
+                showToast(`Aviso al borrar en Supabase: ${delErr.message}`, 'warning');
+            } else {
+                console.log(`☁️ Supabase: Presupuesto ${id} y sus ítems eliminados correctamente.`);
+            }
+        } catch(err) {
+            console.error("Excepción eliminando presupuesto en Supabase:", err);
+        }
+    }
+
+    // 3. Cerrar modal de detalle si estaba abierto con este presupuesto
+    if (typeof closeModal === 'function') {
+        const modalOverlay = document.getElementById('modal-overlay');
+        if (modalOverlay && modalOverlay.style.display !== 'none' && window.pedidoActivo && String(window.pedidoActivo.id) === String(id)) {
+            closeModal();
+        }
+    }
+
+    // 4. Re-renderizar tablas
+    if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+    if (typeof renderStats === 'function') renderStats();
+    if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+
+    showToast(`Presupuesto ${id} eliminado correctamente.`, 'success');
+};
 
 // --- VISTA DE CONSULTA DE STOCK ---
 let stockQueryRubroFilter = '';
@@ -16357,7 +16495,12 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     } else {
         items.forEach(r => {
             const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-');
-            if (isHeaderRow) return;
+            if (isHeaderRow) {
+                if (r.subtotal !== '-' && r.subtotal !== undefined && r.subtotal !== null) {
+                    laborTotalARS += (parseFloat(r.subtotal) || 0);
+                }
+                return;
+            }
             const isMat = (r.is_material === true || r.is_material === 1 || r.is_material === '1');
             if (isMat) {
                 materialsTotalUSD += (parseFloat(r.subtotal_usd) || 0);
@@ -16373,13 +16516,18 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
         const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-');
         const isMat = (r.is_material === true || r.is_material === 1 || r.is_material === '1');
         if (isHeaderRow) {
+            const hasSub = (r.subtotal !== '-' && r.subtotal !== null && r.subtotal !== undefined);
+            const subVal = hasSub ? parseFloat(r.subtotal) : null;
+            const subStr = (subVal !== null && !isNaN(subVal))
+                ? `$${subVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                : '-';
             return `
             <tr style="border-bottom: 2px solid #000; font-size: 11px; background: rgba(226, 232, 240, 0.45); font-weight: 800; page-break-inside: avoid;">
                 <td style="padding: 6px; border-right: 1px solid #000; text-align:center; background: transparent;">-</td>
                 <td style="padding: 6px; border-right: 1px solid #000; background: transparent;">${r.detalle}</td>
                 <td style="padding: 6px; border-right: 1px solid #000; text-align: right; background: transparent;">-</td>
                 <td style="padding: 6px; border-right: 1px solid #000; text-align: center; background: transparent;">-</td>
-                <td style="padding: 6px; text-align: right; background: transparent;">-</td>
+                <td style="padding: 6px; text-align: right; font-weight: bold; background: transparent;">${subStr}</td>
             </tr>`;
         }
 
@@ -16405,10 +16553,13 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
             }
         }
 
+        const cleanCodigo = String(r.codigo).startsWith('TITLE-') ? '' : (r.codigo || '-');
+        const cleanDetalle = (r.detalle || r.descripcion || r.denominacion || r.nombre || '-');
+
         return `
         <tr style="border-bottom: 1px solid #000; font-size: 10px; background: transparent; page-break-inside: avoid;">
-            <td style="padding: 4px 5px; border-right: 1px solid #000; font-weight:bold; text-align:center; background: transparent; word-break: break-word;">${String(r.codigo).startsWith('TITLE-') ? '' : r.codigo}</td>
-            <td style="padding: 4px 6px; border-right: 1px solid #000; background: transparent; word-break: break-word;">${r.detalle}</td>
+            <td style="padding: 4px 5px; border-right: 1px solid #000; font-weight:bold; text-align:center; background: transparent; word-break: break-word;">${cleanCodigo}</td>
+            <td style="padding: 4px 6px; border-right: 1px solid #000; background: transparent; word-break: break-word;">${cleanDetalle}</td>
             <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: right; background: transparent; word-break: break-word; ${isMat ? 'color: #0369a1; font-weight:bold;' : ''}">${priceStr}</td>
             <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: center; font-weight:bold; background: transparent; word-break: break-word;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
             <td style="padding: 4px 5px; text-align: right; font-weight: bold; background: transparent; word-break: break-word;">${subStr}</td>
@@ -16436,10 +16587,16 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     }
 
     const htmlContent = `
-        <div id="pdf-wrapper-download" style="box-sizing: border-box; width: 100%; max-width: 100%; padding: 6px 10px; font-family: Arial, sans-serif; background: #ffffff; color: #000000; margin: 0 auto; position: relative;">
+        <div id="pdf-wrapper-download" style="box-sizing: border-box; width: 780px; min-width: 780px; max-width: 780px; padding: 6px 10px; font-family: Arial, sans-serif; background: #ffffff; color: #000000; margin: 0 auto; position: relative;">
             <style>
                 #pdf-wrapper-download, #pdf-wrapper-download * {
-                    box-sizing: border-box;
+                    box-sizing: border-box !important;
+                }
+                #pdf-wrapper-download {
+                    width: 780px !important;
+                    min-width: 780px !important;
+                    max-width: 780px !important;
+                    margin: 0 auto !important;
                 }
                 #pdf-wrapper-download tr,
                 #pdf-wrapper-download .no-page-break {
@@ -16626,7 +16783,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 
 window.generarPDFPresupuestoBase64 = async function(p, format = null) {
     if (!p) return null;
-    const finalFormat = format || 'detallado';
+    const finalFormat = format || p.tipo_reporte || 'detallado';
     const items = window.getPresupuestoFormattedItems(p, finalFormat);
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
@@ -16639,9 +16796,12 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
         container.style.position = 'fixed';
         container.style.top = '0';
         container.style.left = '0';
-        container.style.width = '100%';
-        container.style.height = '0';
-        container.style.overflow = 'hidden';
+        container.style.width = '780px';
+        container.style.minWidth = '780px';
+        container.style.maxWidth = '780px';
+        container.style.margin = '0';
+        container.style.padding = '0';
+        container.style.background = '#ffffff';
         container.style.zIndex = '-99999';
         container.innerHTML = htmlContent;
         document.body.appendChild(container);
@@ -16649,14 +16809,19 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
         const targetEl = container.querySelector('#pdf-wrapper-download') || container.firstElementChild || container;
 
         const opt = {
-            margin: [5, 5, 5, 5],
+            margin: [4, 4, 4, 4],
             filename: `Presupuesto_${nro}.pdf`,
-            image: { type: 'jpeg', quality: 0.95 },
+            image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
                 scale: 2,
                 useCORS: true,
                 logging: false,
-                letterRendering: true
+                letterRendering: true,
+                scrollX: 0,
+                scrollY: 0,
+                x: 0,
+                y: 0,
+                windowWidth: 780
             },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['css', 'legacy'] }
@@ -16681,7 +16846,7 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
 
 window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
     if (!p) return false;
-    const finalFormat = format || 'detallado';
+    const finalFormat = format || p.tipo_reporte || 'detallado';
     const items = (typeof window.getPresupuestoFormattedItems === 'function') ? window.getPresupuestoFormattedItems(p, finalFormat) : [];
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
@@ -16694,9 +16859,12 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
         container.style.position = 'fixed';
         container.style.top = '0';
         container.style.left = '0';
-        container.style.width = '100%';
-        container.style.height = '0';
-        container.style.overflow = 'hidden';
+        container.style.width = '780px';
+        container.style.minWidth = '780px';
+        container.style.maxWidth = '780px';
+        container.style.margin = '0';
+        container.style.padding = '0';
+        container.style.background = '#ffffff';
         container.style.zIndex = '-99999';
         container.innerHTML = htmlContent;
         document.body.appendChild(container);
@@ -16704,14 +16872,19 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
         const targetEl = container.querySelector('#pdf-wrapper-download') || container.firstElementChild || container;
 
         const opt = {
-            margin: [5, 5, 5, 5],
+            margin: [4, 4, 4, 4],
             filename: `Presupuesto_${nro}.pdf`,
-            image: { type: 'jpeg', quality: 0.95 },
+            image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
                 scale: 2,
                 useCORS: true,
                 logging: false,
-                letterRendering: true
+                letterRendering: true,
+                scrollX: 0,
+                scrollY: 0,
+                x: 0,
+                y: 0,
+                windowWidth: 780
             },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['css', 'legacy'] }
@@ -16735,9 +16908,9 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
 };
 
 window.abrirPDFPresupuesto = function(id, format = null) {
-    const p = appData.pedidos.find(x => x.id === id);
+    const p = (window.appData && Array.isArray(window.appData.pedidos)) ? window.appData.pedidos.find(x => x.id === id) : null;
     if (!p) return;
-    const finalFormat = format || 'detallado';
+    const finalFormat = format || p.tipo_reporte || 'detallado';
     const items = window.getPresupuestoFormattedItems(p, finalFormat);
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
@@ -17084,10 +17257,17 @@ window.getPresupuestoFormattedItems = function(p, format) {
     const finalFormat = (format || p.tipo_reporte || 'detallado').toLowerCase().trim();
     const items = Array.isArray(p.items) ? p.items : [];
     const validItems = items.filter(item => {
+        const isExistingHeader = (item.codigo === '-' && (item.cantidad === '-' || item.precio === '-')) ||
+                                 String(item.codigo || '').startsWith('TITLE-');
+        if (isExistingHeader) return false;
+
         const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
         const sub = parseFloat(String(item.subtotal || '0').replace(',', '.')) || 0;
         const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0;
-        const hasText = Boolean((item.detalle && String(item.detalle).trim() !== '') || (item.descripcion && String(item.descripcion).trim() !== '') || (item.denominacion && String(item.denominacion).trim() !== '') || (item.nombre && String(item.nombre).trim() !== ''));
+        const hasText = Boolean((item.detalle && String(item.detalle).trim() !== '' && String(item.detalle).trim() !== '-') || 
+                                (item.descripcion && String(item.descripcion).trim() !== '' && String(item.descripcion).trim() !== '-') || 
+                                (item.denominacion && String(item.denominacion).trim() !== '' && String(item.denominacion).trim() !== '-') || 
+                                (item.nombre && String(item.nombre).trim() !== '' && String(item.nombre).trim() !== '-'));
         return (q > 0 || sub > 0 || pr > 0 || hasText) && item.estado !== 'Rechazado';
     });
 
@@ -17128,14 +17308,19 @@ window.getPresupuestoFormattedItems = function(p, format) {
     }
 
     if (finalFormat === 'proyecto') {
-        const catalog = (p.tipo_presupuesto === 'Mecánico' || (p.id && String(p.id).toUpperCase().includes('MEC'))) ? (window.presupuestoMecanicoDB || []) : (window.presupuestosCatalogDB || []);
+        const catalog = [
+            ...(window.presupuestoMecanicoDB || []),
+            ...(window.presupuestosCatalogDB || []),
+            ...(typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' ? PRESUPUESTO_MECANICO_STOCK : []),
+            ...(typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' ? PRESUPUESTO_ELECTRICO_STOCK : [])
+        ];
         const groupedLabor = {};
         const materials = [];
 
-        validItems.forEach((item) => {
+        validItems.forEach((item, idx) => {
             let subrubro = (item.subrubro || '').trim();
             if (!subrubro) {
-                 const foundCat = catalog.find(c => c.codigo === item.codigo);
+                 const foundCat = catalog.find(c => c && (c.codigo === item.codigo || c.id === item.codigo));
                  if (foundCat && foundCat.subrubro) subrubro = foundCat.subrubro.trim();
             }
             const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
@@ -17144,7 +17329,7 @@ window.getPresupuestoFormattedItems = function(p, format) {
                           (subrubro.toLowerCase().includes('material') || subrubro.toLowerCase().includes('equipo'));
 
             if (isMat) {
-                const code = item.codigo || item.id || '-';
+                const code = item.codigo || item.id || `MAT-${idx + 1}`;
                 const desc = item.detalle || item.descripcion || item.denominacion || item.nombre || 'Material';
                 const prUSD = (item.precio_usd !== undefined && item.precio_usd !== null && !isNaN(parseFloat(item.precio_usd)))
                     ? parseFloat(item.precio_usd)
@@ -17167,19 +17352,86 @@ window.getPresupuestoFormattedItems = function(p, format) {
             } else {
                 const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0;
                 const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.')))) ? parseFloat(String(item.subtotal).replace(',', '.')) : (q * pr);
-                const groupName = subrubro || 'MANO DE OBRA';
-                if (!groupedLabor[groupName]) groupedLabor[groupName] = { sub: 0 };
-                groupedLabor[groupName].sub += sub;
+
+                let catKey = '';
+                const subLow = subrubro.toLowerCase();
+                if (subLow.includes('taller')) {
+                    catKey = 'MANO DE OBRA EN TALLER';
+                } else if (subLow.includes('emergencia')) {
+                    catKey = 'MANO DE OBRA EMERGENCIA MANTENIMIENTO';
+                } else if (subLow.includes('parada') || subLow.includes('planta')) {
+                    catKey = 'MANO DE OBRA PARADA DE PLANTA';
+                } else if (subLow.includes('civil') || subLow.includes('obra civil')) {
+                    catKey = 'OBRA CIVIL Y EDILICIA';
+                } else if (subLow.includes('mantenimiento') || subLow.includes('servicio')) {
+                    catKey = 'MANO DE OBRA MANTENIMIENTO Y SERVICIOS';
+                } else if (subLow.includes('montaje')) {
+                    catKey = 'MANO DE OBRA MONTAJE INDUSTRIAL';
+                } else if (subLow.includes('fabricaci') || subLow.includes('estructur')) {
+                    catKey = 'FABRICACIÓN Y MONTAJE DE ESTRUCTURAS';
+                } else if (subLow.includes('cañer') || subLow.includes('piping')) {
+                    catKey = 'MONTAJE DE CAÑERÍAS / PIPING';
+                } else if (subLow.includes('electr') || subLow.includes('tablero') || subLow.includes('cable')) {
+                    catKey = 'INSTALACIONES ELÉCTRICAS Y TABLEROS';
+                } else if (subLow.includes('automat') || subLow.includes('instrum')) {
+                    catKey = 'AUTOMATIZACIÓN E INSTRUMENTACIÓN';
+                } else if (subLow.includes('ingenier') || subLow.includes('diseño')) {
+                    catKey = 'INGENIERÍA, CÁLCULO Y DISEÑO';
+                } else if (subrubro) {
+                    catKey = subrubro.toUpperCase();
+                } else {
+                    catKey = (p.tipo_presupuesto === 'Eléctrico' || (p.id && String(p.id).includes('ELEC'))) ? 'INSTALACIONES ELÉCTRICAS Y TABLEROS' : 'MANO DE OBRA Y SERVICIOS';
+                }
+
+                if (!groupedLabor[catKey]) groupedLabor[catKey] = { sub: 0 };
+                groupedLabor[catKey].sub += sub;
             }
         });
 
+        const preferredOrder = [
+            'MANO DE OBRA EN TALLER',
+            'MANO DE OBRA MONTAJE INDUSTRIAL',
+            'MANO DE OBRA MANTENIMIENTO Y SERVICIOS',
+            'MANO DE OBRA PARADA DE PLANTA',
+            'MANO DE OBRA EMERGENCIA MANTENIMIENTO',
+            'INSTALACIONES ELÉCTRICAS Y TABLEROS',
+            'OBRA CIVIL Y EDILICIA',
+            'FABRICACIÓN Y MONTAJE DE ESTRUCTURAS',
+            'MONTAJE DE CAÑERÍAS / PIPING',
+            'AUTOMATIZACIÓN E INSTRUMENTACIÓN',
+            'INGENIERÍA, CÁLCULO Y DISEÑO'
+        ];
+
+        const sortedLaborKeys = Object.keys(groupedLabor).sort((a, b) => {
+            const idxA = preferredOrder.indexOf(a);
+            const idxB = preferredOrder.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b);
+        });
+
         const formatted = [];
-        for (const [key, g] of Object.entries(groupedLabor)) {
-            formatted.push({ codigo: '-', detalle: key.toUpperCase(), precio: '-', cantidad: '-', subtotal: g.sub, is_material: false });
-        }
+        sortedLaborKeys.forEach(key => {
+            formatted.push({
+                codigo: '-',
+                detalle: key,
+                precio: '-',
+                cantidad: '-',
+                subtotal: groupedLabor[key].sub,
+                is_material: false
+            });
+        });
 
         if (materials.length > 0) {
-            formatted.push({ codigo: '-', detalle: 'MATERIALES Y EQUIPOS', precio: '-', cantidad: '-', subtotal: '-', is_material: false });
+            formatted.push({
+                codigo: '-',
+                detalle: 'MATERIALES Y EQUIPOS',
+                precio: '-',
+                cantidad: '-',
+                subtotal: '-',
+                is_material: false
+            });
             materials.forEach(m => formatted.push(m));
         }
 
@@ -17193,13 +17445,13 @@ window.getPresupuestoFormattedItems = function(p, format) {
     }
 
     // Separar con títulos según subrubro unificado (Mecánico y Eléctrico)
-    const catalog = [...(window.presupuestoMecanicoDB || []), ...(window.presupuestosCatalogDB || [])];
+    const catalog = [...(window.presupuestoMecanicoDB || []), ...(window.presupuestosCatalogDB || []), ...(typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' ? PRESUPUESTO_MECANICO_STOCK : []), ...(typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' ? PRESUPUESTO_ELECTRICO_STOCK : [])];
     const groupsMap = {};
 
     validItems.forEach((it, idx) => {
         let subrubro = (it.subrubro || '').trim();
         if (!subrubro) {
-             const foundCat = catalog.find(c => c.codigo === it.codigo || c.id === it.codigo);
+             const foundCat = catalog.find(c => c && (c.codigo === it.codigo || c.id === it.codigo));
              if (foundCat && foundCat.subrubro) subrubro = foundCat.subrubro.trim();
         }
 
@@ -17253,9 +17505,31 @@ window.getPresupuestoFormattedItems = function(p, format) {
             pr = priceUSD;
         }
 
+        let foundCatItem = null;
+        if (it.codigo && it.codigo !== '-') {
+            foundCatItem = catalog.find(c => c && (c.codigo === it.codigo || c.id === it.codigo));
+        }
+
+        let itemDetalle = String(it.detalle || it.descripcion || it.denominacion || it.nombre || '').trim();
+        if ((!itemDetalle || itemDetalle === '-') && foundCatItem && (foundCatItem.detalle || foundCatItem.descripcion)) {
+            itemDetalle = String(foundCatItem.detalle || foundCatItem.descripcion).trim();
+        }
+        if (!itemDetalle || itemDetalle === '-') {
+            itemDetalle = `Ítem ${it.codigo || (idx + 1)}`;
+        }
+
+        let itemCodigo = String(it.codigo || '').trim();
+        if (!itemCodigo || itemCodigo === '-') {
+            if (foundCatItem && foundCatItem.codigo) {
+                itemCodigo = foundCatItem.codigo;
+            } else {
+                itemCodigo = `ITM-${String(idx + 1).padStart(2, '0')}`;
+            }
+        }
+
         groupsMap[catKey].push({
-            codigo: it.codigo || `ITM-${idx+1}`,
-            detalle: it.detalle || it.descripcion || it.denominacion || it.nombre || '-',
+            codigo: itemCodigo,
+            detalle: itemDetalle,
             precio: pr,
             precio_usd: priceUSD,
             is_material: isMat,
@@ -18182,6 +18456,15 @@ window.eliminarItemDelTarifario = function(code) {
         removeCustomItemPrice(code);
     }
 
+    // 4.1. Persistir código en lista negra de eliminados para que no resucite al refrescar
+    try {
+        let deletedList = JSON.parse(localStorage.getItem('PRESUPUESTO_DELETED_STOCK') || '[]');
+        if (!deletedList.includes(code)) {
+            deletedList.push(code);
+            localStorage.setItem('PRESUPUESTO_DELETED_STOCK', JSON.stringify(deletedList));
+        }
+    } catch(e) {}
+
     // 5. Renumber electrical items si aplica
     if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico' && typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
         PRESUPUESTO_ELECTRICO_STOCK.forEach((it, i) => {
@@ -18189,11 +18472,11 @@ window.eliminarItemDelTarifario = function(code) {
         });
     }
 
-    // 6. Sincronizar eliminación en Supabase
+    // 6. Sincronizar eliminación en Supabase (borrando base y variantes por planta)
     try {
         const dbClient = (typeof getDbClient === 'function') ? getDbClient() : null;
         if (dbClient) {
-            dbClient.from('tarifario').delete().eq('codigo', code).then(function(delRes) {
+            dbClient.from('tarifario').delete().or(`codigo.eq.${code},id.eq.${code},id.like.${code}_%`).then(function(delRes) {
                 if (delRes && delRes.error) console.warn("Aviso al eliminar de tarifario en Supabase:", delRes.error);
                 else console.log("☁️ Supabase: Ítem", code, "eliminado de la tabla tarifario.");
             }).catch(function() {});

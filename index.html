@@ -1487,7 +1487,7 @@
                     <button id="btn-modal-basar-presupuesto" type="button" class="btn btn-sm btn-modal-basar" onclick="crearPresupuestoBasadoEnActual()" style="display: none;" title="Crear un nuevo presupuesto precompletando los datos de este">
                         <i class="fas fa-copy"></i> <span>Basar Pres.</span>
                     </button>
-                    <button id="btn-modal-ver-pdf" type="button" class="btn btn-sm btn-modal-view-pdf" onclick="abrirPDFPresupuesto(window.pedidoActivo ? window.pedidoActivo.id : (typeof pedidoActivo !== 'undefined' && pedidoActivo ? pedidoActivo.id : null))" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; padding: 4px 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Abrir y ver el PDF oficial en una pestaña">
+                    <button id="btn-modal-ver-pdf" type="button" class="btn btn-sm btn-modal-view-pdf" onclick="abrirPDFPresupuesto(window.pedidoActivo ? window.pedidoActivo.id : (typeof pedidoActivo !== 'undefined' && pedidoActivo ? pedidoActivo.id : null), (window.pedidoActivo ? window.pedidoActivo.tipo_reporte : null) || (typeof pedidoActivo !== 'undefined' && pedidoActivo ? pedidoActivo.tipo_reporte : null))" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; padding: 4px 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Abrir y ver el PDF oficial en una pestaña">
                         <i class="fas fa-file-pdf"></i> <span>Ver PDF</span>
                     </button>
                     <button id="btn-modal-enviar-email" type="button" class="btn btn-sm" onclick="enviarEmailPedido(window.pedidoActivo ? window.pedidoActivo.id : (typeof pedidoActivo !== 'undefined' && pedidoActivo ? pedidoActivo.id : null))" style="background: #0284c7; color: #ffffff; font-weight: 700; border: 1px solid #0369a1; border-radius: 6px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;" title="Enviar Cotización Oficial por Correo con PDF Adjunto">
@@ -3071,7 +3071,7 @@
             localStorage.removeItem('sg_plantas');
         } catch(e) {}
     </script>
-    <script src="app.js?v=430"></script>
+    <script src="app.js?v=434"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>
