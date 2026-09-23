@@ -14,7 +14,7 @@
     <script src="html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="logo_base64.js?v=2"></script>
-    <link rel="stylesheet" href="styles.css?v=341">
+    <link rel="stylesheet" href="styles.css?v=342">
 </head>
 <body>
     <div id="app">
@@ -224,6 +224,14 @@
                                         <input type="checkbox" class="new-user-perm-cb" value="menu-admin" style="accent-color: #10b981; width: 17px; height: 17px;">
                                         <span>⚙️ Configuración</span>
                                     </label>
+                                    <label style="display: flex; align-items: center; gap: 8px; color: white; font-size: 12px; cursor: pointer;">
+                                        <input type="checkbox" class="new-user-perm-cb" value="menu-facturacion" checked style="accent-color: #10b981; width: 17px; height: 17px;">
+                                        <span>📑 Registros de Facturación</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 8px; color: #f59e0b; font-size: 12px; cursor: pointer;">
+                                        <input type="checkbox" class="new-user-perm-cb" value="menu-ingresar-edit-price" style="accent-color: #f59e0b; width: 17px; height: 17px;">
+                                        <span style="font-weight: 700;">💲 Modificar Precios Unitarios</span>
+                                    </label>
                                 </div>
                             </div>
 
@@ -314,6 +322,14 @@
                                         <label style="display: flex; align-items: center; gap: 8px; color: white; font-size: 12px; cursor: pointer;">
                                             <input type="checkbox" id="edit-perm-menu-admin" class="edit-user-perm-cb" value="menu-admin" style="accent-color: #10b981; width: 17px; height: 17px;">
                                             <span>⚙️ Configuración</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 8px; color: white; font-size: 12px; cursor: pointer;">
+                                            <input type="checkbox" id="edit-perm-menu-facturacion" class="edit-user-perm-cb" value="menu-facturacion" style="accent-color: #10b981; width: 17px; height: 17px;">
+                                            <span>📑 Registros de Facturación</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 8px; color: #f59e0b; font-size: 12px; cursor: pointer;">
+                                            <input type="checkbox" id="edit-perm-menu-ingresar-edit-price" class="edit-user-perm-cb" value="menu-ingresar-edit-price" style="accent-color: #f59e0b; width: 17px; height: 17px;">
+                                            <span style="font-weight: 700;">💲 Modificar Precios Unitarios</span>
                                         </label>
                                     </div>
                                 </div>
@@ -3077,7 +3093,7 @@
             }
         } catch(e) {}
     </script>
-    <script src="app.js?v=455"></script>
+    <script src="app.js?v=457"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>
