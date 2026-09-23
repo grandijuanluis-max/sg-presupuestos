@@ -568,12 +568,9 @@ window.recargarUsuariosDesdeSupabase = async function(callback) {
         appData.users = freshUsers;
         if (!appData.userPermissions) appData.userPermissions = {};
 
-        const alwaysCanEdit = ['mel', 'melani', 'luciano', 'roberto'];
-
         freshUsers.forEach(function(u) {
             if (!u || !u.username) return;
             const cleanU = String(u.username).trim().toLowerCase();
-            const isAuthorizedQuoter = alwaysCanEdit.includes(cleanU);
 
             let p = u.permisos || u.permissions;
             if (typeof p === 'string') {
@@ -582,18 +579,17 @@ window.recargarUsuariosDesdeSupabase = async function(callback) {
                     p = p.split(',').map(s => s.trim());
                 }
             }
-            if (!Array.isArray(p) || p.length === 0) {
+            if (!Array.isArray(p)) {
                 p = (defaultUserPermissions[cleanU] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit']).slice();
             }
 
-            if (isAuthorizedQuoter) {
+            // Respetar can_edit_prices y permisos configurados directamente en Supabase
+            if (u.can_edit_prices === true || p.includes('menu-ingresar-edit-price') || p.includes('edit-precios')) {
                 u.can_edit_prices = true;
                 if (!p.includes('menu-ingresar-edit-price')) p.push('menu-ingresar-edit-price');
                 if (!p.includes('edit-precios')) p.push('edit-precios');
-                if (!p.includes('menu-ingresar')) p.push('menu-ingresar');
             } else {
                 u.can_edit_prices = false;
-                p = p.filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price' && x !== 'modificar-precios');
             }
 
             u.permisos = p;
@@ -926,36 +922,17 @@ function initSupabaseSync(callback) {
                     appData.notifications = data.notifications;
                 }
                 if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
-                    appData.userPermissions = Object.assign({}, defaultUserPermissions, appData.userPermissions, data.user_permissions);
+                    appData.userPermissions = Object.assign({}, appData.userPermissions, data.user_permissions);
                     if (Array.isArray(appData.users)) {
-                        const alwaysCanEdit = ['mel', 'melani', 'luciano', 'roberto'];
                         appData.users.forEach(function(u) {
                             if (!u || !u.username) return;
                             const uk = String(u.username).trim().toLowerCase();
-                            const isAuthorizedQuoter = alwaysCanEdit.includes(uk);
                             if (data.user_permissions[uk] && (!u.permisos || !Array.isArray(u.permisos) || u.permisos.length === 0)) {
                                 u.permissions = data.user_permissions[uk];
                                 u.permisos = data.user_permissions[uk];
                             }
-                            if (isAuthorizedQuoter) {
+                            if (u.can_edit_prices === true || (u.permisos && (u.permisos.includes('menu-ingresar-edit-price') || u.permisos.includes('edit-precios')))) {
                                 u.can_edit_prices = true;
-                                if (!u.permissions) u.permissions = [];
-                                if (!u.permissions.includes('menu-ingresar-edit-price')) u.permissions.push('menu-ingresar-edit-price');
-                                if (!u.permissions.includes('edit-precios')) u.permissions.push('edit-precios');
-                                u.permisos = u.permissions;
-                                if (appData.userPermissions[uk]) {
-                                    if (!appData.userPermissions[uk].includes('menu-ingresar-edit-price')) appData.userPermissions[uk].push('menu-ingresar-edit-price');
-                                    if (!appData.userPermissions[uk].includes('edit-precios')) appData.userPermissions[uk].push('edit-precios');
-                                }
-                            } else {
-                                u.can_edit_prices = false;
-                                if (u.permissions) {
-                                    u.permissions = u.permissions.filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
-                                    u.permisos = u.permissions;
-                                }
-                                if (appData.userPermissions[uk]) {
-                                    appData.userPermissions[uk] = appData.userPermissions[uk].filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
-                                }
                             }
                         });
                     }
@@ -2131,15 +2108,10 @@ function getUserEffectivePermissions(userOrName, role) {
 
     let finalPerms = Array.isArray(perms) ? perms.slice() : [];
 
-    // Ajuste según usuarios autorizados: ÚNICAMENTE Luciano y Roberto (+ Mel/Melani)
-    const allowedPriceEditors = ['mel', 'melani', 'luciano', 'roberto'];
-    const isAuthorized = allowedPriceEditors.includes(uKey);
-
-    if (isAuthorized) {
+    // Si el usuario tiene can_edit_prices en true desde Supabase, asegurar permisos correspondientes
+    if (userObj && (userObj.can_edit_prices === true || (Array.isArray(userObj.permisos) && (userObj.permisos.includes('menu-ingresar-edit-price') || userObj.permisos.includes('edit-precios'))))) {
         if (!finalPerms.includes('menu-ingresar-edit-price')) finalPerms.push('menu-ingresar-edit-price');
         if (!finalPerms.includes('edit-precios')) finalPerms.push('edit-precios');
-    } else {
-        finalPerms = finalPerms.filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
     }
 
     return finalPerms;
@@ -2203,49 +2175,53 @@ function buildSidebar() {
 
     sidebar.innerHTML = '';
 
-    // Cabecera interna del drawer móvil (visible solo en <= 900px por CSS)
-    const mobileHeader = document.createElement('div');
-    mobileHeader.className = 'sidebar-mobile-topbar';
-    mobileHeader.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <img src="logo_sg_montajes.png" alt="SG" style="height: 22px; width: auto; object-fit: contain;">
-            <span style="font-weight: 800; font-size: 13px; color: #ffffff;">SG <span style="font-weight: 400; color: var(--warning);">MONTAJES</span></span>
-        </div>
-        <button type="button" class="sidebar-close-btn" onclick="window.toggleMobileSidebar(false)" title="Cerrar Menú"><i class="fa-solid fa-xmark"></i></button>
-    `;
-    sidebar.appendChild(mobileHeader);
+    const isMobile = (window.innerWidth <= 900);
 
-    // Tarjeta del usuario en el drawer móvil
-    const mobileUserCard = document.createElement('div');
-    mobileUserCard.className = 'sidebar-mobile-user-card';
-    mobileUserCard.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 10px; width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box;">
-            <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: white; border: 1px solid rgba(255,255,255,0.25); flex-shrink: 0;">
-                ${(user.username || 'U').substring(0, 2).toUpperCase()}
+    if (isMobile) {
+        // Cabecera interna del drawer móvil (visible solo en celulares/tablets)
+        const mobileHeader = document.createElement('div');
+        mobileHeader.className = 'sidebar-mobile-topbar';
+        mobileHeader.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <img src="logo_sg_montajes.png" alt="SG" style="height: 22px; width: auto; object-fit: contain;">
+                <span style="font-weight: 800; font-size: 13px; color: #ffffff;">SG <span style="font-weight: 400; color: var(--warning);">MONTAJES</span></span>
             </div>
-            <div style="display: flex; flex-direction: column; overflow: hidden; min-width: 0;">
-                <span style="font-size: 12.5px; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.username}</span>
-                <span style="font-size: 10.5px; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.vendedor_nombre ? '🧑‍💼 ' + user.vendedor_nombre : (user.role || 'Usuario')}</span>
-            </div>
-        </div>
-    `;
-    sidebar.appendChild(mobileUserCard);
+            <button type="button" class="sidebar-close-btn" onclick="window.toggleMobileSidebar(false)" title="Cerrar Menú"><i class="fa-solid fa-xmark"></i></button>
+        `;
+        sidebar.appendChild(mobileHeader);
 
-    // Botón Volver al inicio de la barra
-    const btnVolver = document.createElement('button');
-    btnVolver.id = 'btn-sidebar-volver';
-    btnVolver.type = 'button';
-    btnVolver.className = 'btn btn-sm btn-nav-volver';
-    btnVolver.onclick = () => {
-        volverAccionAnterior();
-        if (window.innerWidth <= 900 && typeof window.toggleMobileSidebar === 'function') {
-            window.toggleMobileSidebar(false);
-        }
-    };
-    btnVolver.title = 'Volver a la pantalla anterior';
-    btnVolver.style.cssText = 'font-family: inherit; font-size: 11.5px; font-weight: 700; height: 30px; padding: 0 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; white-space: nowrap; margin-right: 6px; flex-shrink: 0;';
-    btnVolver.innerHTML = `<i class="fa-solid fa-arrow-left"></i> Volver`;
-    sidebar.appendChild(btnVolver);
+        // Tarjeta del usuario en el drawer móvil
+        const mobileUserCard = document.createElement('div');
+        mobileUserCard.className = 'sidebar-mobile-user-card';
+        mobileUserCard.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box;">
+                <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: white; border: 1px solid rgba(255,255,255,0.25); flex-shrink: 0;">
+                    ${(user.username || 'U').substring(0, 2).toUpperCase()}
+                </div>
+                <div style="display: flex; flex-direction: column; overflow: hidden; min-width: 0;">
+                    <span style="font-size: 12.5px; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.username}</span>
+                    <span style="font-size: 10.5px; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.vendedor_nombre ? '🧑‍💼 ' + user.vendedor_nombre : (user.role || 'Usuario')}</span>
+                </div>
+            </div>
+        `;
+        sidebar.appendChild(mobileUserCard);
+
+        // Botón Volver al inicio de la barra en drawer móvil
+        const btnVolver = document.createElement('button');
+        btnVolver.id = 'btn-sidebar-volver';
+        btnVolver.type = 'button';
+        btnVolver.className = 'btn btn-sm btn-nav-volver';
+        btnVolver.onclick = () => {
+            volverAccionAnterior();
+            if (typeof window.toggleMobileSidebar === 'function') {
+                window.toggleMobileSidebar(false);
+            }
+        };
+        btnVolver.title = 'Volver a la pantalla anterior';
+        btnVolver.style.cssText = 'font-family: inherit; font-size: 11.5px; font-weight: 700; height: 30px; padding: 0 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; white-space: nowrap; margin-right: 6px; flex-shrink: 0;';
+        btnVolver.innerHTML = `<i class="fa-solid fa-arrow-left"></i> Volver`;
+        sidebar.appendChild(btnVolver);
+    }
 
     const userNameEl = document.getElementById('current-user-name');
     if (userNameEl) {
@@ -2272,7 +2248,9 @@ function buildSidebar() {
         const a = document.createElement('a');
         a.className = 'menu-item';
         a.id = item.id;
-        a.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span><i class="fa-solid fa-chevron-right menu-item-arrow"></i>`;
+        a.innerHTML = isMobile
+            ? `<i class="${item.icon}"></i> <span>${item.label}</span><i class="fa-solid fa-chevron-right menu-item-arrow"></i>`
+            : `<i class="${item.icon}"></i> <span>${item.label}</span>`;
         a.onclick = (e) => {
             e.preventDefault();
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
@@ -2349,6 +2327,18 @@ function buildSidebar() {
             themeContainer.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
         });
+    });
+}
+
+if (typeof window !== 'undefined' && !window._sidebarResizeBound) {
+    window._sidebarResizeBound = true;
+    let _lastWasMobile = (window.innerWidth <= 900);
+    window.addEventListener('resize', () => {
+        const nowMobile = (window.innerWidth <= 900);
+        if (nowMobile !== _lastWasMobile) {
+            _lastWasMobile = nowMobile;
+            buildSidebar();
+        }
     });
 }
 
@@ -13218,7 +13208,7 @@ window.seleccionarTodosPermisos = function(state) {
     }
 };
 
-window.guardarPermisosUsuarioActual = function() {
+window.guardarPermisosUsuarioActual = async function() {
     const sel = document.getElementById('config-permisos-user-select');
     let username = sel ? sel.value : '';
     if (!username && appData.users && appData.users.length > 0) {
@@ -13258,7 +13248,10 @@ window.guardarPermisosUsuarioActual = function() {
     appData.userPermissions[cleanKey] = selected;
     appData.userPermissions[username] = selected;
 
-    const uTarget = (appData.users || []).find(x => String(x.username).trim().toLowerCase() === cleanKey);
+    const uTarget = (appData.users || []).find(x => String(x.username).trim().toLowerCase() === cleanKey || String(x.id) === cleanKey);
+    const targetId = uTarget ? uTarget.id : null;
+    const targetUsername = uTarget ? uTarget.username : username;
+
     if (uTarget) {
         uTarget.permissions = selected;
         uTarget.permisos = selected;
@@ -13268,38 +13261,86 @@ window.guardarPermisosUsuarioActual = function() {
     saveData();
 
     // Actualizar directamente en la base de datos de Supabase (tabla 'usuarios' y 'app_state')
+    let savedToSupabase = false;
+    let errorDetail = null;
+
+    // 1. Guardar vía SDK de Supabase si está disponible
     const client = (typeof getDbClient === 'function') ? getDbClient() : null;
     if (client) {
-        // 1. Guardar en tabla usuarios (fuente de verdad permanente)
-        client.from('usuarios').update({
-            permisos: selected,
-            can_edit_prices: canEditPrices
-        }).ilike('username', cleanKey).then(function(res) {
-            if (res && res.error) {
-                console.warn("Aviso al guardar permisos en tabla usuarios:", res.error);
-                client.from('usuarios').update({ permisos: selected }).ilike('username', cleanKey).catch(function() {});
+        try {
+            let q = client.from('usuarios').update({
+                permisos: selected,
+                can_edit_prices: canEditPrices
+            });
+            if (targetId && !isNaN(parseInt(targetId, 10))) {
+                q = q.eq('id', parseInt(targetId, 10));
+            } else if (targetId) {
+                q = q.eq('id', targetId);
             } else {
-                console.log("☁️ Supabase: Permisos de '" + cleanKey + "' guardados directamente en tabla usuarios.");
+                q = q.ilike('username', targetUsername);
             }
-        }).catch(function(e) {
-            console.warn("Aviso update usuarios:", e);
-            client.from('usuarios').update({ permisos: selected }).ilike('username', cleanKey).catch(function() {});
-        });
-
-        // 2. Actualizar app_state de forma inmediata para sincronización en vivo
-        client.from('app_state').update({
-            user_permissions: appData.userPermissions,
-            updated_at: new Date().toISOString()
-        }).eq('id', 'globalData').then(function(asRes) {
-            if (asRes && asRes.error) {
-                client.from('app_state').upsert({
-                    id: 'globalData',
-                    user_permissions: appData.userPermissions,
-                    updated_at: new Date().toISOString()
-                }, { onConflict: 'id' });
+            const res = await q;
+            if (!res.error) {
+                savedToSupabase = true;
+                console.log("☁️ Supabase (SDK): Permisos de '" + targetUsername + "' guardados directamente en tabla usuarios.");
+            } else {
+                errorDetail = res.error;
+                console.warn("Aviso SDK al guardar permisos:", res.error);
             }
-        }).catch(function() {});
+        } catch(e) {
+            errorDetail = e;
+            console.warn("Aviso update usuarios SDK:", e);
+        }
     }
+
+    // 2. Fallback REST fetch directo si el SDK no guardó
+    if (!savedToSupabase) {
+        try {
+            const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+            const rHeaders = {
+                'apikey': config.anonKey,
+                'Authorization': `Bearer ${config.anonKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            };
+            const filterParam = (targetId && !isNaN(parseInt(targetId, 10)))
+                ? `id=eq.${parseInt(targetId, 10)}`
+                : `username=ilike.${encodeURIComponent(targetUsername)}`;
+            const resp = await fetch(`${config.url}/rest/v1/usuarios?${filterParam}`, {
+                method: 'PATCH',
+                headers: rHeaders,
+                body: JSON.stringify({ permisos: selected, can_edit_prices: canEditPrices })
+            });
+            if (resp.ok) {
+                savedToSupabase = true;
+                console.log("☁️ Supabase (REST): Permisos de '" + targetUsername + "' guardados directamente en tabla usuarios.");
+            } else {
+                const txt = await resp.text();
+                errorDetail = txt;
+            }
+        } catch(restErr) {
+            errorDetail = restErr;
+            console.warn("Aviso REST guardando permisos:", restErr);
+        }
+    }
+
+    // 3. Sincronizar también app_state en Supabase para consistencia global
+    try {
+        const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+        await fetch(`${config.url}/rest/v1/app_state?id=eq.globalData`, {
+            method: 'PATCH',
+            headers: {
+                'apikey': config.anonKey,
+                'Authorization': `Bearer ${config.anonKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({
+                user_permissions: appData.userPermissions,
+                updated_at: new Date().toISOString()
+            })
+        });
+    } catch(e) {}
 
     // Actualizar barra de navegación inmediatamente si el usuario logueado es el modificado
     const currentUser = getCurrentUser();
@@ -13545,6 +13586,8 @@ function initAdminView() {
                 document.querySelectorAll('.edit-user-perm-cb').forEach(cb => {
                     if (cb.value === 'menu-all') {
                         cb.checked = perms.includes('menu-all') || perms.includes('menu-all-ver') || perms.includes('menu-all-edit');
+                    } else if (cb.value === 'menu-ingresar-edit-price') {
+                        cb.checked = perms.includes('menu-ingresar-edit-price') || perms.includes('edit-precios') || user.can_edit_prices === true;
                     } else {
                         cb.checked = perms.includes(cb.value);
                     }
@@ -13736,18 +13779,19 @@ function initAdminView() {
 
             // Sincronizar directamente con Supabase (Fuente Única de Verdad)
             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
-            if (client) {
-                const userRow = {
-                    username: newUsername,
-                    email: email,
-                    password: password,
-                    role: appData.users[userIdx].role || 'Solicitante',
-                    rubro_defecto: rubro_defecto,
-                    empresa: empresa,
-                    permisos: selectedPerms,
-                    can_edit_prices: canEditPrices
-                };
+            const userRow = {
+                username: newUsername,
+                email: email,
+                password: password,
+                role: appData.users[userIdx].role || 'Solicitante',
+                rubro_defecto: rubro_defecto,
+                empresa: empresa,
+                permisos: selectedPerms,
+                can_edit_prices: canEditPrices
+            };
 
+            let savedToSupabase = false;
+            if (client) {
                 try {
                     let updateQuery = client.from('usuarios').update(userRow);
                     const currentRecordId = oldUser.id;
@@ -13759,16 +13803,62 @@ function initAdminView() {
                         updateQuery = updateQuery.ilike('username', oldUsername);
                     }
                     const { error: updErr } = await updateQuery;
-                    if (updErr) {
-                        console.warn("⚠️ Error actualizando usuario en Supabase, intentando upsert:", updErr);
-                        await client.from('usuarios').upsert([Object.assign({ id: currentRecordId }, userRow)], { onConflict: 'username' });
+                    if (!updErr) {
+                        savedToSupabase = true;
+                        console.log("☁️ Supabase (SDK): Usuario " + newUsername + " actualizado con permisos en tabla usuarios.");
                     } else {
-                        console.log("☁️ Supabase: Usuario " + newUsername + " actualizado con permisos en tabla usuarios.");
+                        console.warn("⚠️ Error SDK actualizando usuario:", updErr);
                     }
                 } catch(saveErr) {
-                    console.warn("Aviso guardando usuario en Supabase:", saveErr);
+                    console.warn("Aviso SDK guardando usuario:", saveErr);
                 }
             }
+
+            // Fallback REST fetch directo si el SDK no guardó
+            if (!savedToSupabase) {
+                try {
+                    const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+                    const rHeaders = {
+                        'apikey': config.anonKey,
+                        'Authorization': `Bearer ${config.anonKey}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    };
+                    const currentRecordId = oldUser.id;
+                    const filterParam = (currentRecordId && !isNaN(parseInt(currentRecordId, 10)))
+                        ? `id=eq.${parseInt(currentRecordId, 10)}`
+                        : `username=ilike.${encodeURIComponent(oldUsername || newUsername)}`;
+                    const resp = await fetch(`${config.url}/rest/v1/usuarios?${filterParam}`, {
+                        method: 'PATCH',
+                        headers: rHeaders,
+                        body: JSON.stringify(userRow)
+                    });
+                    if (resp.ok) {
+                        savedToSupabase = true;
+                        console.log("☁️ Supabase (REST): Usuario " + newUsername + " actualizado con permisos.");
+                    }
+                } catch(restErr) {
+                    console.warn("Aviso REST guardando usuario:", restErr);
+                }
+            }
+
+            // Sincronizar también app_state para consistencia global
+            try {
+                const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+                await fetch(`${config.url}/rest/v1/app_state?id=eq.globalData`, {
+                    method: 'PATCH',
+                    headers: {
+                        'apikey': config.anonKey,
+                        'Authorization': `Bearer ${config.anonKey}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal'
+                    },
+                    body: JSON.stringify({
+                        user_permissions: appData.userPermissions,
+                        updated_at: new Date().toISOString()
+                    })
+                });
+            } catch(e) {}
 
             showToast('Credenciales y vistas actualizadas exitosamente en Supabase.', 'success');
             const currentUser = getCurrentUser();
@@ -18560,10 +18650,19 @@ window.canUserEditUnitPrices = function(user) {
     // Cuenta congelada
     if (role === 'congelado') return false;
 
-    // REGLA ESTRICTA: ÚNICAMENTE Luciano y Roberto (y administradores principales Mel/Melani) pueden modificar precios de ítems existentes
-    // El resto de los usuarios NO pueden modificar precios existentes (únicamente pueden cargar precio al agregar un ítem nuevo)
-    const allowedPriceEditors = ['mel', 'melani', 'luciano', 'roberto'];
-    return allowedPriceEditors.includes(name);
+    // 1. Respetar can_edit_prices configurado directamente en Supabase
+    if (u.can_edit_prices === true) return true;
+
+    // 2. Respetar permisos asignados en Supabase
+    const perms = (typeof getUserEffectivePermissions === 'function') ? getUserEffectivePermissions(u) : (u.permisos || u.permissions || []);
+    if (Array.isArray(perms) && (perms.includes('menu-ingresar-edit-price') || perms.includes('edit-precios') || perms.includes('modificar-precios'))) {
+        return true;
+    }
+
+    // 3. Administradores siempre pueden
+    if (role === 'administrador' || role === 'admin') return true;
+
+    return false;
 };
 
 window.generateNextCorrelativeCode = function(catalog, customPrefix) {
