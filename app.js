@@ -284,27 +284,27 @@ const MOTIVATIONAL_QUOTES = [
 const defaultUserPermissions = {
     'mel': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
     'melani': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'juanluis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
+    'juanluis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
     'luciano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
     'roberto': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
     'nicole': ['menu-facturacion'],
-    'alexis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'emiliano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'hernan': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios']
+    'alexis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
+    'emiliano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
+    'hernan': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit']
 };
 
 // Usuarios por defecto si la base de datos está vacía
 const defaultData = {
     users: [
         { id: '1', username: 'mel', password: '123', email: 'mel@empresa.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
-        { id: '2', username: 'juanluis', password: '123', email: 'grandijuanluis@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '103', vendedor_nombre: 'Juan Luis', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
+        { id: '2', username: 'juanluis', password: '123', email: 'grandijuanluis@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '103', vendedor_nombre: 'Juan Luis', empresa: 'SG MONTAJES SRL', can_edit_prices: false },
         { id: '3', username: 'luciano', password: '123', email: 'luciano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '102', vendedor_nombre: 'Luciano', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
         { id: '4', username: 'roberto', password: '123', email: 'Roberto@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '104', vendedor_nombre: 'Roberto', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
         { id: '5', username: 'melani', password: '123', email: 'melanidaiana28@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
         { id: '6', username: 'nicole', password: '123', email: 'nicole@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '105', vendedor_nombre: 'Nicole', empresa: 'SG MONTAJES SRL', can_edit_prices: false },
-        { id: '7', username: 'alexis', password: '123', email: 'alexis@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '106', vendedor_nombre: 'Alexis', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
-        { id: '8', username: 'emiliano', password: '123', email: 'emiliano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '107', vendedor_nombre: 'Emiliano', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
-        { id: '9', username: 'hernan', password: '123', email: 'hernan@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '108', vendedor_nombre: 'Hernán', empresa: 'SG MONTAJES SRL', can_edit_prices: true }
+        { id: '7', username: 'alexis', password: '123', email: 'alexis@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '106', vendedor_nombre: 'Alexis', empresa: 'SG MONTAJES SRL', can_edit_prices: false },
+        { id: '8', username: 'emiliano', password: '123', email: 'emiliano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '107', vendedor_nombre: 'Emiliano', empresa: 'SG MONTAJES SRL', can_edit_prices: false },
+        { id: '9', username: 'hernan', password: '123', email: 'hernan@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '108', vendedor_nombre: 'Hernán', empresa: 'SG MONTAJES SRL', can_edit_prices: false }
     ],
     pedidos: [],
     notifications: [],
@@ -561,36 +561,49 @@ function initSupabaseSync(callback) {
             appData.users = uRes.data;
             if (!appData.userPermissions) appData.userPermissions = {};
 
+            const alwaysCanEdit = ['mel', 'melani', 'luciano', 'roberto'];
+
             uRes.data.forEach(function(u) {
                 if (!u || !u.username) return;
                 const cleanU = String(u.username).trim().toLowerCase();
+                const isAuthorizedQuoter = alwaysCanEdit.includes(cleanU);
+
                 let p = u.permisos || u.permissions;
                 if (typeof p === 'string') {
                     try { p = JSON.parse(p); } catch(e) {}
-                }
-                if (Array.isArray(p) && p.length > 0) {
-                    if (u.can_edit_prices === true) {
-                        if (!p.includes('menu-ingresar-edit-price')) p.push('menu-ingresar-edit-price');
-                        if (!p.includes('edit-precios')) p.push('edit-precios');
-                    } else if (u.can_edit_prices === false) {
-                        p = p.filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price' && x !== 'modificar-precios');
-                    }
-                    appData.userPermissions[cleanU] = p;
-                } else if (u.can_edit_prices === true) {
-                    if (!appData.userPermissions[cleanU]) {
-                        appData.userPermissions[cleanU] = (defaultUserPermissions[cleanU] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all']).slice();
-                    }
-                    if (!appData.userPermissions[cleanU].includes('menu-ingresar-edit-price')) {
-                        appData.userPermissions[cleanU].push('menu-ingresar-edit-price');
-                    }
-                    if (!appData.userPermissions[cleanU].includes('edit-precios')) {
-                        appData.userPermissions[cleanU].push('edit-precios');
-                    }
-                } else if (u.can_edit_prices === false) {
-                    if (appData.userPermissions && appData.userPermissions[cleanU]) {
-                        appData.userPermissions[cleanU] = appData.userPermissions[cleanU].filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price' && x !== 'modificar-precios');
+                    if (typeof p === 'string' && !p.startsWith('[')) {
+                        p = p.split(',').map(s => s.trim());
                     }
                 }
+                if (!Array.isArray(p) || p.length === 0) {
+                    p = (defaultUserPermissions[cleanU] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit']).slice();
+                }
+
+                if (isAuthorizedQuoter) {
+                    u.can_edit_prices = true;
+                    if (!p.includes('menu-ingresar-edit-price')) p.push('menu-ingresar-edit-price');
+                    if (!p.includes('edit-precios')) p.push('edit-precios');
+                    if (!p.includes('menu-ingresar')) p.push('menu-ingresar');
+                } else {
+                    // Todos los demás usuarios NO pueden editar precios existentes
+                    u.can_edit_prices = false;
+                    p = p.filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price' && x !== 'modificar-precios');
+                }
+
+                u.permisos = p;
+                u.permissions = p;
+                appData.userPermissions[cleanU] = p;
+            });
+
+            // Sincronizar en segundo plano a Supabase para dejarlo persistido en la BD
+            (appData.users || []).forEach(function(uObj) {
+                if (!uObj || !uObj.username) return;
+                const uname = String(uObj.username).trim().toLowerCase();
+                const canEdit = alwaysCanEdit.includes(uname);
+                client.from('usuarios').update({
+                    can_edit_prices: canEdit,
+                    permisos: appData.userPermissions[uname] || uObj.permisos
+                }).ilike('username', uname).catch(function() {});
             });
 
             try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
@@ -842,13 +855,34 @@ function initSupabaseSync(callback) {
                 if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
                     appData.userPermissions = Object.assign({}, defaultUserPermissions, appData.userPermissions, data.user_permissions);
                     if (Array.isArray(appData.users)) {
+                        const alwaysCanEdit = ['mel', 'melani', 'luciano', 'roberto'];
                         appData.users.forEach(function(u) {
                             if (!u || !u.username) return;
                             const uk = String(u.username).trim().toLowerCase();
+                            const isAuthorizedQuoter = alwaysCanEdit.includes(uk);
                             if (data.user_permissions[uk]) {
                                 u.permissions = data.user_permissions[uk];
                                 u.permisos = data.user_permissions[uk];
-                                u.can_edit_prices = u.permissions.includes('menu-ingresar-edit-price') || u.permissions.includes('edit-precios');
+                            }
+                            if (isAuthorizedQuoter) {
+                                u.can_edit_prices = true;
+                                if (!u.permissions) u.permissions = [];
+                                if (!u.permissions.includes('menu-ingresar-edit-price')) u.permissions.push('menu-ingresar-edit-price');
+                                if (!u.permissions.includes('edit-precios')) u.permissions.push('edit-precios');
+                                u.permisos = u.permissions;
+                                if (appData.userPermissions[uk]) {
+                                    if (!appData.userPermissions[uk].includes('menu-ingresar-edit-price')) appData.userPermissions[uk].push('menu-ingresar-edit-price');
+                                    if (!appData.userPermissions[uk].includes('edit-precios')) appData.userPermissions[uk].push('edit-precios');
+                                }
+                            } else {
+                                u.can_edit_prices = false;
+                                if (u.permissions) {
+                                    u.permissions = u.permissions.filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
+                                    u.permisos = u.permissions;
+                                }
+                                if (appData.userPermissions[uk]) {
+                                    appData.userPermissions[uk] = appData.userPermissions[uk].filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
+                                }
                             }
                         });
                     }
@@ -940,13 +974,34 @@ function initSupabaseSync(callback) {
                             if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
                                 appData.userPermissions = Object.assign({}, defaultUserPermissions, appData.userPermissions, data.user_permissions);
                                 if (Array.isArray(appData.users)) {
+                                    const alwaysCanEdit = ['mel', 'melani', 'luciano', 'roberto'];
                                     appData.users.forEach(function(u) {
                                         if (!u || !u.username) return;
                                         const uk = String(u.username).trim().toLowerCase();
+                                        const isAuthorizedQuoter = alwaysCanEdit.includes(uk);
                                         if (data.user_permissions[uk]) {
                                             u.permissions = data.user_permissions[uk];
                                             u.permisos = data.user_permissions[uk];
-                                            u.can_edit_prices = u.permissions.includes('menu-ingresar-edit-price') || u.permissions.includes('edit-precios');
+                                        }
+                                        if (isAuthorizedQuoter) {
+                                            u.can_edit_prices = true;
+                                            if (!u.permissions) u.permissions = [];
+                                            if (!u.permissions.includes('menu-ingresar-edit-price')) u.permissions.push('menu-ingresar-edit-price');
+                                            if (!u.permissions.includes('edit-precios')) u.permissions.push('edit-precios');
+                                            u.permisos = u.permissions;
+                                            if (appData.userPermissions[uk]) {
+                                                if (!appData.userPermissions[uk].includes('menu-ingresar-edit-price')) appData.userPermissions[uk].push('menu-ingresar-edit-price');
+                                                if (!appData.userPermissions[uk].includes('edit-precios')) appData.userPermissions[uk].push('edit-precios');
+                                            }
+                                        } else {
+                                            u.can_edit_prices = false;
+                                            if (u.permissions) {
+                                                u.permissions = u.permissions.filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
+                                                u.permisos = u.permissions;
+                                            }
+                                            if (appData.userPermissions[uk]) {
+                                                appData.userPermissions[uk] = appData.userPermissions[uk].filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
+                                            }
                                         }
                                     });
                                 }
@@ -1274,13 +1329,29 @@ function initFirebaseSync(callback) {
 }
 
 function getCurrentUser() {
-    if (!appData || !appData.currentUserId) return null;
+    if (!appData) return null;
+    let curId = appData.currentUserId;
+    if (!curId) {
+        try { curId = localStorage.getItem('pedidos_current_user_id') || localStorage.getItem('sg_current_user_id') || localStorage.getItem('currentUserId'); } catch(e) {}
+    }
+    let curName = null;
+    try { curName = localStorage.getItem('pedidos_current_username'); } catch(e) {}
+
+    if (!curId && !curName) return null;
+
     if (!Array.isArray(appData.users) || appData.users.length === 0) {
         appData.users = defaultData.users.slice();
     }
-    var found = appData.users.find(u => String(u.id) === String(appData.currentUserId));
+    var found = null;
+    if (curId) {
+        found = appData.users.find(u => String(u.id) === String(curId) || String(u.username).toLowerCase() === String(curId).toLowerCase());
+    }
+    if (!found && curName) {
+        found = appData.users.find(u => String(u.username).toLowerCase() === String(curName).toLowerCase());
+    }
     if (!found && Array.isArray(defaultData.users)) {
-        found = defaultData.users.find(u => String(u.id) === String(appData.currentUserId));
+        if (curId) found = defaultData.users.find(u => String(u.id) === String(curId) || String(u.username).toLowerCase() === String(curId).toLowerCase());
+        if (!found && curName) found = defaultData.users.find(u => String(u.username).toLowerCase() === String(curName).toLowerCase());
         if (found) appData.users.push(found);
     }
     return found || null;
@@ -1963,17 +2034,15 @@ function getUserEffectivePermissions(userOrName, role) {
 
     let finalPerms = Array.isArray(perms) ? perms.slice() : [];
 
-    // Ajuste según bandera can_edit_prices
-    if (userObj && typeof userObj.can_edit_prices === 'boolean') {
-        if (userObj.can_edit_prices) {
-            if (!finalPerms.includes('menu-ingresar-edit-price')) finalPerms.push('menu-ingresar-edit-price');
-            if (!finalPerms.includes('edit-precios')) finalPerms.push('edit-precios');
-        } else {
-            finalPerms = finalPerms.filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
-        }
-    } else if (finalPerms.includes('menu-ingresar-edit-price') || finalPerms.includes('edit-precios')) {
+    // Ajuste según usuarios autorizados: ÚNICAMENTE Luciano y Roberto (+ Mel/Melani)
+    const allowedPriceEditors = ['mel', 'melani', 'luciano', 'roberto'];
+    const isAuthorized = allowedPriceEditors.includes(uKey);
+
+    if (isAuthorized) {
         if (!finalPerms.includes('menu-ingresar-edit-price')) finalPerms.push('menu-ingresar-edit-price');
         if (!finalPerms.includes('edit-precios')) finalPerms.push('edit-precios');
+    } else {
+        finalPerms = finalPerms.filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
     }
 
     return finalPerms;
@@ -14572,7 +14641,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
             }
 
             const disabledAttr = isEditable ? '' : 'disabled';
-            const canEditPrices = window.canUserEditUnitPrices ? window.canUserEditUnitPrices() : true;
+            const canEditPrices = window.canUserEditUnitPrices ? window.canUserEditUnitPrices() : false;
             const priceDisabledAttr = (isEditable && canEditPrices) ? '' : 'disabled';
             const inputBg = initialQty ? 'rgba(234, 179, 8, 0.18)' : 'rgba(15, 23, 42, 0.6)';
             const inputBorder = initialQty ? '#eab308' : 'rgba(255, 255, 255, 0.15)';
@@ -18119,58 +18188,30 @@ window.canUserEditUnitPrices = function(user) {
         if (!curId) {
             try { curId = localStorage.getItem('pedidos_current_user_id') || localStorage.getItem('sg_current_user_id') || localStorage.getItem('currentUserId') || localStorage.getItem('app_current_user_id'); } catch(e) {}
         }
+        let curName = null;
+        try { curName = localStorage.getItem('pedidos_current_username'); } catch(e) {}
+
         if (curId) {
             u = window.appData.users.find(x => String(x.id) === String(curId) || String(x.username).toLowerCase() === String(curId).toLowerCase());
         }
+        if (!u && curName) {
+            u = window.appData.users.find(x => String(x.username).toLowerCase() === String(curName).toLowerCase());
+        }
     }
-    if (!u) return false;
+    if (!u) {
+        return false;
+    }
 
     const role = String(u.role || '').toLowerCase();
-    const name = String(u.username || '').toLowerCase();
+    const name = String(u.username || '').trim().toLowerCase();
 
     // Cuenta congelada
     if (role === 'congelado') return false;
 
-    // Administradores directos (mel, melani, juan, juanluis o rol Administrador / Ventas)
-    if (role.includes('admin') || role.includes('ventas') || name === 'mel' || name === 'melani' || name === 'juan' || name === 'juanluis') {
-        return true;
-    }
-
-    // Bloqueo explícito si se deshabilitó específicamente para este usuario
-    if (u.can_edit_prices === false || u.editar_precios === false || u.edit_prices === false || u.canEditPrices === false) {
-        return false;
-    }
-
-    // Propiedad explícita en el objeto usuario habilitada
-    if (u.can_edit_prices === true || u.editar_precios === true || u.edit_prices === true || u.canEditPrices === true) {
-        return true;
-    }
-
-    // Consulta directa en la matriz en vivo sincronizada de Supabase (appData.userPermissions)
-    const cleanKey = name.trim().toLowerCase();
-    if (window.appData && window.appData.userPermissions && window.appData.userPermissions[cleanKey]) {
-        const up = window.appData.userPermissions[cleanKey];
-        if (Array.isArray(up) && (up.includes('menu-ingresar-edit-price') || up.includes('edit-precios') || up.includes('edit_prices') || up.includes('edit-price') || up.includes('modificar-precios'))) {
-            return true;
-        }
-    }
-
-    // Consulta en la matriz de permisos efectivos del sistema
-    const perms = typeof getUserEffectivePermissions === 'function' ? getUserEffectivePermissions(u) : [];
-    const hasPricePerm = perms.includes('menu-ingresar-edit-price') ||
-                         perms.includes('edit-precios') ||
-                         perms.includes('edit_prices') ||
-                         perms.includes('edit-price') ||
-                         perms.includes('modificar-precios');
-
-    if (hasPricePerm) return true;
-
-    // Si tiene acceso a ingresar solicitudes y no fue bloqueado explícitamente, habilitar modificación
-    if (perms.includes('menu-ingresar') && u.can_edit_prices !== false) {
-        return true;
-    }
-
-    return false;
+    // REGLA ESTRICTA: ÚNICAMENTE Luciano y Roberto (y administradores principales Mel/Melani) pueden modificar precios de ítems existentes
+    // El resto de los usuarios NO pueden modificar precios existentes (únicamente pueden cargar precio al agregar un ítem nuevo)
+    const allowedPriceEditors = ['mel', 'melani', 'luciano', 'roberto'];
+    return allowedPriceEditors.includes(name);
 };
 
 window.generateNextCorrelativeCode = function(catalog, customPrefix) {
