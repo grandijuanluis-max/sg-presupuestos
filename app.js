@@ -1738,7 +1738,7 @@ function saveData() {
                 if (n.userId) row.user_id = String(n.userId);
                 return row;
             });
-            client.from('notificaciones').upsert(notifsRows, { onConflict: 'id' }).catch(function(err) {
+            Promise.resolve(client.from('notificaciones').upsert(notifsRows, { onConflict: 'id' })).catch(function(err) {
                 console.error("Error sincronizando notificaciones:", err);
             });
         }
@@ -2973,10 +2973,10 @@ if (curPlanta === 'PPA') curPlanta = 'APS';
     // Sincronizar en tiempo real con Supabase app_state para que todas las máquinas vean el nuevo precio
     const client = (typeof getDbClient === 'function') ? getDbClient() : null;
     if (client && typeof appData !== 'undefined' && appData && appData.customPrices) {
-        client.from('app_state').update({
+        Promise.resolve(client.from('app_state').update({
             custom_prices: appData.customPrices,
             updated_at: new Date().toISOString()
-        }).eq('id', 'globalData').catch(function() {});
+        }).eq('id', 'globalData')).catch(function() {});
     }
 };
 
@@ -18400,7 +18400,7 @@ window.fetchPlantasFromSupabase = async function() {
                 // Intentar resincronizar la base de datos si estaba vacía
                 if (supabasePlantas.length < merged.length) {
                     const payload = merged.map(p => ({ nombre: p, usa_lista_de: window.appData.plantasRules[p] || p }));
-                    supabaseClient.from('plantas').upsert(payload, { onConflict: 'nombre' }).catch(()=>{});
+                    Promise.resolve(supabaseClient.from('plantas').upsert(payload, { onConflict: 'nombre' })).catch(()=>{});
                 }
 
                 window.actualizarSelectsPlantas();
