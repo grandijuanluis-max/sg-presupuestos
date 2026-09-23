@@ -284,27 +284,27 @@ const MOTIVATIONAL_QUOTES = [
 const defaultUserPermissions = {
     'mel': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
     'melani': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
-    'juanluis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
-    'luciano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
-    'roberto': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
+    'juanluis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-admin', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
+    'luciano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
+    'roberto': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
     'nicole': ['menu-facturacion'],
-    'alexis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
-    'emiliano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit'],
-    'hernan': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit']
+    'alexis': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
+    'emiliano': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios'],
+    'hernan': ['menu-ingresar', 'menu-all', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-facturacion', 'menu-all-ver', 'menu-all-edit', 'menu-ingresar-edit-price', 'edit-precios']
 };
 
 // Usuarios por defecto si la base de datos está vacía
 const defaultData = {
     users: [
-        { id: '1', username: 'mel', password: '123', email: 'mel@empresa.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL' },
-        { id: '2', username: 'juanluis', password: '123', email: 'grandijuanluis@gmail.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '103', vendedor_nombre: 'Juan Luis', empresa: 'SG MONTAJES SRL' },
-        { id: '3', username: 'luciano', password: '123', email: 'luciano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '102', vendedor_nombre: 'Luciano', empresa: 'SG MONTAJES SRL' },
-        { id: '4', username: 'roberto', password: '123', email: 'Roberto@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '104', vendedor_nombre: 'Roberto', empresa: 'SG MONTAJES SRL' },
-        { id: '5', username: 'melani', password: '123', email: 'melanidaiana28@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL' },
-        { id: '6', username: 'nicole', password: '123', email: 'nicole@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '105', vendedor_nombre: 'Nicole', empresa: 'SG MONTAJES SRL' },
-        { id: '7', username: 'alexis', password: '123', email: 'alexis@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '106', vendedor_nombre: 'Alexis', empresa: 'SG MONTAJES SRL' },
-        { id: '8', username: 'emiliano', password: '123', email: 'emiliano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '107', vendedor_nombre: 'Emiliano', empresa: 'SG MONTAJES SRL' },
-        { id: '9', username: 'hernan', password: '123', email: 'hernan@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '108', vendedor_nombre: 'Hernán', empresa: 'SG MONTAJES SRL' }
+        { id: '1', username: 'mel', password: '123', email: 'mel@empresa.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
+        { id: '2', username: 'juanluis', password: '123', email: 'grandijuanluis@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '103', vendedor_nombre: 'Juan Luis', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
+        { id: '3', username: 'luciano', password: '123', email: 'luciano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '102', vendedor_nombre: 'Luciano', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
+        { id: '4', username: 'roberto', password: '123', email: 'Roberto@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '104', vendedor_nombre: 'Roberto', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
+        { id: '5', username: 'melani', password: '123', email: 'melanidaiana28@gmail.com', role: 'Administrador', rubro_defecto: 'Eléctrico', vendedor_codigo: '', vendedor_nombre: '', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
+        { id: '6', username: 'nicole', password: '123', email: 'nicole@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '105', vendedor_nombre: 'Nicole', empresa: 'SG MONTAJES SRL', can_edit_prices: false },
+        { id: '7', username: 'alexis', password: '123', email: 'alexis@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Mecánico', vendedor_codigo: '106', vendedor_nombre: 'Alexis', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
+        { id: '8', username: 'emiliano', password: '123', email: 'emiliano@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '107', vendedor_nombre: 'Emiliano', empresa: 'SG MONTAJES SRL', can_edit_prices: true },
+        { id: '9', username: 'hernan', password: '123', email: 'hernan@sgmontajes.com', role: 'Solicitante', rubro_defecto: 'Eléctrico', vendedor_codigo: '108', vendedor_nombre: 'Hernán', empresa: 'SG MONTAJES SRL', can_edit_prices: true }
     ],
     pedidos: [],
     notifications: [],
@@ -791,8 +791,6 @@ function initSupabaseSync(callback) {
         .then(function(pRes) {
             if (pRes.data && pRes.data.length > 0) {
                 const existingItemsMap = {};
-                const localPendingMap = {};
-                const remoteIds = new Set(pRes.data.map(r => String(r.id)));
                 if (Array.isArray(appData.pedidos)) {
                     appData.pedidos.forEach(oldP => {
                         if (oldP && oldP.id) {
@@ -800,12 +798,10 @@ function initSupabaseSync(callback) {
                             if (Array.isArray(oldP.items) && oldP.items.length > 0) {
                                 existingItemsMap[pid] = oldP.items;
                             }
-                            if (!remoteIds.has(pid)) {
-                                localPendingMap[pid] = oldP;
-                            }
                         }
                     });
                 }
+                // Supabase es la ÚNICA fuente de verdad: se descartan los que fueron borrados en Supabase
                 appData.pedidos = normalizePresupuestosRubro(pRes.data);
                 appData.pedidos.forEach(p => {
                     const pid = String(p.id);
@@ -814,35 +810,17 @@ function initSupabaseSync(callback) {
                     }
                 });
 
-                // Preservar y subir presupuestos locales que aún no estaban en Supabase
-                const pendingIds = Object.keys(localPendingMap);
-                if (pendingIds.length > 0) {
-                    console.log("☁️ Preservando " + pendingIds.length + " presupuestos locales creados pendientes de subida a Supabase:", pendingIds);
-                    pendingIds.forEach(pId => {
-                        const localPed = localPendingMap[pId];
-                        appData.pedidos.push(localPed);
-                        if (typeof window.guardarPresupuestoEnSupabase === 'function') {
-                            window.guardarPresupuestoEnSupabase(localPed);
-                        }
-                    });
-                }
-
-                console.log("✅ " + appData.pedidos.length + " presupuestos consolidados (Supabase + locales).");
+                console.log("✅ " + appData.pedidos.length + " presupuestos consolidados directamente desde Supabase.");
                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
                 if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
                 syncPresupuestoItemsFromSupabase();
             } else if (pRes.data && pRes.data.length === 0) {
-                console.log("☁️ Supabase: Tabla 'presupuestos' vacía.");
-                if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
-                    console.log("☁️ Presupuestos existentes en memoria local (" + appData.pedidos.length + "). Sincronizando a Supabase...");
-                    saveData();
-                } else {
-                    appData.pedidos = [];
-                    try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
-                    if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-                    if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
-                }
+                console.log("☁️ Supabase: Tabla 'presupuestos' vacía. Actualizando estado local a vacío...");
+                appData.pedidos = [];
+                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+                if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
             }
         })
         .catch(function(pErr) {
@@ -863,11 +841,22 @@ function initSupabaseSync(callback) {
                 }
                 if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
                     appData.userPermissions = Object.assign({}, defaultUserPermissions, appData.userPermissions, data.user_permissions);
+                    if (Array.isArray(appData.users)) {
+                        appData.users.forEach(function(u) {
+                            if (!u || !u.username) return;
+                            const uk = String(u.username).trim().toLowerCase();
+                            if (data.user_permissions[uk]) {
+                                u.permissions = data.user_permissions[uk];
+                                u.permisos = data.user_permissions[uk];
+                                u.can_edit_prices = u.permissions.includes('menu-ingresar-edit-price') || u.permissions.includes('edit-precios');
+                            }
+                        });
+                    }
                 } else if (!appData.userPermissions || Object.keys(appData.userPermissions).length === 0) {
                     appData.userPermissions = Object.assign({}, defaultUserPermissions);
                 }
-                if (data.custom_prices) {
-                    appData.customPrices = data.custom_prices;
+                if (data.custom_prices && typeof data.custom_prices === 'object') {
+                    appData.customPrices = Object.assign({}, appData.customPrices || {}, data.custom_prices);
                     try {
                         const localPrices = getCustomItemPrices();
                         const merged = Object.assign({}, localPrices, data.custom_prices);
@@ -875,6 +864,15 @@ function initSupabaseSync(callback) {
                         if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') applyCustomPricesToCatalog(PRESUPUESTO_ELECTRICO_STOCK);
                         if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') applyCustomPricesToCatalog(PRESUPUESTO_MECANICO_STOCK);
                     } catch (e) {}
+                }
+                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+
+                const cur = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+                if (cur) {
+                    if (typeof buildSidebar === 'function') buildSidebar();
+                    if (typeof actualizarTablaItemsRequerimiento === 'function' && typeof pedidoItems !== 'undefined' && pedidoItems.length > 0) {
+                        actualizarTablaItemsRequerimiento();
+                    }
                 }
             }
 
@@ -953,13 +951,26 @@ function initSupabaseSync(callback) {
                                     });
                                 }
                             }
+                            if (data.custom_prices && typeof data.custom_prices === 'object') {
+                                appData.customPrices = Object.assign({}, appData.customPrices || {}, data.custom_prices);
+                                try {
+                                    const localPrices = getCustomItemPrices();
+                                    const merged = Object.assign({}, localPrices, data.custom_prices);
+                                    localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(merged));
+                                    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') applyCustomPricesToCatalog(PRESUPUESTO_ELECTRICO_STOCK);
+                                    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') applyCustomPricesToCatalog(PRESUPUESTO_MECANICO_STOCK);
+                                } catch(e) {}
+                            }
                             try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
 
                             if (!isFirstLoad && appData.currentUserId) {
                                 renderNotifications();
                                 const currentUser = getCurrentUser();
-                                if (currentUser && typeof buildSidebar === 'function') {
-                                    buildSidebar();
+                                if (currentUser) {
+                                    if (typeof buildSidebar === 'function') buildSidebar();
+                                    if (typeof actualizarTablaItemsRequerimiento === 'function' && typeof pedidoItems !== 'undefined' && pedidoItems.length > 0) {
+                                        actualizarTablaItemsRequerimiento();
+                                    }
                                 }
                             }
                             isFirstLoad = false;
@@ -1522,26 +1533,6 @@ window.guardarPresupuestoEnSupabase = async function(p) {
         }
     }
 
-    // Sincronizar también app_state.pedidos para que Supabase Table Editor y Realtime tengan la lista consolidada
-    try {
-        if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
-            const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
-            const headers = {
-                'apikey': config.anonKey,
-                'Authorization': `Bearer ${config.anonKey}`,
-                'Content-Type': 'application/json'
-            };
-            fetch(`${config.url}/rest/v1/app_state?id=eq.globalData`, {
-                method: 'PATCH',
-                headers: headers,
-                body: JSON.stringify({
-                    pedidos: appData.pedidos,
-                    updated_at: new Date().toISOString()
-                })
-            }).catch(() => {});
-        }
-    } catch(e) {}
-
     return { success: uploadedSuccessfully };
 };
 
@@ -1550,16 +1541,8 @@ window.forzarSincronizacionSupabase = async function() {
     if (!client) return;
 
     try {
-        if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
-            for (const p of appData.pedidos) {
-                if (p && p.id) {
-                    await window.guardarPresupuestoEnSupabase(p);
-                }
-            }
-        }
-
         const { data: allRemote, error: aErr } = await client.from('presupuestos').select('*').order('id', { ascending: true });
-        if (!aErr && allRemote && allRemote.length > 0) {
+        if (!aErr && allRemote) {
             const existingItemsMap = {};
             if (Array.isArray(appData.pedidos)) {
                 appData.pedidos.forEach(p => {
@@ -1578,7 +1561,7 @@ window.forzarSincronizacionSupabase = async function() {
             if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
         }
     } catch(err) {
-        console.error("Error en sincronización automática con Supabase:", err);
+        console.error("Error en sincronización con Supabase:", err);
     }
 };
 
@@ -1592,14 +1575,15 @@ function saveData() {
     // Guardar en Supabase para sincronización global y tiempo real
     const client = getDbClient();
     if (client) {
-        // 1. Estado global en app_state (pedidos, permisos, notificaciones para Realtime)
+        // 1. Estado global en app_state (permisos, notificaciones para Realtime)
+        // NOTA: No incluir 'pedidos' aquí para evitar reinsertar presupuestos que fueron eliminados en Supabase
         client.from('app_state').upsert({
             id: 'globalData',
-            pedidos: appData.pedidos || [],
             notifications: appData.notifications || [],
             user_permissions: (appData.userPermissions && typeof appData.userPermissions === 'object' && Object.keys(appData.userPermissions).length > 0)
                 ? Object.assign({}, defaultUserPermissions, appData.userPermissions)
                 : Object.assign({}, defaultUserPermissions),
+            custom_prices: appData.customPrices || (typeof getCustomItemPrices === 'function' ? getCustomItemPrices() : {}) || {},
             updated_at: new Date().toISOString()
         }, { onConflict: 'id' }).then(function(res) {
             if (res && res.error) {
@@ -1611,61 +1595,10 @@ function saveData() {
             console.error("Error saving to Supabase:", err);
         });
 
-        // 2. USUARIOS: NO se hace upsert masivo aquí (tabla usuarios es independiente)
-
-        // 3. PRESUPUESTOS & ITEMS: Sincronización relacional en Supabase (presupuestos primero, luego items)
-        if (Array.isArray(appData.pedidos) && appData.pedidos.length > 0) {
-            const presupuestosRows = appData.pedidos.map(function(p) {
-                return window.buildPresupuestoSupabaseRow(p);
-            });
-
-            const allItemsRows = [];
-            appData.pedidos.forEach(function(p) {
-                if (Array.isArray(p.items) && p.items.length > 0) {
-                    p.items.forEach(function(it, idx) {
-                        const cant = (it.cantidad === '-' || it.cantidad === undefined || it.cantidad === null) ? 1 : (parseFloat(it.cantidad) || 0);
-                        const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
-                        const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
-                        const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
-                        const finalSubrubro = (typeof window.resolveItemSubrubro === 'function')
-                            ? window.resolveItemSubrubro(it, p.tipo_presupuesto)
-                            : (it.subrubro || 'Materiales y Equipos');
-
-                        allItemsRows.push({
-                            id: itemId,
-                            presupuesto_id: String(p.id).trim(),
-                            codigo: String(it.codigo || '-'),
-                            detalle: String(it.detalle || it.descripcion || 'Item de Presupuesto'),
-                            rubro: p.tipo_presupuesto || 'Eléctrico',
-                            subrubro: finalSubrubro,
-                            cantidad: cant,
-                            unidad: String(it.unidad || it.udm || 'UN'),
-                            precio_unitario: pu,
-                            subtotal: sub,
-                            orden: idx + 1
-                        });
-                    });
-                }
-            });
-
-            client.from('presupuestos').upsert(presupuestosRows, { onConflict: 'id' }).then(function(res) {
-                if (res && res.error) {
-                    console.warn("⚠️ Supabase presupuestos warning:", res.error);
-                    return;
-                }
-                console.log("☁️ Supabase: " + presupuestosRows.length + " presupuestos sincronizados con éxito en tabla 'presupuestos'.");
-                if (allItemsRows.length > 0) {
-                    client.from('presupuesto_items').upsert(allItemsRows, { onConflict: 'id' }).then(function(iRes) {
-                        if (iRes && iRes.error) console.warn("⚠️ Supabase presupuesto_items warning:", iRes.error);
-                        else console.log("☁️ Supabase: " + allItemsRows.length + " items sincronizados con éxito en 'presupuesto_items'.");
-                    }).catch(function(err) {
-                        console.error("Error sincronizando presupuesto_items:", err);
-                    });
-                }
-            }).catch(function(err) {
-                console.error("Error sincronizando presupuestos:", err);
-            });
-        }
+        // 2. USUARIOS: gestionados de forma individual en tabla 'usuarios'
+        // 3. PRESUPUESTOS & ITEMS: cada presupuesto se guarda de forma atómica e individual
+        // con window.guardarPresupuestoEnSupabase() al crearlo o editarlo.
+        // No se hace upsert masivo aquí para garantizar que lo borrado en Supabase no reaparezca nunca.
 
         // 4. AVANCES DE OBRA: NO se hace upsert masivo aquí.
         // Los avances se sincronizan individualmente cuando se cargan desde abrirModalAvanceObra.
@@ -1682,13 +1615,9 @@ function saveData() {
                     timestamp: n.timestamp || new Date().toISOString()
                 };
                 if (n.userId) row.user_id = String(n.userId);
-                if (n.taskId) row.task_id = String(n.taskId);
                 return row;
             });
-            client.from('notificaciones').upsert(notifsRows, { onConflict: 'id' }).then(function(res) {
-                if (res && res.error) console.warn("⚠️ Supabase notificaciones warning:", res.error);
-                else console.log("☁️ Supabase: " + notifsRows.length + " notificaciones sincronizadas.");
-            }).catch(function(err) {
+            client.from('notificaciones').upsert(notifsRows, { onConflict: 'id' }).catch(function(err) {
                 console.error("Error sincronizando notificaciones:", err);
             });
         }
@@ -1705,7 +1634,9 @@ function saveData() {
                 method: 'PATCH',
                 headers: rHeaders,
                 body: JSON.stringify({
-                    pedidos: appData.pedidos || [],
+                    notifications: appData.notifications || [],
+                    user_permissions: appData.userPermissions || {},
+                    custom_prices: appData.customPrices || {},
                     updated_at: new Date().toISOString()
                 })
             }).catch(() => {});
@@ -1989,28 +1920,28 @@ function getUserEffectivePermissions(userOrName, role) {
 
     let perms = null;
 
-    // 1. Prioridad: permisos directos en el objeto de usuario (de la tabla 'usuarios' en Supabase)
-    if (userObj) {
-        let directPerms = userObj.permisos || userObj.permissions;
-        if (typeof directPerms === 'string') {
-            try { directPerms = JSON.parse(directPerms); } catch(e) {}
-        }
-        if (Array.isArray(directPerms) && directPerms.length > 0) {
-            perms = directPerms.slice();
+    // 1. Prioridad: permisos en tiempo real de appData.userPermissions (sincronizados desde Supabase)
+    if (appData && appData.userPermissions && typeof appData.userPermissions === 'object') {
+        for (let k of Object.keys(appData.userPermissions)) {
+            if (String(k).trim().toLowerCase() === uKey) {
+                const val = appData.userPermissions[k];
+                if (Array.isArray(val) && val.length > 0) {
+                    perms = val.slice();
+                    break;
+                }
+            }
         }
     }
 
-    // 2. Buscar en appData.userPermissions por clave insensible a mayúsculas
+    // 2. Si no se encontró en appData.userPermissions, buscar en el objeto de usuario (de la tabla 'usuarios' en Supabase)
     if (!perms || !Array.isArray(perms) || perms.length === 0) {
-        if (appData && appData.userPermissions && typeof appData.userPermissions === 'object') {
-            for (let k of Object.keys(appData.userPermissions)) {
-                if (String(k).trim().toLowerCase() === uKey) {
-                    const val = appData.userPermissions[k];
-                    if (Array.isArray(val) && val.length > 0) {
-                        perms = val.slice();
-                        break;
-                    }
-                }
+        if (userObj) {
+            let directPerms = userObj.permisos || userObj.permissions;
+            if (typeof directPerms === 'string') {
+                try { directPerms = JSON.parse(directPerms); } catch(e) {}
+            }
+            if (Array.isArray(directPerms) && directPerms.length > 0) {
+                perms = directPerms.slice();
             }
         }
     }
@@ -2040,6 +1971,9 @@ function getUserEffectivePermissions(userOrName, role) {
         } else {
             finalPerms = finalPerms.filter(p => p !== 'menu-ingresar-edit-price' && p !== 'edit-precios' && p !== 'edit-price' && p !== 'modificar-precios');
         }
+    } else if (finalPerms.includes('menu-ingresar-edit-price') || finalPerms.includes('edit-precios')) {
+        if (!finalPerms.includes('menu-ingresar-edit-price')) finalPerms.push('menu-ingresar-edit-price');
+        if (!finalPerms.includes('edit-precios')) finalPerms.push('edit-precios');
     }
 
     return finalPerms;
@@ -2145,6 +2079,12 @@ function buildSidebar() {
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
             a.classList.add('active');
             window._sidebarActiveMenuId = item.id;
+            if (item.id === 'menu-ingresar') {
+                window.pedidoEnEdicionId = null;
+                window.pedidoEnReutilizacion = false;
+                pedidoItems = [];
+                productoSeleccionado = null;
+            }
             renderContent(item.tpl);
             if (item.action) item.action();
 
@@ -2393,6 +2333,9 @@ function closeModal() {
     pedidoActivo = null;
     window.pedidoActivo = null;
     pedidoEdicionTemp = null;
+    if (!window.pedidoEnEdicionId && !window.pedidoEnReutilizacion) {
+        pedidoItems = [];
+    }
 
     // Sincronizar tema con la vista activa según reqTipoPresupuesto
     if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') {
@@ -2641,7 +2584,7 @@ window.getCustomItemPrices = function() {
         const saved = localStorage.getItem('PRESUPUESTO_CUSTOM_PRICES');
         const localObj = saved ? JSON.parse(saved) : {};
         if (typeof appData !== 'undefined' && appData && appData.customPrices) {
-            return Object.assign({}, appData.customPrices, localObj);
+            return Object.assign({}, localObj, appData.customPrices);
         }
         return localObj;
     } catch (e) {
@@ -2825,15 +2768,25 @@ if (curPlanta === 'PPA') curPlanta = 'APS';
         if (itemE) itemE.precio = numPrice;
     }
 
-    // Actualizamos el diccionario local de custom prices
+    // Actualizamos el diccionario local y global de custom prices
     const customPrices = typeof getCustomItemPrices === 'function' ? getCustomItemPrices() : {};
     let key = codigo;
     if (curPlanta) key = key + '_' + curPlanta;
     customPrices[key] = numPrice;
+    if (typeof appData !== 'undefined' && appData) {
+        if (!appData.customPrices) appData.customPrices = {};
+        appData.customPrices[key] = numPrice;
+    }
     try { localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices)); } catch(e) {}
 
-    // Sincronizar con Supabase: Desactivado por regla de negocio.
-    // Solo se guardará en Supabase al confirmar el presupuesto (en guardarPresupuestoEnSupabase).
+    // Sincronizar en tiempo real con Supabase app_state para que todas las máquinas vean el nuevo precio
+    const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+    if (client && typeof appData !== 'undefined' && appData && appData.customPrices) {
+        client.from('app_state').update({
+            custom_prices: appData.customPrices,
+            updated_at: new Date().toISOString()
+        }).eq('id', 'globalData').catch(function() {});
+    }
 };
 
 const PRESUPUESTO_ELECTRICO_STOCK = [
@@ -5080,7 +5033,7 @@ function initRequestView() {
         });
     }
 
-    // Resetear items cargados
+    // Resetear items cargados y limpiar formulario para nueva carga
     if (!window.pedidoEnEdicionId && !window.pedidoEnReutilizacion) {
         pedidoItems = [];
         productoSeleccionado = null;
@@ -5090,6 +5043,20 @@ function initRequestView() {
         const mecaStep2Container = document.getElementById('req-mecanico-step2-container');
         if (mecaStep2Container) {
             mecaStep2Container.innerHTML = '';
+        }
+        // Limpiar campos del Paso 1 para que nunca precargue datos de presupuestos anteriores
+        const clearIds = [
+            'req-meca-denominacion', 'req-meca-nro-oc', 'req-meca-nro-ot',
+            'req-meca-duracion', 'req-meca-duracion-num', 'req-meca-propuesta',
+            'req-meca-personal', 'req-meca-exclusiones', 'req-reason',
+            'req-product-input', 'req-product-qty', 'req-product-price'
+        ];
+        clearIds.forEach(cid => {
+            const el = document.getElementById(cid);
+            if (el) el.value = '';
+        });
+        if (typeof window.setDuracionEstimadaValue === 'function') {
+            window.setDuracionEstimadaValue('');
         }
     }
 
@@ -9897,6 +9864,13 @@ window.verDetallePedido = function(id, explicitMode) {
         btnAvanceModal.style.display = canShowAvance ? 'inline-flex' : 'none';
     }
 
+    // El botón 'Eliminar' fue completamente removido de la app a pedido del usuario.
+    const btnEliminarModal = document.getElementById('btn-modal-eliminar-presupuesto');
+    if (btnEliminarModal) {
+        btnEliminarModal.style.display = 'none';
+        btnEliminarModal.remove();
+    }
+
 
     const setElemText = (elId, txt) => {
         const el = document.getElementById(elId);
@@ -13046,11 +13020,13 @@ window.guardarPermisosUsuarioActual = function() {
         }).ilike('username', cleanKey).then(function(res) {
             if (res && res.error) {
                 console.warn("Aviso al guardar permisos en tabla usuarios:", res.error);
+                client.from('usuarios').update({ permisos: selected }).ilike('username', cleanKey).catch(function() {});
             } else {
                 console.log("☁️ Supabase: Permisos de '" + cleanKey + "' guardados directamente en tabla usuarios.");
             }
         }).catch(function(e) {
             console.warn("Aviso update usuarios:", e);
+            client.from('usuarios').update({ permisos: selected }).ilike('username', cleanKey).catch(function() {});
         });
 
         // 2. Actualizar app_state de forma inmediata para sincronización en vivo
@@ -13382,8 +13358,6 @@ function initAdminView() {
                     password: password,
                     role: appData.users[userIdx].role || 'Solicitante',
                     rubro_defecto: rubro_defecto,
-                    vendedor_codigo: appData.users[userIdx].vendedor_codigo || '',
-                    vendedor_nombre: appData.users[userIdx].vendedor_nombre || '',
                     permisos: selectedPerms,
                     can_edit_prices: canEditPrices
                 };
@@ -13444,8 +13418,18 @@ function initAdminView() {
             const finalPerms = selectedPerms.length > 0 ? selectedPerms : ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit'];
             const canEditPrices = finalPerms.includes('menu-ingresar-edit-price') || finalPerms.includes('edit-precios');
 
+            // Obtener el siguiente ID numérico secuencial correlativo
+            let maxId = 0;
+            (appData.users || []).forEach(u => {
+                const num = parseInt(u.id, 10);
+                if (!isNaN(num) && num > maxId) {
+                    maxId = num;
+                }
+            });
+            const nextUserId = String(maxId + 1);
+
             const newUser = {
-                id: generateId(),
+                id: nextUserId,
                 username,
                 password,
                 email,
@@ -13474,8 +13458,6 @@ function initAdminView() {
                     email: newUser.email,
                     role: newUser.role,
                     rubro_defecto: newUser.rubro_defecto,
-                    vendedor_codigo: '',
-                    vendedor_nombre: '',
                     empresa: 'SG MONTAJES SRL',
                     permisos: finalPerms,
                     can_edit_prices: canEditPrices
@@ -18135,7 +18117,7 @@ window.canUserEditUnitPrices = function(user) {
     if (!u && window.appData && Array.isArray(window.appData.users)) {
         let curId = window.appData.currentUserId;
         if (!curId) {
-            try { curId = localStorage.getItem('sg_current_user_id') || localStorage.getItem('currentUserId') || localStorage.getItem('app_current_user_id'); } catch(e) {}
+            try { curId = localStorage.getItem('pedidos_current_user_id') || localStorage.getItem('sg_current_user_id') || localStorage.getItem('currentUserId') || localStorage.getItem('app_current_user_id'); } catch(e) {}
         }
         if (curId) {
             u = window.appData.users.find(x => String(x.id) === String(curId) || String(x.username).toLowerCase() === String(curId).toLowerCase());
@@ -18149,8 +18131,8 @@ window.canUserEditUnitPrices = function(user) {
     // Cuenta congelada
     if (role === 'congelado') return false;
 
-    // Administradores directos (mel, melani o rol Administrador / Ventas)
-    if (role.includes('admin') || role.includes('ventas') || name === 'mel' || name === 'melani') {
+    // Administradores directos (mel, melani, juan, juanluis o rol Administrador / Ventas)
+    if (role.includes('admin') || role.includes('ventas') || name === 'mel' || name === 'melani' || name === 'juan' || name === 'juanluis') {
         return true;
     }
 
@@ -18164,6 +18146,15 @@ window.canUserEditUnitPrices = function(user) {
         return true;
     }
 
+    // Consulta directa en la matriz en vivo sincronizada de Supabase (appData.userPermissions)
+    const cleanKey = name.trim().toLowerCase();
+    if (window.appData && window.appData.userPermissions && window.appData.userPermissions[cleanKey]) {
+        const up = window.appData.userPermissions[cleanKey];
+        if (Array.isArray(up) && (up.includes('menu-ingresar-edit-price') || up.includes('edit-precios') || up.includes('edit_prices') || up.includes('edit-price') || up.includes('modificar-precios'))) {
+            return true;
+        }
+    }
+
     // Consulta en la matriz de permisos efectivos del sistema
     const perms = typeof getUserEffectivePermissions === 'function' ? getUserEffectivePermissions(u) : [];
     const hasPricePerm = perms.includes('menu-ingresar-edit-price') ||
@@ -18173,6 +18164,11 @@ window.canUserEditUnitPrices = function(user) {
                          perms.includes('modificar-precios');
 
     if (hasPricePerm) return true;
+
+    // Si tiene acceso a ingresar solicitudes y no fue bloqueado explícitamente, habilitar modificación
+    if (perms.includes('menu-ingresar') && u.can_edit_prices !== false) {
+        return true;
+    }
 
     return false;
 };
