@@ -2375,17 +2375,21 @@
                 </div>
             </div>
 
-            <form id="form-nuevo-item-tarifario" onsubmit="event.preventDefault(); confirmarNuevoItemTarifario();" style="display: flex; flex-direction: column; gap: 14px;">
+            <form id="form-nuevo-item-tarifario" novalidate onsubmit="event.preventDefault(); confirmarNuevoItemTarifario();" style="display: flex; flex-direction: column; gap: 14px;">
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Sección / Pestaña de Destino <span style="color: #22d3ee;">*</span></label>
-                    <select id="nuevo-item-subrubro" required onchange="if(typeof onNuevoItemSubrubroChange==='function') onNuevoItemSubrubroChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
-                        <!-- Llenado dinámicamente -->
+                    <select id="nuevo-item-subrubro" onchange="if(typeof onNuevoItemSubrubroChange==='function') onNuevoItemSubrubroChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
+                        <option value="Materiales y Equipos">Materiales y Equipos</option>
+                        <option value="Mano de Obra EN TALLER">Mano de Obra EN TALLER</option>
+                        <option value="Mano de Obra MANTENIMIENTO">Mano de Obra MANTENIMIENTO</option>
+                        <option value="Mano de Obra PARADA DE PLANTA">Mano de Obra PARADA DE PLANTA</option>
+                        <option value="Mano de Obra EMERGENCIA MANTENIMIENTO">Mano de Obra EMERGENCIA MANTENIMIENTO</option>
                     </select>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Descripción / Detalle del Concepto <span style="color: #22d3ee;">*</span></label>
-                    <input type="text" id="nuevo-item-detalle" placeholder="Ej: Oficial Especialista / Tareas Extra ..." required autocomplete="off"
+                    <input type="text" id="nuevo-item-detalle" placeholder="Ej: Oficial Especialista / Tareas Extra ..." autocomplete="off"
                            style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 13px; font-weight: 600;"
                            onkeydown="if(event.key==='Enter'){ event.preventDefault(); const q = document.getElementById('nuevo-item-cantidad'); if(q){ q.focus(); q.select(); } }">
                 </div>
@@ -2422,7 +2426,7 @@
                     <button type="button" class="btn btn-outline" onclick="closeModal()" style="font-size: 12px; padding: 8px 16px; border-radius: 8px;">
                         Cancelar
                     </button>
-                    <button type="submit" class="btn btn-primary" style="background: #0891b2; border: 1px solid #22d3ee; font-size: 12px; font-weight: 800; padding: 8px 20px; border-radius: 8px; color: #ffffff;">
+                    <button type="button" onclick="confirmarNuevoItemTarifario()" class="btn btn-primary" style="background: #0891b2; border: 1px solid #22d3ee; font-size: 12px; font-weight: 800; padding: 8px 20px; border-radius: 8px; color: #ffffff; cursor: pointer;">
                         <i class="fas fa-plus-circle"></i> Agregar Ítem
                     </button>
                 </div>
@@ -3053,7 +3057,7 @@
             localStorage.removeItem('sg_plantas');
         } catch(e) {}
     </script>
-    <script src="app.js?v=444"></script>
+    <script src="app.js?v=448"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>
