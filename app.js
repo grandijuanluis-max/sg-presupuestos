@@ -497,6 +497,99 @@ function mergeUsersList(localUsers, remoteUsers) {
 let isFirstLoad = true;
 let supabaseRealtimeChannel = null;
 
+// ====================================================================
+// FUNCIÓN CENTRALIZADA: LECTURA EN VIVO DE USUARIOS DESDE SUPABASE
+// Supabase es la ÚNICA fuente de la verdad para usuarios y permisos.
+// ====================================================================
+window.recargarUsuariosDesdeSupabase = async function(callback) {
+    let freshUsers = null;
+    const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+
+    if (client) {
+        try {
+            const { data, error } = await client.from('usuarios').select('*').order('id', { ascending: true });
+            if (!error && Array.isArray(data) && data.length > 0) {
+                freshUsers = data;
+            }
+        } catch(e) {
+            console.warn("Aviso SDK tabla usuarios:", e);
+        }
+    }
+
+    if (!freshUsers) {
+        try {
+            const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+            const rHeaders = { 'apikey': config.anonKey, 'Authorization': `Bearer ${config.anonKey}` };
+            const resp = await fetch(`${config.url}/rest/v1/usuarios?select=*&order=id.asc`, { headers: rHeaders });
+            if (resp.ok) {
+                const restData = await resp.json();
+                if (Array.isArray(restData) && restData.length > 0) {
+                    freshUsers = restData;
+                }
+            }
+        } catch(e) {
+            console.warn("Aviso REST tabla usuarios:", e);
+        }
+    }
+
+    if (freshUsers && Array.isArray(freshUsers) && freshUsers.length > 0) {
+        if (!appData) appData = { users: [], pedidos: [], notifications: [] };
+        appData.users = freshUsers;
+        if (!appData.userPermissions) appData.userPermissions = {};
+
+        const alwaysCanEdit = ['mel', 'melani', 'luciano', 'roberto'];
+
+        freshUsers.forEach(function(u) {
+            if (!u || !u.username) return;
+            const cleanU = String(u.username).trim().toLowerCase();
+            const isAuthorizedQuoter = alwaysCanEdit.includes(cleanU);
+
+            let p = u.permisos || u.permissions;
+            if (typeof p === 'string') {
+                try { p = JSON.parse(p); } catch(e) {}
+                if (typeof p === 'string' && !p.startsWith('[')) {
+                    p = p.split(',').map(s => s.trim());
+                }
+            }
+            if (!Array.isArray(p) || p.length === 0) {
+                p = (defaultUserPermissions[cleanU] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit']).slice();
+            }
+
+            if (isAuthorizedQuoter) {
+                u.can_edit_prices = true;
+                if (!p.includes('menu-ingresar-edit-price')) p.push('menu-ingresar-edit-price');
+                if (!p.includes('edit-precios')) p.push('edit-precios');
+                if (!p.includes('menu-ingresar')) p.push('menu-ingresar');
+            } else {
+                u.can_edit_prices = false;
+                p = p.filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price' && x !== 'modificar-precios');
+            }
+
+            u.permisos = p;
+            u.permissions = p;
+            appData.userPermissions[cleanU] = p;
+        });
+
+        try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+        console.log("✅ Supabase (Fuente Única de Verdad): " + freshUsers.length + " usuarios leídos directamente de la tabla 'usuarios'.");
+
+        if (typeof window.renderUsersAdminView === 'function') {
+            window.renderUsersAdminView();
+        }
+        if (typeof window.renderConfigUsersTable === 'function') {
+            window.renderConfigUsersTable();
+        }
+        if (typeof window.fillPermissionsUserSelect === 'function') {
+            window.fillPermissionsUserSelect();
+        }
+    }
+
+    if (typeof callback === 'function') {
+        callback(appData ? appData.users : []);
+    }
+    return appData ? appData.users : [];
+};
+
 let supabaseSyncRetries = 0;
 function initSupabaseSync(callback) {
     const client = getDbClient();
@@ -524,6 +617,10 @@ function initSupabaseSync(callback) {
                     }
                 }).catch(() => {});
         } catch(e) {}
+
+        if (typeof window.recargarUsuariosDesdeSupabase === 'function') {
+            window.recargarUsuariosDesdeSupabase();
+        }
 
         if (callback) callback();
         return;
@@ -556,66 +653,11 @@ function initSupabaseSync(callback) {
     });
 
     // 2. LECTURA DIRECTA DE LA TABLA 'usuarios' (Fuente Única de Verdad)
-    client.from('usuarios').select('*').order('id', { ascending: true }).then(function(uRes) {
-        if (uRes.data && uRes.data.length > 0) {
-            appData.users = uRes.data;
-            if (!appData.userPermissions) appData.userPermissions = {};
-
-            const alwaysCanEdit = ['mel', 'melani', 'luciano', 'roberto'];
-
-            uRes.data.forEach(function(u) {
-                if (!u || !u.username) return;
-                const cleanU = String(u.username).trim().toLowerCase();
-                const isAuthorizedQuoter = alwaysCanEdit.includes(cleanU);
-
-                let p = u.permisos || u.permissions;
-                if (typeof p === 'string') {
-                    try { p = JSON.parse(p); } catch(e) {}
-                    if (typeof p === 'string' && !p.startsWith('[')) {
-                        p = p.split(',').map(s => s.trim());
-                    }
-                }
-                if (!Array.isArray(p) || p.length === 0) {
-                    p = (defaultUserPermissions[cleanU] || ['menu-ingresar', 'menu-estado-presupuesto', 'menu-rechazados', 'menu-all', 'menu-all-ver', 'menu-all-edit']).slice();
-                }
-
-                if (isAuthorizedQuoter) {
-                    u.can_edit_prices = true;
-                    if (!p.includes('menu-ingresar-edit-price')) p.push('menu-ingresar-edit-price');
-                    if (!p.includes('edit-precios')) p.push('edit-precios');
-                    if (!p.includes('menu-ingresar')) p.push('menu-ingresar');
-                } else {
-                    // Todos los demás usuarios NO pueden editar precios existentes
-                    u.can_edit_prices = false;
-                    p = p.filter(x => x !== 'menu-ingresar-edit-price' && x !== 'edit-precios' && x !== 'edit-price' && x !== 'modificar-precios');
-                }
-
-                u.permisos = p;
-                u.permissions = p;
-                appData.userPermissions[cleanU] = p;
-            });
-
-            // Sincronizar en segundo plano a Supabase para dejarlo persistido en la BD
-            (appData.users || []).forEach(function(uObj) {
-                if (!uObj || !uObj.username) return;
-                const uname = String(uObj.username).trim().toLowerCase();
-                const canEdit = alwaysCanEdit.includes(uname);
-                client.from('usuarios').update({
-                    can_edit_prices: canEdit,
-                    permisos: appData.userPermissions[uname] || uObj.permisos
-                }).ilike('username', uname).catch(function() {});
-            });
-
-            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
-            console.log("✅ " + uRes.data.length + " usuarios leídos directamente de la tabla 'usuarios' en Supabase.");
-
-            if (typeof buildSidebar === 'function' && typeof getCurrentUser === 'function') {
-                const cur = getCurrentUser();
-                if (cur) buildSidebar();
-            }
+    window.recargarUsuariosDesdeSupabase(function(users) {
+        if (typeof buildSidebar === 'function' && typeof getCurrentUser === 'function') {
+            const cur = getCurrentUser();
+            if (cur) buildSidebar();
         }
-    }).catch(function(err) {
-        console.warn("Aviso al consultar tabla 'usuarios' en Supabase:", err);
     });
 
     // 2.1. LECTURA DIRECTA DE LA TABLA 'tarifario' (Precios y Catálogo Vigente en Tiempo Real)
@@ -860,7 +902,7 @@ function initSupabaseSync(callback) {
                             if (!u || !u.username) return;
                             const uk = String(u.username).trim().toLowerCase();
                             const isAuthorizedQuoter = alwaysCanEdit.includes(uk);
-                            if (data.user_permissions[uk]) {
+                            if (data.user_permissions[uk] && (!u.permisos || !Array.isArray(u.permisos) || u.permisos.length === 0)) {
                                 u.permissions = data.user_permissions[uk];
                                 u.permisos = data.user_permissions[uk];
                             }
@@ -1991,8 +2033,22 @@ function getUserEffectivePermissions(userOrName, role) {
 
     let perms = null;
 
-    // 1. Prioridad: permisos en tiempo real de appData.userPermissions (sincronizados desde Supabase)
-    if (appData && appData.userPermissions && typeof appData.userPermissions === 'object') {
+    // 1. PRIORIDAD SUPREMA: Lo guardado en el objeto de usuario proveniente de la tabla 'usuarios' de Supabase (Fuente Única de Verdad)
+    if (userObj) {
+        let directPerms = userObj.permisos || userObj.permissions;
+        if (typeof directPerms === 'string') {
+            try { directPerms = JSON.parse(directPerms); } catch(e) {}
+            if (typeof directPerms === 'string' && !directPerms.startsWith('[')) {
+                directPerms = directPerms.split(',').map(s => s.trim());
+            }
+        }
+        if (Array.isArray(directPerms) && directPerms.length > 0) {
+            perms = directPerms.slice();
+        }
+    }
+
+    // 2. Si no se encontró en el objeto directo, buscar en appData.userPermissions (sincronizados desde Supabase)
+    if ((!perms || !Array.isArray(perms) || perms.length === 0) && appData && appData.userPermissions && typeof appData.userPermissions === 'object') {
         for (let k of Object.keys(appData.userPermissions)) {
             if (String(k).trim().toLowerCase() === uKey) {
                 const val = appData.userPermissions[k];
@@ -2000,19 +2056,6 @@ function getUserEffectivePermissions(userOrName, role) {
                     perms = val.slice();
                     break;
                 }
-            }
-        }
-    }
-
-    // 2. Si no se encontró en appData.userPermissions, buscar en el objeto de usuario (de la tabla 'usuarios' en Supabase)
-    if (!perms || !Array.isArray(perms) || perms.length === 0) {
-        if (userObj) {
-            let directPerms = userObj.permisos || userObj.permissions;
-            if (typeof directPerms === 'string') {
-                try { directPerms = JSON.parse(directPerms); } catch(e) {}
-            }
-            if (Array.isArray(directPerms) && directPerms.length > 0) {
-                perms = directPerms.slice();
             }
         }
     }
@@ -13260,39 +13303,63 @@ function initAdminView() {
     const btnDelete = document.getElementById('btn-delete-user');
 
     function renderUsers() {
+        const prevSelectedEdit = editSelect ? editSelect.value : '';
+        const prevSelectedDelete = deleteSelect ? deleteSelect.value : '';
+
         if (editSelect) editSelect.innerHTML = '<option value="">Seleccione un empleado...</option>';
         if (deleteSelect) deleteSelect.innerHTML = '<option value="">Seleccione un empleado...</option>';
 
         const currentU = getCurrentUser();
-        const currentUserId = currentU ? currentU.id : '';
+        const currentUserId = currentU ? String(currentU.id) : '';
+        const currentUsername = currentU ? String(currentU.username || '').toLowerCase() : '';
+
         if (appData && Array.isArray(appData.users)) {
             appData.users.forEach(u => {
+                const val = (u.id != null) ? String(u.id) : String(u.username || '');
                 const vendedorStr = u.vendedor_nombre ? ` 🧑‍💼 ${u.vendedor_nombre}` : '';
                 const rubroStr = u.rubro_defecto === 'Mecánico' ? ' [⚙️ Mecánico]' : ' [⚡ Eléctrico]';
                 const empresaStr = u.empresa && u.empresa.includes('ACOSTA') ? ' 🔵 [Acosta]' : ' ⚙️ [SG]';
                 const optText = `${u.username}${vendedorStr}${rubroStr}${empresaStr} (${u.email || 'Sin email'})`;
-                if (editSelect) editSelect.innerHTML += `<option value="${u.id}">${optText}</option>`;
-                if (deleteSelect && u.id !== currentUserId) {
-                    deleteSelect.innerHTML += `<option value="${u.id}">${optText}</option>`;
+                if (editSelect) editSelect.innerHTML += `<option value="${val}">${optText}</option>`;
+                if (deleteSelect && String(u.id) !== currentUserId && String(u.username || '').toLowerCase() !== currentUsername) {
+                    deleteSelect.innerHTML += `<option value="${val}">${optText}</option>`;
                 }
             });
         }
 
-        if (deleteWarning) deleteWarning.style.display = 'none';
-        if (btnFreeze) {
-            btnFreeze.style.opacity = '0.5';
-            btnFreeze.style.pointerEvents = 'none';
+        // Restaurar selección previa si aún existe
+        if (prevSelectedEdit && editSelect) {
+            const hasOpt = Array.from(editSelect.options).some(o => o.value === prevSelectedEdit);
+            if (hasOpt) editSelect.value = prevSelectedEdit;
         }
-        if (btnDelete) {
-            btnDelete.style.opacity = '0.5';
-            btnDelete.style.pointerEvents = 'none';
+        if (prevSelectedDelete && deleteSelect) {
+            const hasOpt = Array.from(deleteSelect.options).some(o => o.value === prevSelectedDelete);
+            if (hasOpt) deleteSelect.value = prevSelectedDelete;
+        }
+
+        if (!deleteSelect || !deleteSelect.value) {
+            if (deleteWarning) deleteWarning.style.display = 'none';
+            if (btnFreeze) {
+                btnFreeze.style.opacity = '0.5';
+                btnFreeze.style.pointerEvents = 'none';
+            }
+            if (btnDelete) {
+                btnDelete.style.opacity = '0.5';
+                btnDelete.style.pointerEvents = 'none';
+            }
         }
 
         window.renderConfigUsersTable();
     }
 
+    window.renderUsersAdminView = renderUsers;
     renderUsers();
     window.fillPermissionsUserSelect();
+
+    // Sincronizar en vivo directamente con Supabase (Fuente Única de Verdad)
+    if (typeof window.recargarUsuariosDesdeSupabase === 'function') {
+        window.recargarUsuariosDesdeSupabase();
+    }
 
     // Correo de Facturación
     const emailFactEl = document.getElementById('sys-config-email-facturacion');
@@ -13300,42 +13367,110 @@ function initAdminView() {
         emailFactEl.value = window.emailResponsableFacturacion || (appData && appData.emailResponsableFacturacion) || 'facturacion@sgmontajes.com.ar';
     }
 
-    // Llenar formulario de edición al seleccionar usuario
+    // Llenar formulario de edición al seleccionar usuario (con lectura directa de Supabase)
     if (editSelect) {
-        editSelect.onchange = (e) => {
-            const userId = e.target.value;
-            const user = (appData && Array.isArray(appData.users)) ? appData.users.find(u => u.id === userId) : null;
-            if (user) {
+        editSelect.onchange = async (e) => {
+            const rawVal = e.target ? e.target.value : '';
+            if (!rawVal) {
                 const uField = document.getElementById('edit-username');
                 const eField = document.getElementById('edit-email');
                 const pField = document.getElementById('edit-password');
                 const rField = document.getElementById('edit-rubro');
+                const empField = document.getElementById('edit-empresa');
+                if (uField) uField.value = '';
+                if (eField) eField.value = '';
+                if (pField) pField.value = '';
+                if (rField) rField.value = 'Eléctrico';
+                if (empField) empField.value = 'SG MONTAJES SRL';
+                document.querySelectorAll('.edit-user-perm-cb').forEach(cb => { cb.checked = false; });
+                return;
+            }
+
+            const cleanSearch = String(rawVal).trim().toLowerCase();
+            let user = (appData && Array.isArray(appData.users)) ? appData.users.find(u => 
+                String(u.id).trim() === String(rawVal).trim() ||
+                String(u.username || '').trim().toLowerCase() === cleanSearch
+            ) : null;
+
+            // Consultar directamente a Supabase (Fuente Única de Verdad) para traer el registro más fresco
+            try {
+                const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+                if (client) {
+                    let q = client.from('usuarios').select('*');
+                    if (/^\d+$/.test(String(rawVal).trim())) {
+                        q = q.or(`id.eq.${rawVal},username.ilike.${cleanSearch}`);
+                    } else {
+                        q = q.ilike('username', cleanSearch);
+                    }
+                    const { data: dbRows, error: dbErr } = await q;
+                    if (!dbErr && Array.isArray(dbRows) && dbRows.length > 0) {
+                        const freshUser = dbRows[0];
+                        if (user) {
+                            Object.assign(user, freshUser);
+                        } else {
+                            user = freshUser;
+                            if (appData && Array.isArray(appData.users)) {
+                                appData.users.push(freshUser);
+                            }
+                        }
+                    }
+                }
+            } catch(fetchErr) {
+                console.warn("Aviso consultando Supabase para usuario:", fetchErr);
+            }
+
+            if (user) {
+                if (editSelect) editSelect.value = rawVal;
+
+                const uField = document.getElementById('edit-username');
+                const eField = document.getElementById('edit-email');
+                const pField = document.getElementById('edit-password');
+                const rField = document.getElementById('edit-rubro');
+                const empField = document.getElementById('edit-empresa');
                 if (uField) uField.value = user.username || '';
                 if (eField) eField.value = user.email || '';
                 if (pField) pField.value = user.password || '';
                 if (rField) rField.value = user.rubro_defecto || 'Eléctrico';
-                const empField = document.getElementById('edit-empresa');
                 if (empField) empField.value = user.empresa || 'SG MONTAJES SRL';
 
+                // Permisos efectivos directamente desde Supabase
                 const perms = getUserEffectivePermissions(user);
 
                 document.querySelectorAll('.edit-user-perm-cb').forEach(cb => {
-                    cb.checked = perms.includes(cb.value);
+                    if (cb.value === 'menu-all') {
+                        cb.checked = perms.includes('menu-all') || perms.includes('menu-all-ver') || perms.includes('menu-all-edit');
+                    } else {
+                        cb.checked = perms.includes(cb.value);
+                    }
                 });
             } else {
-                const editFormEl = document.getElementById('edit-user-form');
-                if (editFormEl) editFormEl.reset();
-                document.querySelectorAll('.edit-user-perm-cb').forEach(cb => {
-                    cb.checked = false;
-                });
+                console.warn("No se encontró el usuario:", rawVal);
+                showToast('No se encontró el registro del usuario', 'warning');
             }
         };
     }
 
     if (deleteSelect) {
         deleteSelect.onchange = (e) => {
-            const userId = e.target.value;
-            const user = (appData && Array.isArray(appData.users)) ? appData.users.find(u => u.id === userId) : null;
+            const rawVal = e.target.value;
+            if (!rawVal) {
+                if (deleteWarning) deleteWarning.style.display = 'none';
+                if (btnFreeze) {
+                    btnFreeze.style.opacity = '0.5';
+                    btnFreeze.style.pointerEvents = 'none';
+                }
+                if (btnDelete) {
+                    btnDelete.style.opacity = '0.5';
+                    btnDelete.style.pointerEvents = 'none';
+                }
+                return;
+            }
+
+            const cleanSearch = String(rawVal).trim().toLowerCase();
+            const user = (appData && Array.isArray(appData.users)) ? appData.users.find(u => 
+                String(u.id).trim() === String(rawVal).trim() ||
+                String(u.username || '').trim().toLowerCase() === cleanSearch
+            ) : null;
 
             if (user) {
                 if (deleteUserName) deleteUserName.textContent = user.username;
@@ -13349,9 +13484,21 @@ function initAdminView() {
                         btnFreeze.innerHTML = '<i class="fa-solid fa-snowflake"></i> Congelar';
                     }
 
-                    btnFreeze.onclick = () => {
+                    btnFreeze.onclick = async () => {
                         user.role = (user.role === 'Congelado') ? 'Solicitante' : 'Congelado';
                         saveData();
+                        const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+                        if (client) {
+                            try {
+                                if (user.id && !isNaN(parseInt(user.id, 10))) {
+                                    await client.from('usuarios').update({ role: user.role }).eq('id', parseInt(user.id, 10));
+                                } else {
+                                    await client.from('usuarios').update({ role: user.role }).ilike('username', user.username);
+                                }
+                            } catch(err) {
+                                console.warn("Aviso al actualizar rol en Supabase:", err);
+                            }
+                        }
                         showToast(`Usuario ${user.username} actualizado (${user.role}).`, 'success');
                         renderUsers();
                         deleteSelect.value = '';
@@ -13362,20 +13509,27 @@ function initAdminView() {
                 if (btnDelete) {
                     btnDelete.style.opacity = '1';
                     btnDelete.style.pointerEvents = 'auto';
-                    btnDelete.onclick = () => {
+                    btnDelete.onclick = async () => {
                         const confirmation = prompt(`¿Eliminar definitivamente a ${user.username}? Escriba ELIMINAR para confirmar.`);
                         if (confirmation === 'ELIMINAR') {
                             const uName = user.username;
-                            appData.users = appData.users.filter(u => u.id !== user.id);
+                            const uId = user.id;
+                            appData.users = appData.users.filter(u => String(u.id) !== String(uId) && String(u.username).toLowerCase() !== String(uName).toLowerCase());
                             saveData();
                             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
                             if (client) {
-                                client.from('usuarios').delete().eq('username', uName).then(function(res) {
-                                    if (res && res.error) console.warn("⚠️ Supabase delete user warning:", res.error);
-                                    else console.log("☁️ Supabase: Usuario " + uName + " eliminado.");
-                                }).catch(function() {});
+                                try {
+                                    if (uId && !isNaN(parseInt(uId, 10))) {
+                                        await client.from('usuarios').delete().eq('id', parseInt(uId, 10));
+                                    } else {
+                                        await client.from('usuarios').delete().ilike('username', uName);
+                                    }
+                                    console.log("☁️ Supabase: Usuario " + uName + " eliminado.");
+                                } catch(delErr) {
+                                    console.warn("Aviso delete usuario Supabase:", delErr);
+                                }
                             }
-                            showToast(`Usuario ${user.username} eliminado.`, 'info');
+                            showToast(`Usuario ${uName} eliminado.`, 'info');
                             renderUsers();
                             window.fillPermissionsUserSelect();
                             deleteSelect.value = '';
@@ -13402,13 +13556,22 @@ function initAdminView() {
     // Submit edicion
     const editForm = document.getElementById('edit-user-form');
     if (editForm) {
-        editForm.onsubmit = (e) => {
+        editForm.onsubmit = async (e) => {
             e.preventDefault();
             const userId = editSelect ? editSelect.value : '';
-            if (!userId) return;
+            if (!userId) {
+                showToast('Por favor seleccione un usuario para modificar', 'warning');
+                return;
+            }
 
-            const userIdx = appData.users.findIndex(u => u.id === userId);
-            if (userIdx === -1) return;
+            const cleanId = String(userId).trim().toLowerCase();
+            const userIdx = (appData && Array.isArray(appData.users)) 
+                ? appData.users.findIndex(u => String(u.id).trim() === String(userId).trim() || String(u.username || '').trim().toLowerCase() === cleanId) 
+                : -1;
+            if (userIdx === -1) {
+                showToast('Usuario no encontrado', 'error');
+                return;
+            }
 
             const oldUser = appData.users[userIdx];
             const oldUsername = oldUser.username;
@@ -13417,22 +13580,23 @@ function initAdminView() {
             const eField = document.getElementById('edit-email');
             const pField = document.getElementById('edit-password');
             const rField = document.getElementById('edit-rubro');
+            const empField = document.getElementById('edit-empresa');
+
             const newUsername = uField ? uField.value.trim().toLowerCase() : '';
             const email = eField ? eField.value.trim() : '';
             const password = pField ? pField.value.trim() : '';
             const rubro_defecto = (rField ? rField.value : 'Eléctrico') || 'Eléctrico';
+            const empresa = empField ? empField.value : (oldUser.empresa || 'SG MONTAJES SRL');
 
-            const existing = appData.users.find(u => u.username === newUsername && u.id !== userId);
+            const existing = (appData.users || []).find(u => 
+                String(u.username).trim().toLowerCase() === newUsername && 
+                String(u.id).trim() !== String(oldUser.id).trim() &&
+                String(u.username).trim().toLowerCase() !== String(oldUsername).trim().toLowerCase()
+            );
             if (existing) {
                 showToast('El nombre de usuario ya está en uso', 'error');
                 return;
             }
-
-            appData.users[userIdx].username = newUsername;
-            appData.users[userIdx].email = email;
-            appData.users[userIdx].password = password;
-            appData.users[userIdx].rubro_defecto = rubro_defecto;
-            appData.users[userIdx].empresa = document.getElementById('edit-empresa') ? document.getElementById('edit-empresa').value : 'SG MONTAJES SRL';
 
             // Extraer vistas seleccionadas
             const selectedPerms = [];
@@ -13445,6 +13609,13 @@ function initAdminView() {
             }
 
             const canEditPrices = selectedPerms.includes('menu-ingresar-edit-price') || selectedPerms.includes('edit-precios');
+            
+            // Actualizar objeto en memoria
+            appData.users[userIdx].username = newUsername;
+            appData.users[userIdx].email = email;
+            appData.users[userIdx].password = password;
+            appData.users[userIdx].rubro_defecto = rubro_defecto;
+            appData.users[userIdx].empresa = empresa;
             appData.users[userIdx].permissions = selectedPerms;
             appData.users[userIdx].permisos = selectedPerms;
             appData.users[userIdx].can_edit_prices = canEditPrices;
@@ -13457,41 +13628,53 @@ function initAdminView() {
 
             saveData();
 
+            // Sincronizar directamente con Supabase (Fuente Única de Verdad)
             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
             if (client) {
                 const userRow = {
-                    id: String(appData.users[userIdx].id),
                     username: newUsername,
                     email: email,
                     password: password,
                     role: appData.users[userIdx].role || 'Solicitante',
                     rubro_defecto: rubro_defecto,
+                    empresa: empresa,
                     permisos: selectedPerms,
                     can_edit_prices: canEditPrices
                 };
-                client.from('usuarios').upsert([userRow], { onConflict: 'username' }).then(function(res) {
-                    if (res && res.error) {
-                        delete userRow.permisos;
-                        delete userRow.can_edit_prices;
-                        client.from('usuarios').upsert([userRow], { onConflict: 'username' });
+
+                try {
+                    let updateQuery = client.from('usuarios').update(userRow);
+                    const currentRecordId = oldUser.id;
+                    if (currentRecordId && !isNaN(parseInt(currentRecordId, 10))) {
+                        updateQuery = updateQuery.eq('id', parseInt(currentRecordId, 10));
+                    } else if (currentRecordId) {
+                        updateQuery = updateQuery.eq('id', currentRecordId);
+                    } else {
+                        updateQuery = updateQuery.ilike('username', oldUsername);
+                    }
+                    const { error: updErr } = await updateQuery;
+                    if (updErr) {
+                        console.warn("⚠️ Error actualizando usuario en Supabase, intentando upsert:", updErr);
+                        await client.from('usuarios').upsert([Object.assign({ id: currentRecordId }, userRow)], { onConflict: 'username' });
                     } else {
                         console.log("☁️ Supabase: Usuario " + newUsername + " actualizado con permisos en tabla usuarios.");
                     }
-                }).catch(function() {
-                    delete userRow.permisos;
-                    delete userRow.can_edit_prices;
-                    client.from('usuarios').upsert([userRow], { onConflict: 'username' });
-                });
+                } catch(saveErr) {
+                    console.warn("Aviso guardando usuario en Supabase:", saveErr);
+                }
             }
 
-            showToast('Credenciales y vistas actualizadas exitosamente.', 'success');
+            showToast('Credenciales y vistas actualizadas exitosamente en Supabase.', 'success');
             const currentUser = getCurrentUser();
             if (currentUser && (currentUser.username === oldUsername || currentUser.username === newUsername)) {
                 buildSidebar();
             }
             renderUsers();
             window.fillPermissionsUserSelect();
-            editForm.reset();
+            if (editSelect) {
+                const currentSavedVal = (oldUser.id != null) ? String(oldUser.id) : newUsername;
+                editSelect.value = currentSavedVal;
+            }
         };
     }
 
@@ -13543,6 +13726,7 @@ function initAdminView() {
                 email,
                 role: 'Solicitante',
                 rubro_defecto,
+                empresa: 'SG MONTAJES SRL',
                 vendedor_codigo: '',
                 vendedor_nombre: '',
                 permisos: finalPerms,
@@ -13560,7 +13744,7 @@ function initAdminView() {
             const client = (typeof getDbClient === 'function') ? getDbClient() : null;
             if (client) {
                 const newRow = {
-                    id: String(newUser.id),
+                    id: parseInt(newUser.id, 10) || newUser.id,
                     username: newUser.username,
                     password: newUser.password,
                     email: newUser.email,
@@ -13572,15 +13756,13 @@ function initAdminView() {
                 };
                 client.from('usuarios').upsert([newRow], { onConflict: 'username' }).then(function(res) {
                     if (res && res.error) {
-                        delete newRow.permisos;
-                        delete newRow.can_edit_prices;
+                        delete newRow.id;
                         client.from('usuarios').upsert([newRow], { onConflict: 'username' });
                     } else {
                         console.log("☁️ Supabase: Usuario " + newUser.username + " registrado con permisos en tabla usuarios.");
                     }
                 }).catch(function() {
-                    delete newRow.permisos;
-                    delete newRow.can_edit_prices;
+                    delete newRow.id;
                     client.from('usuarios').upsert([newRow], { onConflict: 'username' });
                 });
             }
@@ -13627,6 +13809,11 @@ window.switchConfigMainTab = function(tabName) {
             window.fillPermissionsUserSelect();
         }
     }
+
+    // Recargar usuarios frescos desde Supabase al cambiar de sección
+    if (typeof window.recargarUsuariosDesdeSupabase === 'function') {
+        window.recargarUsuariosDesdeSupabase();
+    }
 };
 
 window.switchAdminTab = function(tabId) {
@@ -13651,6 +13838,11 @@ window.switchAdminTab = function(tabId) {
 
     if (tabId === 'tab-user-list' && typeof window.renderConfigUsersTable === 'function') {
         window.renderConfigUsersTable();
+    }
+
+    // Recargar usuarios frescos desde Supabase al cambiar de pestaña
+    if (typeof window.recargarUsuariosDesdeSupabase === 'function') {
+        window.recargarUsuariosDesdeSupabase();
     }
 };
 
