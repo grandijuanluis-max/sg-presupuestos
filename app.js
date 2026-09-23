@@ -2175,54 +2175,6 @@ function buildSidebar() {
 
     sidebar.innerHTML = '';
 
-    const isMobile = (window.innerWidth <= 900);
-
-    if (isMobile) {
-        // Cabecera interna del drawer móvil (visible solo en celulares/tablets)
-        const mobileHeader = document.createElement('div');
-        mobileHeader.className = 'sidebar-mobile-topbar';
-        mobileHeader.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <img src="logo_sg_montajes.png" alt="SG" style="height: 22px; width: auto; object-fit: contain;">
-                <span style="font-weight: 800; font-size: 13px; color: #ffffff;">SG <span style="font-weight: 400; color: var(--warning);">MONTAJES</span></span>
-            </div>
-            <button type="button" class="sidebar-close-btn" onclick="window.toggleMobileSidebar(false)" title="Cerrar Menú"><i class="fa-solid fa-xmark"></i></button>
-        `;
-        sidebar.appendChild(mobileHeader);
-
-        // Tarjeta del usuario en el drawer móvil
-        const mobileUserCard = document.createElement('div');
-        mobileUserCard.className = 'sidebar-mobile-user-card';
-        mobileUserCard.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px; width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box;">
-                <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: white; border: 1px solid rgba(255,255,255,0.25); flex-shrink: 0;">
-                    ${(user.username || 'U').substring(0, 2).toUpperCase()}
-                </div>
-                <div style="display: flex; flex-direction: column; overflow: hidden; min-width: 0;">
-                    <span style="font-size: 12.5px; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.username}</span>
-                    <span style="font-size: 10.5px; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.vendedor_nombre ? '🧑‍💼 ' + user.vendedor_nombre : (user.role || 'Usuario')}</span>
-                </div>
-            </div>
-        `;
-        sidebar.appendChild(mobileUserCard);
-
-        // Botón Volver al inicio de la barra en drawer móvil
-        const btnVolver = document.createElement('button');
-        btnVolver.id = 'btn-sidebar-volver';
-        btnVolver.type = 'button';
-        btnVolver.className = 'btn btn-sm btn-nav-volver';
-        btnVolver.onclick = () => {
-            volverAccionAnterior();
-            if (typeof window.toggleMobileSidebar === 'function') {
-                window.toggleMobileSidebar(false);
-            }
-        };
-        btnVolver.title = 'Volver a la pantalla anterior';
-        btnVolver.style.cssText = 'font-family: inherit; font-size: 11.5px; font-weight: 700; height: 30px; padding: 0 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; white-space: nowrap; margin-right: 6px; flex-shrink: 0;';
-        btnVolver.innerHTML = `<i class="fa-solid fa-arrow-left"></i> Volver`;
-        sidebar.appendChild(btnVolver);
-    }
-
     const userNameEl = document.getElementById('current-user-name');
     if (userNameEl) {
         userNameEl.innerText = user.username;
@@ -2248,9 +2200,7 @@ function buildSidebar() {
         const a = document.createElement('a');
         a.className = 'menu-item';
         a.id = item.id;
-        a.innerHTML = isMobile
-            ? `<i class="${item.icon}"></i> <span>${item.label}</span><i class="fa-solid fa-chevron-right menu-item-arrow"></i>`
-            : `<i class="${item.icon}"></i> <span>${item.label}</span>`;
+        a.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span>`;
         a.onclick = (e) => {
             e.preventDefault();
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
@@ -2267,11 +2217,6 @@ function buildSidebar() {
 
             if (typeof window.registrarNavegacion === 'function') {
                 window.registrarNavegacion({ type: 'menu', id: item.id, tpl: item.tpl, label: item.label });
-            }
-
-            // Auto-cerrar sidebar en móviles o pantallas táctiles al tocar una opción
-            if (window.innerWidth <= 900 && typeof window.toggleMobileSidebar === 'function') {
-                window.toggleMobileSidebar(false);
             }
         };
         sidebar.appendChild(a);
