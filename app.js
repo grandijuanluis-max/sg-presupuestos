@@ -102,6 +102,32 @@ function getLocalDateStr(date = new Date()) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
+// Normalizar cualquier formato de fecha a string YYYY-MM-DD estándar para comparación exacta
+function normalizeDateToYMD(dateStr) {
+    if (!dateStr) return '';
+    const cleanStr = String(dateStr).trim().split(/[ T]/)[0];
+    if (cleanStr.includes('-')) {
+        const parts = cleanStr.split('-');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) {
+                return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            } else if (parts[2].length === 4) {
+                return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            }
+        }
+    }
+    if (cleanStr.includes('/')) {
+        const parts = cleanStr.split('/');
+        if (parts.length === 3) {
+            let year = parts[2];
+            if (year.length === 2) year = '20' + year;
+            return `${year}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+    }
+    return cleanStr;
+}
+window.normalizeDateToYMD = normalizeDateToYMD;
+
 // Convertir número a letras (Spelling out amount in words, Spanish)
 function numeroALetras(num, moneda = 'PESOS') {
     function Unidades(num) {
@@ -456,8 +482,13 @@ window.appData = appData;
 try {
     const local = JSON.parse(localStorage.getItem(LOCAL_STATE_KEY));
     if (local && local.users && local.users.length > 0) {
-        let loadedPedidos = Array.isArray(local.pedidos) ? local.pedidos : [];
-        appData.pedidos = normalizePresupuestosRubro(loadedPedidos);
+        // NOTA: Supabase es la ÚNICA fuente de verdad para presupuestos.
+        // No cargamos pedidos desde localStorage para evitar que reaparezcan presupuestos borrados en Supabase.
+        appData.pedidos = [];
+        if (local.pedidos) {
+            delete local.pedidos;
+            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(local)); } catch(e) {}
+        }
 
         // Filtrar usuarios removidos (admin, aut, sol)
         appData.users = (local.users || defaultData.users).filter(u => !['admin', 'aut', 'sol'].includes(String(u.username).trim().toLowerCase()));
@@ -606,10 +637,10 @@ function initSupabaseSync(callback) {
         try {
             const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
             const rHeaders = { 'apikey': config.anonKey, 'Authorization': `Bearer ${config.anonKey}` };
-            fetch(`${config.url}/rest/v1/presupuestos?select=*&order=id.asc`, { headers: rHeaders })
+            fetch(`${config.url}/rest/v1/presupuestos?select=*&order=id.desc`, { headers: rHeaders, cache: 'no-store' })
                 .then(r => r.json())
                 .then(data => {
-                    if (Array.isArray(data) && data.length > 0) {
+                    if (Array.isArray(data)) {
                         appData.pedidos = normalizePresupuestosRubro(data);
                         try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                         if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
@@ -842,9 +873,13 @@ function initSupabaseSync(callback) {
     client
         .from('presupuestos')
         .select('*')
-        .order('id', { ascending: true })
+        .order('id', { ascending: false })
         .then(function(pRes) {
-            if (pRes.data && pRes.data.length > 0) {
+            if (pRes.error) {
+                console.warn("Aviso al leer tabla presupuestos en Supabase:", pRes.error);
+                return;
+            }
+            if (pRes.data) {
                 const existingItemsMap = {};
                 if (Array.isArray(appData.pedidos)) {
                     appData.pedidos.forEach(oldP => {
@@ -869,13 +904,9 @@ function initSupabaseSync(callback) {
                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                 if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
                 if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
-                syncPresupuestoItemsFromSupabase();
-            } else if (pRes.data && pRes.data.length === 0) {
-                console.log("☁️ Supabase: Tabla 'presupuestos' vacía. Actualizando estado local a vacío...");
-                appData.pedidos = [];
-                try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
-                if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-                if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+                if (appData.pedidos.length > 0) {
+                    syncPresupuestoItemsFromSupabase();
+                }
             }
         })
         .catch(function(pErr) {
@@ -1654,7 +1685,7 @@ window.forzarSincronizacionSupabase = async function() {
     if (!client) return;
 
     try {
-        const { data: allRemote, error: aErr } = await client.from('presupuestos').select('*').order('id', { ascending: true });
+        const { data: allRemote, error: aErr } = await client.from('presupuestos').select('*').order('id', { ascending: false });
         if (!aErr && allRemote) {
             const existingItemsMap = {};
             if (Array.isArray(appData.pedidos)) {
@@ -1853,22 +1884,45 @@ function initApp() {
         });
     }
 
-    // Configurar toggle del menú lateral (hamburguesa en móvil)
+    // Configurar toggle del menú lateral (hamburguesa en móvil y drawer)
+    window.toggleMobileSidebar = function(force) {
+        const sidebar = document.getElementById('sidebar-menu');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        if (!sidebar) return;
+        const willOpen = (typeof force === 'boolean') ? force : !sidebar.classList.contains('open');
+        if (willOpen) {
+            sidebar.classList.add('open');
+            if (backdrop) backdrop.classList.add('active');
+            document.body.classList.add('sidebar-drawer-open');
+        } else {
+            sidebar.classList.remove('open');
+            if (backdrop) backdrop.classList.remove('active');
+            document.body.classList.remove('sidebar-drawer-open');
+        }
+    };
+
     const toggleBtn = document.getElementById('sidebar-toggle');
     const sidebar = document.getElementById('sidebar-menu');
-    if (toggleBtn && sidebar) {
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (toggleBtn) {
         toggleBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            sidebar.classList.toggle('open');
-        });
-
-        // Cerrar sidebar al hacer clic fuera
-        document.addEventListener('click', (e) => {
-            if (!sidebar.contains(e.target) && e.target !== toggleBtn) {
-                sidebar.classList.remove('open');
-            }
+            window.toggleMobileSidebar();
         });
     }
+    if (backdrop) {
+        backdrop.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.toggleMobileSidebar(false);
+        });
+    }
+
+    // Cerrar sidebar al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target) && (!toggleBtn || !toggleBtn.contains(e.target))) {
+            window.toggleMobileSidebar(false);
+        }
+    });
 
     // Delegación de eventos para validar y formatear los campos de cotización (máx 4 enteros, máx 8 decimales)
     document.addEventListener('input', (e) => {
@@ -2149,12 +2203,45 @@ function buildSidebar() {
 
     sidebar.innerHTML = '';
 
+    // Cabecera interna del drawer móvil (visible solo en <= 900px por CSS)
+    const mobileHeader = document.createElement('div');
+    mobileHeader.className = 'sidebar-mobile-topbar';
+    mobileHeader.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <img src="logo_sg_montajes.png" alt="SG" style="height: 22px; width: auto; object-fit: contain;">
+            <span style="font-weight: 800; font-size: 13px; color: #ffffff;">SG <span style="font-weight: 400; color: var(--warning);">MONTAJES</span></span>
+        </div>
+        <button type="button" class="sidebar-close-btn" onclick="window.toggleMobileSidebar(false)" title="Cerrar Menú"><i class="fa-solid fa-xmark"></i></button>
+    `;
+    sidebar.appendChild(mobileHeader);
+
+    // Tarjeta del usuario en el drawer móvil
+    const mobileUserCard = document.createElement('div');
+    mobileUserCard.className = 'sidebar-mobile-user-card';
+    mobileUserCard.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px; width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #0284c7, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: white; border: 1px solid rgba(255,255,255,0.25); flex-shrink: 0;">
+                ${(user.username || 'U').substring(0, 2).toUpperCase()}
+            </div>
+            <div style="display: flex; flex-direction: column; overflow: hidden; min-width: 0;">
+                <span style="font-size: 12.5px; font-weight: 700; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.username}</span>
+                <span style="font-size: 10.5px; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${user.vendedor_nombre ? '🧑‍💼 ' + user.vendedor_nombre : (user.role || 'Usuario')}</span>
+            </div>
+        </div>
+    `;
+    sidebar.appendChild(mobileUserCard);
+
     // Botón Volver al inicio de la barra
     const btnVolver = document.createElement('button');
     btnVolver.id = 'btn-sidebar-volver';
     btnVolver.type = 'button';
     btnVolver.className = 'btn btn-sm btn-nav-volver';
-    btnVolver.onclick = () => volverAccionAnterior();
+    btnVolver.onclick = () => {
+        volverAccionAnterior();
+        if (window.innerWidth <= 900 && typeof window.toggleMobileSidebar === 'function') {
+            window.toggleMobileSidebar(false);
+        }
+    };
     btnVolver.title = 'Volver a la pantalla anterior';
     btnVolver.style.cssText = 'font-family: inherit; font-size: 11.5px; font-weight: 700; height: 30px; padding: 0 12px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; white-space: nowrap; margin-right: 6px; flex-shrink: 0;';
     btnVolver.innerHTML = `<i class="fa-solid fa-arrow-left"></i> Volver`;
@@ -2185,7 +2272,7 @@ function buildSidebar() {
         const a = document.createElement('a');
         a.className = 'menu-item';
         a.id = item.id;
-        a.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span>`;
+        a.innerHTML = `<i class="${item.icon}"></i> <span>${item.label}</span><i class="fa-solid fa-chevron-right menu-item-arrow"></i>`;
         a.onclick = (e) => {
             e.preventDefault();
             document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
@@ -2202,6 +2289,11 @@ function buildSidebar() {
 
             if (typeof window.registrarNavegacion === 'function') {
                 window.registrarNavegacion({ type: 'menu', id: item.id, tpl: item.tpl, label: item.label });
+            }
+
+            // Auto-cerrar sidebar en móviles o pantallas táctiles al tocar una opción
+            if (window.innerWidth <= 900 && typeof window.toggleMobileSidebar === 'function') {
+                window.toggleMobileSidebar(false);
             }
         };
         sidebar.appendChild(a);
@@ -5474,11 +5566,7 @@ window.goToRequestStep = function(step) {
 
             if (sIni) sIni.innerText = (valInicio && valInicio.value.trim()) ? valInicio.value.trim() : '-';
             if (sDur) {
-                if (isElec && valOt && valOt.value.trim()) {
-                    sDur.innerText = valOt.value.trim();
-                } else {
-                    sDur.innerText = (valDuracion && valDuracion.value.trim()) ? valDuracion.value.trim() : (valOt && valOt.value.trim() ? valOt.value.trim() : '-');
-                }
+                sDur.innerText = (valDuracion && valDuracion.value.trim()) ? valDuracion.value.trim() : '-';
             }
             if (sPlazo) sPlazo.innerText = (valPlazo && valPlazo.value.trim()) ? valPlazo.value.trim() : '-';
             if (sProp) sProp.innerText = (valPropuesta && valPropuesta.value.trim()) ? valPropuesta.value.trim() : '-';
@@ -6988,6 +7076,10 @@ let viewMode = 'Administrador'; // 'Autorizador', 'Solicitante', etc.
 window.applyPresetDateFilter = function(preset) {
     const dtTo = document.getElementById('filter-date-to');
     const dtFrom = document.getElementById('filter-date-from');
+    const presetSelect = document.getElementById('preset-date-filter');
+    if (presetSelect && presetSelect.value !== preset) {
+        presetSelect.value = preset;
+    }
     if (!dtTo || !dtFrom) return;
 
     const today = new Date();
@@ -7022,6 +7114,9 @@ window.applyPresetDateFilter = function(preset) {
         const lastDayPrev = new Date(today.getFullYear(), today.getMonth(), 0);
         dtFrom.value = formatDate(firstDayPrev);
         dtTo.value = formatDate(lastDayPrev);
+    } else if (preset === 'all') {
+        dtFrom.value = '';
+        dtTo.value = '';
     }
 
     renderAssignmentsTable();
@@ -7072,22 +7167,19 @@ function initAssignmentsView(mode) {
         }
     }
 
-    // Configurar fechas filtro por defecto (últimos 30 días)
+    // Configurar fechas filtro por defecto (últimos 30 días con selector)
     const dtTo = document.getElementById('filter-date-to');
     const dtFrom = document.getElementById('filter-date-from');
+    const presetSelect = document.getElementById('preset-date-filter');
 
-    if (dtTo && !dtTo.value) {
-        const today = getLocalDateStr(new Date());
-        const past30 = getLocalDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
-        dtTo.value = today;
-        dtFrom.value = past30;
+    const today = getLocalDateStr(new Date());
+    const past30 = getLocalDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
-        const presetSelect = document.getElementById('preset-date-filter');
-        if (presetSelect) presetSelect.value = 'last30';
-    }
+    if (dtTo && !dtTo.value) dtTo.value = today;
+    if (dtFrom && !dtFrom.value) dtFrom.value = past30;
+    if (presetSelect && !presetSelect.value) presetSelect.value = 'last30';
 
     const filterHandler = () => {
-        const presetSelect = document.getElementById('preset-date-filter');
         if (presetSelect) presetSelect.value = 'custom';
         renderAssignmentsTable();
     };
@@ -8848,9 +8940,16 @@ function renderAssignmentsTable() {
             if (pEstNorm !== statusVal) return false;
         }
 
-        const pDate = p.fecha ? p.fecha.substring(0, 10) : '';
-        if (dateFrom && pDate && pDate < dateFrom) return false;
-        if (dateTo && pDate && pDate > dateTo) return false;
+        const pDate = (typeof window.normalizeDateToYMD === 'function')
+            ? window.normalizeDateToYMD(p.fecha || p.created_at || '')
+            : (p.fecha ? p.fecha.substring(0, 10) : '');
+
+        if (dateFrom) {
+            if (!pDate || pDate < dateFrom) return false;
+        }
+        if (dateTo) {
+            if (pDate && pDate > dateTo) return false;
+        }
 
         if (searchVal) {
             const matchesText = (p.cliente_nombre || '').toLowerCase().includes(searchVal) ||
@@ -8884,8 +8983,8 @@ function renderAssignmentsTable() {
                 valA = a.meca_denominacion || a.motivo || a.denominacion || '';
                 valB = b.meca_denominacion || b.motivo || b.denominacion || '';
             } else if (tableSortColumn === 'proveedor') {
-                aVal = (a.proveedor || a.meca_proveedor || '').toLowerCase();
-                bVal = (b.proveedor || b.meca_proveedor || '').toLowerCase();
+                valA = (a.proveedor || a.meca_proveedor || '').toLowerCase();
+                valB = (b.proveedor || b.meca_proveedor || '').toLowerCase();
             } else if (tableSortColumn === 'observacion') {
                 valA = a.observaciones || a.motivo || a.meca_observaciones || '';
                 valB = b.observaciones || b.motivo || b.meca_observaciones || '';
@@ -8900,8 +8999,9 @@ function renderAssignmentsTable() {
                 valB = parseFloat(b.importe) || 0;
                 return tableSortAsc ? valA - valB : valB - valA;
             } else if (tableSortColumn === 'fecha') {
-                valA = a.fecha || '';
-                valB = b.fecha || '';
+                valA = (typeof window.normalizeDateToYMD === 'function') ? window.normalizeDateToYMD(a.fecha || a.created_at || '') : (a.fecha || '');
+                valB = (typeof window.normalizeDateToYMD === 'function') ? window.normalizeDateToYMD(b.fecha || b.created_at || '') : (b.fecha || '');
+                return tableSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
             } else if (tableSortColumn === 'id') {
                 valA = parseInt(String(a.id).replace(/\D/g, ''), 10) || 0;
                 valB = parseInt(String(b.id).replace(/\D/g, ''), 10) || 0;
@@ -8912,10 +9012,16 @@ function renderAssignmentsTable() {
             return 0;
         });
     } else {
+        // Orden por defecto: MÁS RECIENTES PRIMERO (Descendente por fecha y por número correlativo)
         filtered.sort((a, b) => {
+            const dateA = (typeof window.normalizeDateToYMD === 'function') ? window.normalizeDateToYMD(a.fecha || a.created_at || '') : (a.fecha || '');
+            const dateB = (typeof window.normalizeDateToYMD === 'function') ? window.normalizeDateToYMD(b.fecha || b.created_at || '') : (b.fecha || '');
+            if (dateA && dateB && dateA !== dateB) {
+                return dateB.localeCompare(dateA); // Más reciente primero
+            }
             const numA = parseInt(String(a.id || '').replace(/\D/g, ''), 10) || 0;
             const numB = parseInt(String(b.id || '').replace(/\D/g, ''), 10) || 0;
-            return numA - numB;
+            return numB - numA; // Mayor correlativo primero
         });
     }
 
@@ -14410,14 +14516,14 @@ window.currentDateContextMenuTarget = 'assignments';
 window.selectDatePresetFromContextMenu = function(preset) {
     if (window.currentDateContextMenuTarget === 'metrics') {
         const selectEl = document.getElementById('preset-date-filter-metrics');
-        if (selectEl) {
-            selectEl.value = preset;
+        if (selectEl) selectEl.value = preset;
+        if (typeof applyPresetDateFilterMetrics === 'function') {
             applyPresetDateFilterMetrics(preset);
         }
     } else {
         const selectEl = document.getElementById('preset-date-filter');
-        if (selectEl) {
-            selectEl.value = preset;
+        if (selectEl) selectEl.value = preset;
+        if (typeof applyPresetDateFilter === 'function') {
             applyPresetDateFilter(preset);
         }
     }
