@@ -16276,40 +16276,40 @@ window.enviarEmailPedido = function(id) {
             const userBodyHtml = (typeof escapeHtml === 'function' ? escapeHtml(userBodyText) : userBodyText).replace(/\n/g, '<br>');
 
             const htmlContent = `
-                <div style="font-family: 'Segoe UI', Arial, Helvetica, sans-serif; max-width: 680px; margin: 0 auto; background: #ffffff; color: #1e293b; border: 1.5px solid #0f766e; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-                    <!-- Cabecera Oficial SG Montajes (Sin logo en cuerpo de correo para mantenerlo limpio) -->
-                    <div style="background: #ffffff; border-bottom: 2px solid #0f766e; padding: 16px 22px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-family: Arial, Helvetica, sans-serif; max-width: 680px; margin: 0 auto; background: #ffffff; color: #000000; border: 1.5px solid #1e293b; border-radius: 6px; overflow: hidden;">
+                    <!-- Cabecera Oficial SG Montajes -->
+                    <div style="background: #ffffff; border-bottom: 2px solid #1e293b; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <div style="margin: 0; font-size: 17px; font-weight: 900; color: #0f172a; letter-spacing: 0.5px;">SG MONTAJES S.R.L.</div>
-                            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Montajes Industriales &amp; Servicios Electromecánicos</div>
+                            <div style="margin: 0; font-size: 17px; font-weight: 900; color: #000000; letter-spacing: 0.5px;">SG MONTAJES S.R.L.</div>
+                            <div style="font-size: 11px; color: #334155; margin-top: 2px; font-weight: 500;">Montajes Industriales &amp; Servicios Electromecánicos</div>
                         </div>
                         <div style="text-align: right;">
-                            <div style="background: #0f766e; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 4px 10px; border-radius: 4px; display: inline-block; text-transform: uppercase;">
+                            <div style="background: #1e293b; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 4px 10px; border-radius: 4px; display: inline-block; text-transform: uppercase;">
                                 PRESUPUESTO OFICIAL
                             </div>
-                            <div style="font-size: 11.5px; color: #334155; margin-top: 4px; font-weight: 600;">
-                                Nro. <strong style="color: #0284c7; font-family: monospace;">${nro}</strong>
+                            <div style="font-size: 12px; color: #000000; margin-top: 5px; font-weight: 700;">
+                                Nro. <strong style="color: #000000; font-family: monospace;">${nro}</strong>
                             </div>
-                            <div style="font-size: 10.5px; color: #64748b;">
-                                Fecha: <strong style="color: #0f172a;">${p.fecha || nowStrEmail}</strong>
+                            <div style="font-size: 11px; color: #334155;">
+                                Fecha: <strong style="color: #000000;">${p.fecha || nowStrEmail}</strong>
                             </div>
                         </div>
                     </div>
 
                     <!-- Mensaje del Correo -->
-                    <div style="padding: 22px 24px; font-size: 13px; line-height: 1.65; color: #1e293b;">
+                    <div style="padding: 22px 24px; font-size: 13.5px; line-height: 1.65; color: #000000; font-weight: 500;">
                         ${userBodyHtml}
                     </div>
 
                     <!-- Notificación de Archivo Adjunto (PDF Oficial) -->
-                    <div style="margin: 0 24px 20px 24px; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; padding: 12px 16px;">
+                    <div style="margin: 0 24px 20px 24px; background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 12px 16px;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="font-size: 20px;">📎</div>
                             <div>
-                                <div style="font-size: 12.5px; font-weight: 800; color: #166534;">
+                                <div style="font-size: 12.5px; font-weight: 800; color: #0f172a;">
                                     Presupuesto Oficial Adjunto en Formato PDF
                                 </div>
-                                <div style="font-size: 11.5px; color: #15803d; margin-top: 2px;">
+                                <div style="font-size: 11.5px; color: #334155; margin-top: 2px;">
                                     El presupuesto oficial completo se encuentra adjunto en el archivo <strong>Presupuesto_${nro}_${chosenFmt.toUpperCase()}.pdf</strong>.
                                 </div>
                             </div>
@@ -16317,13 +16317,13 @@ window.enviarEmailPedido = function(id) {
                     </div>
 
                     <!-- Pie Corporativo -->
-                    <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px 24px; font-size: 10.5px; color: #64748b; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="background: #f8fafc; border-top: 1px solid #cbd5e1; padding: 14px 24px; font-size: 11px; color: #334155; display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <strong style="color: #0f172a; font-size: 11.5px;">SG MONTAJES S.R.L.</strong><br>
-                            Email: <a href="mailto:cotizaciones@sgmontajes.com.ar" style="color: #0284c7; text-decoration: none;">cotizaciones@sgmontajes.com.ar</a> | Tel: (0341) 5890126<br>
-                            <span style="color: #94a3b8;">C.U.I.T.: 30-71602466-7 — Villa Gdor. Gálvez / Pto. Gral. San Martín, Santa Fe</span>
+                            <strong style="color: #000000; font-size: 12px;">SG MONTAJES S.R.L.</strong><br>
+                            Email: <a href="mailto:cotizaciones@sgmontajes.com.ar" style="color: #0f2e5a; text-decoration: underline; font-weight: 700;">cotizaciones@sgmontajes.com.ar</a> | Tel: (0341) 5890126<br>
+                            <span style="color: #475569;">C.U.I.T.: 30-71602466-7 — Villa Gdor. Gálvez / Pto. Gral. San Martín, Santa Fe</span>
                         </div>
-                        <div style="text-align: right; color: #94a3b8; font-size: 10px;">
+                        <div style="text-align: right; color: #475569; font-size: 10px;">
                             Documento emitido por el Sistema de Presupuestos SG Montajes
                         </div>
                     </div>
@@ -16432,7 +16432,8 @@ window.enviarEmailPedido = function(id) {
             let pdfBlob = null;
             const pdfFilename = `Presupuesto_SG_Montajes_${nro}.pdf`;
             try {
-                const pdfBase64 = await window.generatePdfBase64ForQuote(p, reportFormat);
+                const getPdfFn = window.generarPDFPresupuestoBase64 || window.generatePdfBase64ForQuote;
+                const pdfBase64 = getPdfFn ? await getPdfFn(p, reportFormat) : null;
                 if (pdfBase64) {
                     const cleanB64 = pdfBase64.includes(',') ? pdfBase64.split(',')[1] : pdfBase64;
                     const byteChars = atob(cleanB64);
@@ -17091,12 +17092,12 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 ? `$${subVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
                 : '-';
             return `
-            <tr style="border-bottom: 2px solid #000; font-size: 11px; background: rgba(226, 232, 240, 0.45); font-weight: 800; page-break-inside: avoid;">
-                <td style="padding: 6px; border-right: 1px solid #000; text-align:center; background: transparent;">-</td>
-                <td style="padding: 6px; border-right: 1px solid #000; background: transparent;">${r.detalle}</td>
-                <td style="padding: 6px; border-right: 1px solid #000; text-align: right; background: transparent;">-</td>
-                <td style="padding: 6px; border-right: 1px solid #000; text-align: center; background: transparent;">-</td>
-                <td style="padding: 6px; text-align: right; font-weight: bold; background: transparent;">${subStr}</td>
+            <tr style="border-bottom: 2px solid #000; font-size: 11px; background: transparent; font-weight: 800; page-break-inside: avoid;">
+                <td style="padding: 6px; border-right: 1px solid #000; text-align:center; background: transparent; color: #000000;">-</td>
+                <td style="padding: 6px; border-right: 1px solid #000; background: transparent; color: #000000;">${r.detalle}</td>
+                <td style="padding: 6px; border-right: 1px solid #000; text-align: right; background: transparent; color: #000000;">-</td>
+                <td style="padding: 6px; border-right: 1px solid #000; text-align: center; background: transparent; color: #000000;">-</td>
+                <td style="padding: 6px; text-align: right; font-weight: 800; background: transparent; color: #000000;">${subStr}</td>
             </tr>`;
         }
 
@@ -17116,7 +17117,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
             if (isMat && r.subtotal_usd !== undefined && r.subtotal_usd !== null) {
                 const sUSD = parseFloat(r.subtotal_usd) || 0;
                 subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) +
-                    ` <br><span style="font-size: 9.5px; opacity: 0.85; font-weight: normal; color: #0369a1;">(U$D ${sUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>`;
+                    ` <br><span style="font-size: 8.5px; font-weight: 700; color: #000000;">(U$D ${sUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>`;
             } else {
                 subStr = '$' + sVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             }
@@ -17126,45 +17127,57 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
         const cleanDetalle = (r.detalle || r.descripcion || r.denominacion || r.nombre || '-');
 
         return `
-        <tr style="border-bottom: 1px solid #000; font-size: 10px; background: transparent; page-break-inside: avoid;">
-            <td style="padding: 4px 5px; border-right: 1px solid #000; font-weight:bold; text-align:center; background: transparent; word-break: break-word;">${cleanCodigo}</td>
-            <td style="padding: 4px 6px; border-right: 1px solid #000; background: transparent; word-break: break-word;">${cleanDetalle}</td>
-            <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: right; background: transparent; word-break: break-word; ${isMat ? 'color: #0369a1; font-weight:bold;' : ''}">${priceStr}</td>
-            <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: center; font-weight:bold; background: transparent; word-break: break-word;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
-            <td style="padding: 4px 5px; text-align: right; font-weight: bold; background: transparent; word-break: break-word;">${subStr}</td>
+        <tr style="border-bottom: 1px solid #000; font-size: 9.5px; background: transparent; page-break-inside: avoid;">
+            <td style="padding: 4px 5px; border-right: 1px solid #000; font-weight: 800; text-align: center; background: transparent; word-break: break-word; color: #000000;">${cleanCodigo}</td>
+            <td style="padding: 4px 6px; border-right: 1px solid #000; background: transparent; word-break: break-word; color: #000000; font-weight: 600;">${cleanDetalle}</td>
+            <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: right; background: transparent; word-break: break-word; font-weight: 700; color: #000000;">${priceStr}</td>
+            <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: center; font-weight: 800; background: transparent; word-break: break-word; color: #000000;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
+            <td style="padding: 4px 6px; text-align: right; font-weight: 800; background: transparent; word-break: break-word; color: #000000;">${subStr}</td>
         </tr>`;
     }).join('');
 
     let pdfBreakdownRows = '';
     if (materialsTotalUSD > 0) {
         pdfBreakdownRows = `
-            <tr style="border-top: 1px solid #000; font-size: 11px; background: transparent; page-break-inside: avoid;">
-                <td colspan="4" style="padding: 5px 8px; font-weight: 600; text-align: right; border-right: 1px solid #000; background: transparent;">Subtotal Mano de Obra ($ ARS):</td>
-                <td style="padding: 5px 8px; text-align: right; font-weight: bold; font-family: monospace; background: transparent;">$${laborTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <tr style="border-top: 1px solid #000; font-size: 10px; background: transparent; page-break-inside: avoid;">
+                <td colspan="4" style="padding: 4px 8px; font-weight: bold; text-align: right; border-right: 1px solid #000; background: transparent; color: #000000;">Subtotal Mano de Obra ($ ARS):</td>
+                <td style="padding: 4px 6px; text-align: right; font-weight: bold; background: transparent; color: #000000;">$${laborTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
             </tr>
-            <tr style="border-top: 1px solid #ccc; font-size: 11px; background: transparent; page-break-inside: avoid;">
-                <td colspan="4" style="padding: 5px 8px; font-weight: 600; text-align: right; border-right: 1px solid #000; color: #0369a1; background: transparent;">
-                    Subtotal Materiales (U$D) <span style="font-size: 10px; color: #b45309; font-weight: 700; margin-left: 5px; background: rgba(254, 243, 199, 0.6); border: 1px solid #fcd34d; padding: 1px 5px; border-radius: 3px;">[Cotiz. Dólar: $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}]</span>:
+            <tr style="border-top: 1px solid #ddd; font-size: 10px; background: transparent; page-break-inside: avoid;">
+                <td colspan="4" style="padding: 4px 8px; font-weight: bold; text-align: right; border-right: 1px solid #000; color: #000000; background: transparent;">
+                    Subtotal Materiales (U$D) <span style="font-size: 9px; color: #000000; font-weight: 700; margin-left: 5px; background: transparent; border: 1px solid #000000; padding: 1px 6px; border-radius: 4px;">[Cotiz. Dólar: $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}]</span>:
                 </td>
-                <td style="padding: 5px 8px; text-align: right; font-weight: bold; font-family: monospace; color: #0369a1; background: transparent;">U$D ${materialsTotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="padding: 4px 6px; text-align: right; font-weight: bold; color: #000000; background: transparent;">U$D ${materialsTotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
             </tr>
-            <tr style="border-top: 1px solid #ccc; font-size: 11px; background: transparent; page-break-inside: avoid;">
-                <td colspan="4" style="padding: 5px 8px; font-weight: 600; text-align: right; border-right: 1px solid #000; color: #0284c7; background: transparent;">Subtotal Materiales Pesificados:</td>
-                <td style="padding: 5px 8px; text-align: right; font-weight: bold; font-family: monospace; color: #0284c7; background: transparent;">$${materialsTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <tr style="border-top: 1px solid #ddd; font-size: 10px; background: transparent; page-break-inside: avoid;">
+                <td colspan="4" style="padding: 4px 8px; font-weight: bold; text-align: right; border-right: 1px solid #000; color: #000000; background: transparent;">Subtotal Materiales Pesificados:</td>
+                <td style="padding: 4px 6px; text-align: right; font-weight: bold; color: #000000; background: transparent;">$${materialsTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
             </tr>
         `;
     }
 
     const htmlContent = `
-        <div id="pdf-wrapper-download" style="box-sizing: border-box; width: 780px; min-width: 780px; max-width: 780px; padding: 6px 10px; font-family: Arial, sans-serif; background: #ffffff; color: #000000; margin: 0 auto; position: relative;">
+        <div id="pdf-wrapper-download" style="box-sizing: border-box; width: 715px; min-width: 715px; max-width: 715px; padding: 4px 8px; font-family: Arial, Helvetica, sans-serif; background: #ffffff; color: #000000; margin: 0 auto; position: relative;">
             <style>
                 #pdf-wrapper-download, #pdf-wrapper-download * {
                     box-sizing: border-box !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                #pdf-wrapper-download table,
+                #pdf-wrapper-download thead,
+                #pdf-wrapper-download tbody,
+                #pdf-wrapper-download tfoot,
+                #pdf-wrapper-download tr,
+                #pdf-wrapper-download th,
+                #pdf-wrapper-download td {
+                    background-color: transparent !important;
+                    background: transparent !important;
                 }
                 #pdf-wrapper-download {
-                    width: 780px !important;
-                    min-width: 780px !important;
-                    max-width: 780px !important;
+                    width: 715px !important;
+                    min-width: 715px !important;
+                    max-width: 715px !important;
                     margin: 0 auto !important;
                 }
                 #pdf-wrapper-download tr,
@@ -17183,19 +17196,19 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
             <div style="position: relative; z-index: 1;">
 
                 <!-- Header -->
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; border: 2px solid #000; border-radius: 6px; padding: 8px 12px; background: transparent;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; border: 1.5px solid #000; border-radius: 6px; padding: 6px 10px; background: transparent;">
                     ${_isAcosta ? `
                     <div style="width: 30%;">
-                        <img src="${_logoAcostaB64}" style="height: 44px; margin-bottom: 4px; object-fit: contain; max-width: 100%;">
-                        <div style="font-size: 9.5px; line-height: 1.25;">
+                        <img src="${_logoAcostaB64}" style="height: 40px; margin-bottom: 3px; object-fit: contain; max-width: 100%;">
+                        <div style="font-size: 9px; line-height: 1.25; color: #000;">
                             <strong>I.V.A. Responsable Inscripto</strong><br>
                             Estanislao López<br>
                             Timbues - Pcia. Santa Fe
                         </div>
                     </div>` : `
                     <div style="width: 30%;">
-                        <img src="${_activeLogo}" style="height: 38px; margin-bottom: 4px; object-fit: contain; max-width: 100%;">
-                        <div style="font-size: 9.5px; line-height: 1.25;">
+                        <img src="${_activeLogo}" style="height: 36px; margin-bottom: 3px; object-fit: contain; max-width: 100%;">
+                        <div style="font-size: 9px; line-height: 1.25; color: #000;">
                             <strong>I.V.A. Responsable Inscripto</strong><br>
                             Estanislao López (CP S2204)<br>
                             Timbues - Pcia. Santa Fe
@@ -17203,13 +17216,13 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     </div>`}
 
                     <div style="width: 40%; text-align: center;">
-                        <h2 style="margin: 0; font-size: 17px; font-weight: 800; letter-spacing: 1px;">PRESUPUESTO</h2>
-                        <div style="display: inline-block; border: 2px solid #000; border-radius: 4px; padding: 1px 10px; font-size: 16px; font-weight: bold; margin-top: 3px; margin-bottom: 3px;">X</div>
-                        <div style="font-size: 8px; font-weight: bold; line-height: 1.2;">COMPROBANTE NO<br>VÁLIDO COMO FACTURA</div>
+                        <h2 style="margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 1px; color: #000;">PRESUPUESTO</h2>
+                        <div style="display: inline-block; border: 1.5px solid #000; border-radius: 4px; padding: 1px 10px; font-size: 15px; font-weight: bold; margin-top: 2px; margin-bottom: 2px; color: #000;">X</div>
+                        <div style="font-size: 7.5px; font-weight: bold; line-height: 1.2; color: #000;">COMPROBANTE NO<br>VÁLIDO COMO FACTURA</div>
                     </div>
 
-                    <div style="width: 30%; text-align: right; font-size: 9.5px; line-height: 1.35;">
-                        <div style="font-size: 13px; font-weight: bold; margin-bottom: 3px;">Nro. ${nro}</div>
+                    <div style="width: 30%; text-align: right; font-size: 9px; line-height: 1.35; color: #000;">
+                        <div style="font-size: 12px; font-weight: bold; margin-bottom: 2px;">Nro. ${nro}</div>
                         <div><strong>Fecha:</strong> ${fechaEmision} ${hora}</div>
                         <div><strong>OC Mano de Obra:</strong> ${p.oc_mano_obra || p.meca_nro_oc || p.nro_oc || "-"}</div>
                         <div><strong>OC Materiales:</strong> ${p.oc_materiales || "-"}</div>
@@ -17220,7 +17233,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 </div>
 
                 <!-- Client Info Box (Formato Unificado) -->
-                <div style="border: 2px solid #000; border-radius: 6px; margin-bottom: 6px; font-size: 10px; padding: 5px 8px; background: transparent;">
+                <div style="border: 1.5px solid #000; border-radius: 6px; margin-bottom: 5px; font-size: 9.5px; padding: 5px 8px; background: transparent; color: #000;">
                     <div style="display: flex;">
                         <div style="width: 55%; border-right: 1px solid #000; padding: 2px 8px 2px 0;">
                             <div style="margin-bottom: 3px; display:flex; gap:5px;">
@@ -17278,20 +17291,20 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 </div>
 
                 <!-- Items Table with Watermark -->
-                <div style="position: relative; margin-bottom: 6px;">
-                    <!-- Watermark Gota de Agua -->
-                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: ${_isAcosta ? '0.22' : '0.25'}; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
-                        <img src="${_activeWatermark}" style="width: 70%; max-width: 420px; max-height: 85%; object-fit: contain; transform: rotate(-20deg); ${_isAcosta ? 'opacity: 0.9; filter: contrast(0.95);' : 'filter: contrast(1.15);'}">
+                <div style="position: relative; margin-bottom: 4px;">
+                    <!-- Watermark Gota de Agua (Visible y con renglones transparentes) -->
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: ${_isAcosta ? '0.24' : '0.26'}; z-index: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                        <img src="${_activeWatermark}" style="width: 70%; max-width: 420px; max-height: 85%; object-fit: contain; transform: rotate(-20deg); ${_isAcosta ? 'filter: contrast(0.95);' : ''}">
                     </div>
 
-                    <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; position: relative; z-index: 1; background: transparent; table-layout: fixed;">
-                        <thead style="font-size: 10px; background: transparent;">
-                            <tr style="border-bottom: 2px solid #000; background: transparent; page-break-inside: avoid;">
-                                <th style="padding: 5px; font-weight: bold; border-right: 1px solid #000; width: 14%; background: transparent; word-break: break-word;">CÓDIGO</th>
-                                <th style="padding: 5px; font-weight: bold; border-right: 1px solid #000; width: 44%; background: transparent; word-break: break-word;">DETALLE DE PRODUCTOS / SERVICIOS</th>
-                                <th style="padding: 5px; font-weight: bold; text-align: right; border-right: 1px solid #000; width: 15%; background: transparent; word-break: break-word;">PRECIO</th>
-                                <th style="padding: 5px; font-weight: bold; text-align: center; border-right: 1px solid #000; width: 11%; background: transparent; word-break: break-word;">CANTIDAD</th>
-                                <th style="padding: 5px; font-weight: bold; text-align: right; width: 16%; background: transparent; word-break: break-word;">TOTAL ($ ARS)</th>
+                    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000; position: relative; z-index: 1; background: transparent; table-layout: fixed;">
+                        <thead style="font-size: 9.5px; background: transparent;">
+                            <tr style="border-bottom: 1.5px solid #000; background: transparent; page-break-inside: avoid;">
+                                <th style="padding: 5px; font-weight: 800; border-right: 1px solid #000; width: 13%; background: transparent; word-break: break-word; color: #000000;">CÓDIGO</th>
+                                <th style="padding: 5px; font-weight: 800; border-right: 1px solid #000; width: 44%; background: transparent; word-break: break-word; color: #000000;">DETALLE DE PRODUCTOS / SERVICIOS</th>
+                                <th style="padding: 5px; font-weight: 800; text-align: right; border-right: 1px solid #000; width: 15%; background: transparent; word-break: break-word; color: #000000;">PRECIO</th>
+                                <th style="padding: 5px; font-weight: 800; text-align: center; border-right: 1px solid #000; width: 10%; background: transparent; word-break: break-word; color: #000000;">CANTIDAD</th>
+                                <th style="padding: 5px 6px; font-weight: 800; text-align: right; width: 18%; background: transparent; word-break: break-word; color: #000000;">TOTAL ($ ARS)</th>
                             </tr>
                         </thead>
                         <tbody style="background: transparent;">
@@ -17299,44 +17312,44 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                         </tbody>
                         <tfoot style="background: transparent;">
                             ${pdfBreakdownRows}
-                            <tr style="border-top: 2px solid #000; font-size: 12px; background: transparent; page-break-inside: avoid;">
-                                <td colspan="4" style="padding: 6px 8px; font-weight: bold; border-right: 1px solid #000; background: transparent;">TOTAL GENERAL ($ ARS):</td>
-                                <td style="padding: 6px 8px; text-align: right; font-weight: bold; background: transparent;">$${computedGrandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                            <tr style="border-top: 1.5px solid #000; font-size: 11px; background: transparent; page-break-inside: avoid;">
+                                <td colspan="4" style="padding: 5px 8px; font-weight: 800; border-right: 1px solid #000; background: transparent; color: #000000;">TOTAL GENERAL ($ ARS):</td>
+                                <td style="padding: 5px 6px; text-align: right; font-weight: 800; background: transparent; color: #000000; font-size: 11.5px;">$${computedGrandTotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
 
                 <!-- Propuesta Tecnica (Unificada) -->
-                <div class="no-page-break" style="border: 2px solid #000; margin-bottom: 5px; font-size: 10px; background: transparent; page-break-inside: avoid; break-inside: avoid;">
-                    <div style="padding: 4px 6px; font-weight: bold; border-bottom: 1px solid #000; background: transparent;">PROPUESTA TÉCNICA / COMERCIAL</div>
+                <div class="no-page-break" style="border: 1.5px solid #000; margin-bottom: 5px; font-size: 9.5px; background: transparent; page-break-inside: avoid; break-inside: avoid; color: #000;">
+                    <div style="padding: 4px 6px; font-weight: bold; border-bottom: 1px solid #000; background: transparent; color: #000;">PROPUESTA TÉCNICA / COMERCIAL</div>
 
                     <div style="display: flex; border-bottom: 1px solid #000; background: transparent;">
-                        <div style="width: 30%; padding: 3px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent;">SOLICITUD DE SUPERVISOR:</div>
-                        <div style="width: 70%; padding: 3px 6px; background: transparent;">${personal}</div>
+                        <div style="width: 30%; padding: 3px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent; color: #000;">SOLICITUD DE SUPERVISOR:</div>
+                        <div style="width: 70%; padding: 3px 6px; background: transparent; color: #000;">${personal}</div>
                     </div>
                     <div style="display: flex; border-bottom: 1px solid #000; background: transparent;">
-                        <div style="width: 30%; padding: 3px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent;">INDICAR EXCLUSIONES:</div>
-                        <div style="width: 70%; padding: 3px 6px; background: transparent;">${exclus}</div>
+                        <div style="width: 30%; padding: 3px 6px; border-right: 1px solid #000; font-weight:bold; background: transparent; color: #000;">INDICAR EXCLUSIONES:</div>
+                        <div style="width: 70%; padding: 3px 6px; background: transparent; color: #000;">${exclus}</div>
                     </div>
-                    <div style="display: flex; background: rgba(224, 242, 254, 0.4); padding: 3px 6px;">
-                        <div style="background: #3b82f6; color: white; padding: 1px 5px; border-radius: 3px; margin-right: 8px; font-weight: bold;">Observaciones:</div>
-                        <div style="background: transparent;">${obs}</div>
+                    <div style="display: flex; background: #f8fafc; padding: 3px 6px; align-items: center;">
+                        <div style="background: #0f2e5a; color: white; padding: 1px 6px; border-radius: 3px; margin-right: 8px; font-weight: bold; font-size: 9px;">Observaciones:</div>
+                        <div style="background: transparent; color: #1e293b;">${obs}</div>
                     </div>
                 </div>
 
-                <div class="no-page-break" style="background: #94a3b8; color: white; text-align: center; padding: 4px 6px; font-size: 9.5px; font-weight: bold; margin-bottom: 5px; border-radius: 4px; page-break-inside: avoid; break-inside: avoid;">
+                <div class="no-page-break" style="background: #1e293b; color: white; text-align: center; padding: 4px 6px; font-size: 9px; font-weight: bold; margin-bottom: 5px; border-radius: 4px; page-break-inside: avoid; break-inside: avoid; letter-spacing: 0.5px;">
                     PRECIOS DEL PRESUPUESTO, SUJETOS A MODIFICACIONES SIN PREVIO AVISO
                 </div>
 
-                <div class="no-page-break" style="border: 1px solid #f59e0b; border-radius: 5px; padding: 5px 8px; font-size: 9.5px; color: #b45309; line-height: 1.35; margin-bottom: 5px; background: transparent; page-break-inside: avoid; break-inside: avoid;">
-                    <div style="font-weight: bold;">⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.</div>
+                <div class="no-page-break" style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px 8px; font-size: 9px; color: #1e293b; line-height: 1.35; margin-bottom: 5px; background: #f8fafc; page-break-inside: avoid; break-inside: avoid;">
+                    <div style="font-weight: bold; color: #0f172a; margin-bottom: 2px;">⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.</div>
                     <div><strong>i. Garantía Requerida:</strong> 6 MESES</div>
                     <div><strong>ii. Convenio:</strong> La Mano de Obra contempla el Convenio UOCRA vigente. Los trabajos en planta contemplan el convenio Agroexportador.</div>
                     <div><strong>iii. Forma de Pago:</strong> 30 días fecha de factura</div>
                 </div>
 
-                <div class="no-page-break" style="display: flex; justify-content: space-between; border: 1px solid #38bdf8; border-radius: 4px; padding: 3px 8px; font-size: 9px; color: #0284c7; font-weight: bold; background: transparent; page-break-inside: avoid; break-inside: avoid;">
+                <div class="no-page-break" style="display: flex; justify-content: space-between; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 8px; font-size: 8.5px; color: #334155; font-weight: 600; background: #f8fafc; page-break-inside: avoid; break-inside: avoid;">
                     <span>Usuario: ${p.operador || 'mel'}</span>
                     <span>Fecha: ${nowStr} 10:38:14</span>
                     <span>Item: ${items.length}</span>
@@ -17365,9 +17378,9 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
         container.style.position = 'fixed';
         container.style.top = '0';
         container.style.left = '0';
-        container.style.width = '780px';
-        container.style.minWidth = '780px';
-        container.style.maxWidth = '780px';
+        container.style.width = '715px';
+        container.style.minWidth = '715px';
+        container.style.maxWidth = '715px';
         container.style.margin = '0';
         container.style.padding = '0';
         container.style.background = '#ffffff';
@@ -17385,15 +17398,15 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
                 scale: 2,
                 useCORS: true,
                 logging: false,
-                letterRendering: true,
+                letterRendering: false,
                 scrollX: 0,
                 scrollY: 0,
                 x: 0,
                 y: 0,
-                windowWidth: 780
+                windowWidth: 715
             },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: ['css', 'legacy'] }
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
 
         if (typeof html2pdf !== 'undefined') {
@@ -17428,9 +17441,9 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
         container.style.position = 'fixed';
         container.style.top = '0';
         container.style.left = '0';
-        container.style.width = '780px';
-        container.style.minWidth = '780px';
-        container.style.maxWidth = '780px';
+        container.style.width = '715px';
+        container.style.minWidth = '715px';
+        container.style.maxWidth = '715px';
         container.style.margin = '0';
         container.style.padding = '0';
         container.style.background = '#ffffff';
@@ -17448,15 +17461,15 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
                 scale: 2,
                 useCORS: true,
                 logging: false,
-                letterRendering: true,
+                letterRendering: false,
                 scrollX: 0,
                 scrollY: 0,
                 x: 0,
                 y: 0,
-                windowWidth: 780
+                windowWidth: 715
             },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: ['css', 'legacy'] }
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
 
         if (typeof html2pdf !== 'undefined') {
@@ -17476,7 +17489,7 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
     });
 };
 
-window.abrirPDFPresupuesto = function(id, format = null) {
+window.abrirPDFPresupuesto = async function(id, format = null) {
     const p = (window.appData && Array.isArray(window.appData.pedidos)) ? window.appData.pedidos.find(x => x.id === id) : null;
     if (!p) return;
     const finalFormat = format || p.tipo_reporte || 'detallado';
@@ -17486,33 +17499,88 @@ window.abrirPDFPresupuesto = function(id, format = null) {
     const logoSrc = (window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png';
     const nowStr = new Date().toLocaleDateString('es-AR');
     const total = items.reduce((sum, r) => sum + (r.subtotal !== '-' ? parseFloat(r.subtotal) : 0), 0);
-    const innerHtml = window.generarHTMLPresupuestoNuevo(p, finalFormat, items, total, nro, cliName, logoSrc, nowStr);
-    const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Presupuesto - ${nro}</title>
-            <style>
-                @page { size: A4 portrait; margin: 8mm; }
-                body { font-family: Arial, sans-serif; background: #ffffff; color: #000000; margin: 0; padding: 0; }
-            </style>
-        </head>
-        <body>
-            ${innerHtml}
-            <script>
-                window.onload = function() {
-                    window.print();
-                };
-            </script>
-        </body>
-        </html>
-    `;
-    const printWindow = window.open('', '_blank', 'width=800,height=900');
+    const htmlContent = window.generarHTMLPresupuestoNuevo(p, finalFormat, items, total, nro, cliName, logoSrc, nowStr);
+
+    // Abrir ventana anticipada para evitar bloqueo de popups en el navegador
+    const printWindow = window.open('', '_blank');
     if (printWindow) {
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Cargando Presupuesto - ${nro}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; margin: 0; background: #0f172a; color: #f8fafc; }
+                    .spinner { width: 38px; height: 38px; border: 3px solid rgba(56, 189, 248, 0.2); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 14px; }
+                    @keyframes spin { to { transform: rotate(360deg); } }
+                </style>
+            </head>
+            <body>
+                <div class="spinner"></div>
+                <div style="font-size: 15px; font-weight: bold;">Cargando PDF oficial...</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">Presupuesto Nro. ${nro}</div>
+            </body>
+            </html>
+        `);
+    }
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.top = '0';
+    container.style.left = '0';
+    container.style.width = '715px';
+    container.style.minWidth = '715px';
+    container.style.maxWidth = '715px';
+    container.style.margin = '0';
+    container.style.padding = '0';
+    container.style.background = '#ffffff';
+    container.style.zIndex = '-99999';
+    container.innerHTML = htmlContent;
+    document.body.appendChild(container);
+
+    const targetEl = container.querySelector('#pdf-wrapper-download') || container.firstElementChild || container;
+
+    const opt = {
+        margin: [4, 4, 4, 4],
+        filename: `Presupuesto_${nro}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            letterRendering: false,
+            scrollX: 0,
+            scrollY: 0,
+            x: 0,
+            y: 0,
+            windowWidth: 715
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    if (typeof html2pdf !== 'undefined') {
+        try {
+            const pdfBlob = await html2pdf().set(opt).from(targetEl).outputPdf('blob');
+            if (container.parentNode) document.body.removeChild(container);
+            if (pdfBlob) {
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                if (printWindow && !printWindow.closed) {
+                    printWindow.location.href = pdfUrl;
+                } else {
+                    window.open(pdfUrl, '_blank');
+                }
+            }
+        } catch(err) {
+            console.error('Error generando vista PDF:', err);
+            if (container.parentNode) document.body.removeChild(container);
+            if (printWindow && !printWindow.closed) printWindow.close();
+            window.descargarPDFPresupuestoDirecto(p, finalFormat);
+        }
     } else {
-        showToast('Por favor habilita las ventanas emergentes (pop-ups) para ver el PDF.', 'error');
+        if (container.parentNode) document.body.removeChild(container);
+        if (printWindow && !printWindow.closed) printWindow.close();
+        window.descargarPDFPresupuestoDirecto(p, finalFormat);
     }
 };
 
@@ -19219,7 +19287,7 @@ if (curPlanta === 'PPA') curPlanta = 'APS';
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '460';
+window.CURRENT_APP_VERSION = '464';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
