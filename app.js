@@ -356,6 +356,12 @@ function getDbClient() {
 // Función de normalización estricta de rubros
 function normalizePresupuestosRubro(pedidos) {
     if (!Array.isArray(pedidos)) return [];
+    // Descartar de raíz cualquier presupuesto fantasma eliminado del 21 de septiembre
+    pedidos = pedidos.filter(p => {
+        if (!p) return false;
+        const f = String(p.fecha || '');
+        return !f.includes('2026-09-21') && !f.includes('21/09/2026');
+    });
     pedidos.forEach(p => {
         const idStr = String(p.id || '').toUpperCase();
         const tipoStr = (p.tipo_presupuesto || '').toLowerCase();
@@ -1020,6 +1026,14 @@ function initSupabaseSync(callback) {
                     }, function(payload) {
                         if (payload.new) {
                             const data = payload.new;
+                            // Chequear si viene señal de recarga remota en app_state
+                            if (data.updated_at && window._lastAppUpdateTs && data.updated_at > window._lastAppUpdateTs) {
+                                window._lastAppUpdateTs = data.updated_at;
+                                const diff = Date.now() - new Date(data.updated_at).getTime();
+                                if (diff >= 0 && diff < 30000 && typeof window.handleRemoteReloadRequest === 'function') {
+                                    window.handleRemoteReloadRequest({ source: 'app_state_realtime', timestamp: data.updated_at });
+                                }
+                            }
                             appData.notifications = data.notifications || [];
                             if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
                                 appData.userPermissions = Object.assign({}, defaultUserPermissions, appData.userPermissions, data.user_permissions);
@@ -1360,6 +1374,17 @@ function initSupabaseSync(callback) {
                     })
                     .subscribe();
 
+                // Suscripción Realtime a señales de actualización del sistema (Broadcast)
+                client
+                    .channel('sg_system_control')
+                    .on('broadcast', { event: 'remote_reload' }, function(msg) {
+                        console.log("⚡ Señal de recarga remota recibida vía Broadcast:", msg);
+                        if (typeof window.handleRemoteReloadRequest === 'function') {
+                            window.handleRemoteReloadRequest(msg.payload || msg);
+                        }
+                    })
+                    .subscribe();
+
             } catch(subErr) {
                 console.warn("Error suscribiendo a Realtime de Supabase:", subErr);
             }
@@ -1685,6 +1710,24 @@ window.forzarSincronizacionSupabase = async function() {
         console.error("Error en sincronización con Supabase:", err);
     }
 };
+
+// Auto-sincronización periódica y al regresar a la pestaña (para no depender de que el usuario recargue)
+let lastSilentPresupuestosSync = 0;
+function triggerSilentPresupuestosSync() {
+    const now = Date.now();
+    if (now - lastSilentPresupuestosSync < 15000) return; // Máximo una vez cada 15 seg
+    lastSilentPresupuestosSync = now;
+    if (typeof window.forzarSincronizacionSupabase === 'function') {
+        window.forzarSincronizacionSupabase();
+    }
+}
+window.addEventListener('focus', triggerSilentPresupuestosSync);
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+        triggerSilentPresupuestosSync();
+    }
+});
+setInterval(triggerSilentPresupuestosSync, 60000);
 
 function saveData() {
     try {
@@ -19169,3 +19212,151 @@ if (curPlanta === 'PPA') curPlanta = 'APS';
         }
     }
 };
+
+// ====================================================================
+// SISTEMA DE AUTO-ACTUALIZACIÓN Y RECARGA REMOTA DE TERMINALES
+// Permite que todas las computadoras de la empresa reciban las últimas
+// versiones y datos automáticamente, incluso si nunca recargan la página.
+// ====================================================================
+
+window.CURRENT_APP_VERSION = '460';
+window.PAGE_LOADED_AT = Date.now();
+window._lastAppUpdateTs = new Date().toISOString();
+
+// 1. Manejador de señal de recarga / actualización
+window.handleRemoteReloadRequest = function(payload) {
+    if (payload && payload.timestamp) {
+        const t = typeof payload.timestamp === 'number' ? payload.timestamp : new Date(payload.timestamp).getTime();
+        // Ignorar señales viejas de más de 3 minutos
+        if (Date.now() - t > 180000) return;
+    }
+
+    // Verificar si el usuario está tipeando activamente o tiene un modal de edición abierto
+    const isUserTyping = (function() {
+        try {
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+                return true;
+            }
+            const modal = document.getElementById('modal-overlay');
+            if (modal && modal.style.display !== 'none' && modal.style.display !== '') {
+                return true;
+            }
+            if (window.pedidoActivo || window.pedidoEnEdicionId) {
+                return true;
+            }
+        } catch(e) {}
+        return false;
+    })();
+
+    if (!isUserTyping) {
+        console.log("🔄 Recargando terminal limpiamente por actualización de sistema...");
+        if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
+            Swal.fire({
+                title: '⚡ Actualizando Sistema',
+                text: 'Se aplicaron mejoras en el sistema. Actualizando terminal...',
+                icon: 'info',
+                timer: 2000,
+                showConfirmButton: false,
+                allowOutsideClick: false
+            }).then(() => {
+                window.location.reload(true);
+            });
+        } else {
+            window.location.reload(true);
+        }
+    } else {
+        // El usuario está redactando algo: mostrar banner flotante para que no pierda lo que hace
+        window.showSystemUpdateBanner();
+    }
+};
+
+// 2. Banner flotante para cuando el usuario está redactando o con un modal abierto
+window.showSystemUpdateBanner = function() {
+    if (document.getElementById('sg-system-update-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'sg-system-update-banner';
+    banner.style.cssText = 'position: fixed; top: 18px; right: 20px; z-index: 9999999; background: #0f172a; border: 1px solid #0ea5e9; border-left: 5px solid #0ea5e9; padding: 12px 18px; border-radius: 8px; box-shadow: 0 10px 35px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 14px; color: #fff; font-family: inherit; animation: slideInDown 0.3s ease;';
+    banner.innerHTML = `
+        <span style="font-size: 22px;">🚀</span>
+        <div>
+            <div style="font-weight: 700; font-size: 13px; color: #38bdf8;">Nueva versión del sistema disponible</div>
+            <div style="font-size: 11px; color: #94a3b8;">Guarda tu trabajo actual y haz clic en actualizar para aplicar los últimos cambios.</div>
+        </div>
+        <button type="button" onclick="window.location.reload(true)" style="background: #0ea5e9; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 12px; cursor: pointer; transition: all 0.2s ease;">Actualizar ahora</button>
+    `;
+    document.body.appendChild(banner);
+};
+
+// 3. Botón de Administrador para forzar actualización de todas las terminales
+window.forzarRecargaRemotaTerminales = async function() {
+    const curUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+    const userName = curUser ? (curUser.username || curUser.nombre || 'Administrador') : 'Administrador';
+
+    const confirmed = confirm(
+        "📡 ¿Desea forzar la actualización de todas las pantallas y computadoras de la empresa?\n\n" +
+        "Esta acción enviará una señal en tiempo real a todas las terminales conectadas para que se recarguen con la última versión limpia sin perder trabajo."
+    );
+    if (!confirmed) return;
+
+    const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+    const nowIso = new Date().toISOString();
+
+    if (client) {
+        try {
+            // 1. Enviar broadcast instantáneo por WebSockets Realtime
+            const channel = client.channel('sg_system_control');
+            await channel.send({
+                type: 'broadcast',
+                event: 'remote_reload',
+                payload: {
+                    sender: userName,
+                    timestamp: Date.now()
+                }
+            });
+            console.log("📡 Broadcast de recarga remota enviado.");
+        } catch(e) {
+            console.warn("Aviso broadcast:", e);
+        }
+
+        try {
+            // 2. Actualizar updated_at en app_state como respaldo
+            await client.from('app_state').update({
+                updated_at: nowIso
+            }).eq('id', 'globalData');
+            console.log("☁️ app_state updated_at actualizado como señal de recarga.");
+        } catch(e) {
+            console.warn("Aviso app_state reload touch:", e);
+        }
+    }
+
+    if (typeof showToast === 'function') {
+        showToast("🚀 Señal enviada con éxito. Las pantallas se actualizarán en segundos.", "success");
+    } else {
+        alert("🚀 Señal enviada con éxito. Las pantallas se actualizarán en segundos.");
+    }
+
+    setTimeout(() => {
+        window.location.reload(true);
+    }, 1200);
+};
+
+// 4. Verificación periódica silenciosa de nueva versión en el servidor (cada 3 minutos)
+setInterval(function() {
+    fetch(`index.html?t=${Date.now()}`, { cache: 'no-store' })
+        .then(r => r.text())
+        .then(html => {
+            const match = html.match(/app\.js\?v=(\d+)/);
+            if (match && match[1]) {
+                const serverVer = match[1];
+                if (serverVer !== window.CURRENT_APP_VERSION) {
+                    console.log(`🚀 [AUTO-UPDATE] Nueva versión detectada en servidor: v=${serverVer} (local: v=${window.CURRENT_APP_VERSION})`);
+                    if (typeof window.handleRemoteReloadRequest === 'function') {
+                        window.handleRemoteReloadRequest({ source: 'version_checker', version: serverVer, timestamp: Date.now() });
+                    }
+                }
+            }
+        })
+        .catch(() => {});
+}, 180000); // Chequea cada 3 minutos
+

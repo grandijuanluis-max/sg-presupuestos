@@ -130,12 +130,15 @@
             </div>
 
             <!-- Solapas Principales Superiores: USUARIOS y SISTEMA -->
-            <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 8px; align-items: center; flex-wrap: wrap;">
                 <button type="button" id="main-tab-btn-usuarios" class="btn active" onclick="switchConfigMainTab('usuarios')" style="font-size: 15px; font-weight: 700; padding: 10px 24px; border-radius: 8px; background: #0284c7; color: white; border: none; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.2s;">
                     <i class="fa-solid fa-users"></i> 1. Usuarios
                 </button>
                 <button type="button" id="main-tab-btn-sistema" class="btn" onclick="switchConfigMainTab('sistema')" style="font-size: 15px; font-weight: 700; padding: 10px 24px; border-radius: 8px; background: rgba(30, 41, 59, 0.6); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.2s;">
                     <i class="fa-solid fa-sliders"></i> 2. Sistema y Permisos
+                </button>
+                <button type="button" class="btn" onclick="window.forzarRecargaRemotaTerminales()" title="Enviar señal a todas las computadoras para que recarguen la página y apliquen los últimos cambios del sistema" style="margin-left: auto; font-size: 13px; font-weight: 700; padding: 10px 18px; border-radius: 8px; background: linear-gradient(135deg, #0284c7, #0369a1); color: white; border: 1px solid rgba(56, 189, 248, 0.4); display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35); transition: all 0.2s;">
+                    <i class="fa-solid fa-satellite-dish"></i> 📡 Actualizar Pantallas de Todos
                 </button>
             </div>
 
@@ -3093,7 +3096,7 @@
             }
         } catch(e) {}
     </script>
-    <script src="app.js?v=459"></script>
+    <script src="app.js?v=460"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

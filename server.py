@@ -329,6 +329,22 @@ class SGBackendHandler(SimpleHTTPRequestHandler):
             self.wfile.write(csv_content)
             return
 
+        # Rutas de navegación limpia para Portal, Presupuestos y Contenedores
+        if path in ("/presupuesto", "/presupuesto/", "/presupuestos", "/presupuestos/"):
+            self.path = "/presupuesto.html"
+            super().do_GET()
+            return
+
+        if path in ("/portal", "/portal/", "/hub"):
+            self.path = "/portal_hub.html"
+            super().do_GET()
+            return
+
+        if path in ("/contenedores", "/contenedores/", "/contenedores/Index.html"):
+            self.path = "/contenedores/index.html"
+            super().do_GET()
+            return
+
         # Si no es un endpoint de API, servir los archivos estáticos del frontend (HTML, JS, CSS, PNG)
         super().do_GET()
 
@@ -538,13 +554,8 @@ class SGBackendHandler(SimpleHTTPRequestHandler):
                     })
                 supabase_request("presupuesto_items", method="POST", data=item_rows)
 
-            # Mantener app_state.pedidos sincronizado para que Supabase Table Editor y Realtime reflejen los cambios
-            try:
-                all_pres = supabase_request("presupuestos?select=*&order=id.asc")
-                if isinstance(all_pres, list):
-                    supabase_request("app_state?id=eq.globalData", method="PATCH", data={"pedidos": all_pres, "updated_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")})
-            except Exception as e_st:
-                print(f"Aviso app_state sync: {e_st}")
+            # app_state.pedidos ya no se utiliza como fuente de verdad ni se duplica en JSON
+            # para evitar reinyectar estados viejos en Supabase.
 
             print(f"☁️ [BACKEND SYNC] Presupuesto #{p_id} y sus {len(raw_items)} ítems sincronizados con Supabase.")
             self.send_json_response({"success": True, "id": p_id, "items_count": len(raw_items)})
