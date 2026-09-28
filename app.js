@@ -499,10 +499,30 @@ function normalizePresupuestosRubro(pedidos) {
     return pedidos;
 }
 
+// Persistencia local robusta de ítems con sus monedas (U$D / $) para evitar que se pasen a pesos al refrescar
+window.savePresupuestoItemsCache = function(pid, items) {
+    if (!pid || !Array.isArray(items) || items.length === 0) return;
+    try {
+        const cache = JSON.parse(localStorage.getItem('PRESUPUESTOS_ITEMS_CACHE_V3') || '{}');
+        cache[String(pid).trim()] = JSON.parse(JSON.stringify(items));
+        localStorage.setItem('PRESUPUESTOS_ITEMS_CACHE_V3', JSON.stringify(cache));
+    } catch(e) {}
+};
+
+window.getPresupuestoItemsCache = function(pid) {
+    if (!pid) return null;
+    try {
+        const cache = JSON.parse(localStorage.getItem('PRESUPUESTOS_ITEMS_CACHE_V3') || '{}');
+        const found = cache[String(pid).trim()];
+        return (Array.isArray(found) && found.length > 0) ? found : null;
+    } catch(e) { return null; }
+};
+
 // Mantener la sesión localmente y sincronizada
 let appData = JSON.parse(JSON.stringify(defaultData));
 appData.pedidos = [];
 window.appData = appData;
+
 
 // Cargar datos desde localStorage si existen
 try {
@@ -664,10 +684,18 @@ function initSupabaseSync(callback) {
                 .then(data => {
                     if (Array.isArray(data)) {
                         appData.pedidos = normalizePresupuestosRubro(data);
+                        appData.pedidos.forEach(p => {
+                            const pid = String(p.id).trim();
+                            const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
+                            if (cachedItems && Array.isArray(cachedItems) && cachedItems.length > 0) {
+                                p.items = cachedItems;
+                            }
+                        });
                         try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                         if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
                         if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
                     }
+
                 }).catch(() => {});
         } catch(e) {}
 
@@ -949,32 +977,64 @@ function initSupabaseSync(callback) {
         client.from('presupuesto_items').select('*').then(function(itemsRes) {
             if (itemsRes.data && itemsRes.data.length > 0 && Array.isArray(appData.pedidos)) {
                 const itemsMap = {};
+                const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+
                 itemsRes.data.forEach(function(it) {
-                    const pid = String(it.presupuesto_id || '');
+                    const pid = String(it.presupuesto_id || '').trim();
                     if (!itemsMap[pid]) itemsMap[pid] = [];
                     const cant = parseFloat(it.cantidad) || 1;
                     const pu = parseFloat(it.precio_unitario || it.precio) || 0;
                     const rawSubr = (it.subrubro && it.subrubro !== 'None' && it.subrubro !== 'null') ? String(it.subrubro).trim() : '';
                     const resolvedSubr = rawSubr || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(it, it.rubro) : 'Materiales y Equipos');
+
+                    // Consultar caché local previo por si tenía configurado dólar
+                    const localCachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
+                    const cachedItem = (localCachedItems && Array.isArray(localCachedItems)) ? localCachedItems.find(x => x && x.codigo === it.codigo) : null;
+
+                    const isUSD = (
+                        (cachedItem && String(cachedItem.moneda || '').toUpperCase() === 'USD') ||
+                        String(it.moneda || '').toUpperCase() === 'USD' ||
+                        String(it.unidad || '').toUpperCase() === 'USD' ||
+                        String(it.unidad || '').toUpperCase() === 'U$D'
+                    );
+
+                    const finalPuUSD = isUSD ? (cachedItem && cachedItem.precio_usd ? parseFloat(cachedItem.precio_usd) : pu) : 0;
+                    const finalPuARS = isUSD ? (finalPuUSD * cotizMat) : pu;
+                    const finalSubUSD = isUSD ? (cant * finalPuUSD) : null;
+                    const finalSub = isUSD ? finalSubUSD : (parseFloat(it.subtotal) || (cant * pu));
+
                     itemsMap[pid].push({
                         codigo: String(it.codigo || ''),
                         detalle: String(it.detalle || ''),
                         rubro: it.rubro || 'Eléctrico',
                         subrubro: resolvedSubr,
                         cantidad: cant,
-                        unidad: it.unidad || 'UN',
-                        udm: it.unidad || 'UN',
-                        precio: pu,
-                        precio_unitario: pu,
-                        subtotal: parseFloat(it.subtotal) || (cant * pu),
+                        unidad: isUSD ? 'USD' : (it.unidad || 'UN'),
+                        udm: isUSD ? 'USD' : (it.unidad || 'UN'),
+                        moneda: isUSD ? 'USD' : 'ARS',
+                        is_material: isUSD,
+                        precio: isUSD ? finalPuUSD : pu,
+                        precio_unitario: isUSD ? finalPuUSD : pu,
+                        precio_usd: isUSD ? finalPuUSD : null,
+                        precio_ars: finalPuARS,
+                        subtotal: finalSub,
+                        subtotal_usd: finalSubUSD,
+                        cotizacion_aplicada: isUSD ? cotizMat : null,
                         estado: 'Pendiente'
                     });
                 });
                 let changed = false;
                 appData.pedidos.forEach(function(p) {
-                    const pid = String(p.id);
-                    if ((!Array.isArray(p.items) || p.items.length === 0) && itemsMap[pid] && itemsMap[pid].length > 0) {
+                    const pid = String(p.id).trim();
+                    const localCachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
+                    if (localCachedItems && Array.isArray(localCachedItems) && localCachedItems.length > 0) {
+                        p.items = localCachedItems;
+                        changed = true;
+                    } else if ((!Array.isArray(p.items) || p.items.length === 0) && itemsMap[pid] && itemsMap[pid].length > 0) {
                         p.items = itemsMap[pid];
+                        if (typeof window.savePresupuestoItemsCache === 'function') {
+                            window.savePresupuestoItemsCache(pid, p.items);
+                        }
                         changed = true;
                     }
                 });
@@ -985,6 +1045,7 @@ function initSupabaseSync(callback) {
             }
         }).catch(function(err) { console.warn("Aviso presupuesto_items:", err); });
     };
+
 
     // 3. LECTURA DIRECTA Y EXCLUSIVA DE LA TABLA 'presupuestos' (Fuente Única de Verdad)
     client
@@ -1011,11 +1072,15 @@ function initSupabaseSync(callback) {
                 // Supabase es la ÚNICA fuente de verdad: se descartan los que fueron borrados en Supabase
                 appData.pedidos = normalizePresupuestosRubro(pRes.data);
                 appData.pedidos.forEach(p => {
-                    const pid = String(p.id);
-                    if ((!Array.isArray(p.items) || p.items.length === 0) && existingItemsMap[pid]) {
+                    const pid = String(p.id).trim();
+                    const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
+                    if (cachedItems && Array.isArray(cachedItems) && cachedItems.length > 0) {
+                        p.items = cachedItems;
+                    } else if ((!Array.isArray(p.items) || p.items.length === 0) && existingItemsMap[pid]) {
                         p.items = existingItemsMap[pid];
                     }
                 });
+
 
                 console.log("✅ " + appData.pedidos.length + " presupuestos consolidados directamente desde Supabase.");
                 try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
@@ -1692,18 +1757,35 @@ window.guardarPresupuestoEnSupabase = async function(p) {
 
                 if (Array.isArray(p.items) && p.items.length > 0) {
                     try {
+                        if (typeof window.savePresupuestoItemsCache === 'function') {
+                            window.savePresupuestoItemsCache(p.id, p.items);
+                        }
                         await client.from('presupuesto_items').delete().eq('presupuesto_id', String(p.id).trim());
-                        const itemRows = p.items.map((it, idx) => {
+                        
+                        const buildRows = (includeMoneda) => p.items.map((it, idx) => {
                             const cant = (it.cantidad === '-' || it.cantidad === undefined || it.cantidad === null) ? 1 : (parseFloat(it.cantidad) || 0);
-                            const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
-                            const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
                             const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
                             const finalSubrubro = (typeof window.resolveItemSubrubro === 'function')
                                 ? window.resolveItemSubrubro(it, p.tipo_presupuesto)
                                 : (it.subrubro || 'Materiales y Equipos');
                             it.subrubro = finalSubrubro;
 
-                            return {
+                            const isUSD = (
+                                String(it.moneda || '').toUpperCase() === 'USD' ||
+                                String(it.unidad || '').toUpperCase() === 'USD' ||
+                                String(it.unidad || '').toUpperCase() === 'U$D' ||
+                                String(it.udm || '').toUpperCase() === 'USD'
+                            );
+
+                            const pu = isUSD
+                                ? ((it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) ? parseFloat(it.precio_usd) : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0))
+                                : ((it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0));
+
+                            const sub = isUSD
+                                ? ((it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) ? parseFloat(it.subtotal_usd) : (cant * pu))
+                                : ((it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu)));
+
+                            const r = {
                                 id: itemId,
                                 presupuesto_id: String(p.id).trim(),
                                 codigo: String(it.codigo || '-'),
@@ -1711,13 +1793,22 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                                 rubro: p.tipo_presupuesto || 'Eléctrico',
                                 subrubro: finalSubrubro,
                                 cantidad: cant,
-                                unidad: String(it.unidad || it.udm || 'UN'),
+                                unidad: isUSD ? 'USD' : String(it.unidad || it.udm || 'UN'),
                                 precio_unitario: pu,
                                 subtotal: sub,
                                 orden: idx + 1
                             };
+                            if (includeMoneda) {
+                                r.moneda = isUSD ? 'USD' : 'ARS';
+                            }
+                            return r;
                         });
-                        await client.from('presupuesto_items').upsert(itemRows, { onConflict: 'id' });
+
+                        const upRes = await client.from('presupuesto_items').upsert(buildRows(true), { onConflict: 'id' });
+                        if (upRes && upRes.error) {
+                            // Si falla porque no existe la columna moneda en Supabase, reintentar sin moneda
+                            await client.from('presupuesto_items').upsert(buildRows(false), { onConflict: 'id' });
+                        }
                     } catch(itErr) {
                         console.warn("Aviso items en SDK:", itErr);
                     }
@@ -1752,20 +1843,37 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                 console.log("☁️ Supabase REST Directo: Presupuesto " + row.id + " guardado con éxito.");
 
                 if (Array.isArray(p.items) && p.items.length > 0) {
+                    if (typeof window.savePresupuestoItemsCache === 'function') {
+                        window.savePresupuestoItemsCache(p.id, p.items);
+                    }
                     await fetch(`${config.url}/rest/v1/presupuesto_items?presupuesto_id=eq.${encodeURIComponent(String(p.id).trim())}`, {
                         method: 'DELETE',
                         headers: headers
                     });
-                    const itemRows = p.items.map((it, idx) => {
+
+                    const buildRows = (includeMoneda) => p.items.map((it, idx) => {
                         const cant = (it.cantidad === '-' || it.cantidad === undefined || it.cantidad === null) ? 1 : (parseFloat(it.cantidad) || 0);
-                        const pu = (it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0);
-                        const sub = (it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu));
                         const itemId = `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`;
                         const finalSubrubro = (typeof window.resolveItemSubrubro === 'function')
                             ? window.resolveItemSubrubro(it, p.tipo_presupuesto)
                             : (it.subrubro || 'Materiales y Equipos');
 
-                        return {
+                        const isUSD = (
+                            String(it.moneda || '').toUpperCase() === 'USD' ||
+                            String(it.unidad || '').toUpperCase() === 'USD' ||
+                            String(it.unidad || '').toUpperCase() === 'U$D' ||
+                            String(it.udm || '').toUpperCase() === 'USD'
+                        );
+
+                        const pu = isUSD
+                            ? ((it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd))) ? parseFloat(it.precio_usd) : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0))
+                            : ((it.precio === '-' || it.precio === undefined || it.precio === null) ? 0 : (parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0));
+
+                        const sub = isUSD
+                            ? ((it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd))) ? parseFloat(it.subtotal_usd) : (cant * pu))
+                            : ((it.subtotal === '-' || it.subtotal === undefined || it.subtotal === null) ? (cant * pu) : (parseFloat(it.subtotal) || (cant * pu)));
+
+                        const r = {
                             id: itemId,
                             presupuesto_id: String(p.id).trim(),
                             codigo: String(it.codigo || '-'),
@@ -1773,23 +1881,38 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                             rubro: p.tipo_presupuesto || 'Eléctrico',
                             subrubro: finalSubrubro,
                             cantidad: cant,
-                            unidad: String(it.unidad || it.udm || 'UN'),
+                            unidad: isUSD ? 'USD' : String(it.unidad || it.udm || 'UN'),
                             precio_unitario: pu,
                             subtotal: sub,
                             orden: idx + 1
                         };
+                        if (includeMoneda) {
+                            r.moneda = isUSD ? 'USD' : 'ARS';
+                        }
+                        return r;
                     });
-                    await fetch(`${config.url}/rest/v1/presupuesto_items`, {
+
+                    let postRes = await fetch(`${config.url}/rest/v1/presupuesto_items`, {
                         method: 'POST',
                         headers: headers,
-                        body: JSON.stringify(itemRows)
+                        body: JSON.stringify(buildRows(true))
                     });
+
+                    if (!postRes.ok) {
+                        // Reintentar sin columna moneda si la tabla en Supabase aún no la tiene
+                        await fetch(`${config.url}/rest/v1/presupuesto_items`, {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify(buildRows(false))
+                        });
+                    }
                 }
             }
         } catch(restErr) {
             console.warn("Aviso REST Supabase:", restErr);
         }
     }
+
 
     // CAPA 3: Servidor Local Python Backend (/api/sync-presupuesto)
     if (!uploadedSuccessfully) {
@@ -1826,11 +1949,15 @@ window.forzarSincronizacionSupabase = async function() {
             }
             appData.pedidos = normalizePresupuestosRubro(allRemote);
             appData.pedidos.forEach(p => {
-                const pid = String(p.id);
-                if ((!Array.isArray(p.items) || p.items.length === 0) && existingItemsMap[pid]) {
+                const pid = String(p.id).trim();
+                const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
+                if (cachedItems && Array.isArray(cachedItems) && cachedItems.length > 0) {
+                    p.items = cachedItems;
+                } else if ((!Array.isArray(p.items) || p.items.length === 0) && existingItemsMap[pid]) {
                     p.items = existingItemsMap[pid];
                 }
             });
+
             try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
             if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
             if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
@@ -1861,9 +1988,17 @@ setInterval(triggerSilentPresupuestosSync, 60000);
 function saveData() {
     try {
         localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData));
+        if (Array.isArray(appData.pedidos)) {
+            appData.pedidos.forEach(p => {
+                if (p && p.id && Array.isArray(p.items) && p.items.length > 0 && typeof window.savePresupuestoItemsCache === 'function') {
+                    window.savePresupuestoItemsCache(p.id, p.items);
+                }
+            });
+        }
     } catch (e) {
         console.error("Error saving data to localStorage:", e);
     }
+
 
     // Guardar en Supabase para sincronización global y tiempo real
     const client = getDbClient();
@@ -9323,8 +9458,14 @@ window.formatPresupuestoImporte = function(p) {
             const q = window.parseArgNumber ? window.parseArgNumber(it.cantidad) : (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0);
             if (q <= 0) return;
             hasItems = true;
-            const isUsdItem = (it.moneda === 'USD' || it.is_material);
+            const isUsdItem = (
+                String(it.moneda || '').toUpperCase() === 'USD' ||
+                String(it.unidad || '').toUpperCase() === 'USD' ||
+                String(it.unidad || '').toUpperCase() === 'U$D' ||
+                String(it.udm || '').toUpperCase() === 'USD'
+            );
             if (isUsdItem) {
+
                 const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
                     ? parseFloat(it.precio_usd)
                     : (window.parseArgNumber ? window.parseArgNumber(it.precio !== undefined ? it.precio : it.precio_unitario) : (parseFloat(String(it.precio || 0)) || 0));
@@ -15243,9 +15384,12 @@ window.compartirWhatsAppPedido = function(id) {
         p.items.forEach(it => {
             if (it.estado === 'Rechazado') return;
             const q = parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0;
-            const isMat = (it.is_material === true || it.is_material === 1 || it.is_material === '1') ||
-                          (window.isMaterialItem ? window.isMaterialItem(it, p.tipo_presupuesto) : false) ||
-                          (String(it.subrubro || '').toLowerCase().includes('material') || String(it.subrubro || '').toLowerCase().includes('equipo'));
+            const isMat = (
+                String(it.moneda || '').toUpperCase() === 'USD' ||
+                String(it.unidad || '').toUpperCase() === 'USD' ||
+                String(it.unidad || '').toUpperCase() === 'U$D' ||
+                String(it.udm || '').toUpperCase() === 'USD'
+            );
             if (isMat) {
                 const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
                     ? parseFloat(it.precio_usd)
@@ -17858,7 +18002,12 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
         rawItems.forEach(it => {
             if (it.estado === 'Rechazado') return;
             const q = window.parseArgNumber ? window.parseArgNumber(it.cantidad) : (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0);
-            const isUSD = (it.moneda === 'USD');
+            const isUSD = (
+                String(it.moneda || '').toUpperCase() === 'USD' ||
+                String(it.unidad || '').toUpperCase() === 'USD' ||
+                String(it.unidad || '').toUpperCase() === 'U$D' ||
+                String(it.udm || '').toUpperCase() === 'USD'
+            );
             if (isUSD) {
                 const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
                     ? parseFloat(it.precio_usd)
@@ -17884,7 +18033,11 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 }
                 return;
             }
-            const isUSD = (r.moneda === 'USD');
+            const isUSD = (
+                String(r.moneda || '').toUpperCase() === 'USD' ||
+                String(r.unidad || '').toUpperCase() === 'USD' ||
+                String(r.unidad || '').toUpperCase() === 'U$D'
+            );
             if (isUSD) {
                 materialsTotalUSD += (r.subtotal_usd !== undefined && r.subtotal_usd !== null) ? (window.parseArgNumber ? window.parseArgNumber(r.subtotal_usd) : parseFloat(r.subtotal_usd) || 0) : (window.parseArgNumber ? window.parseArgNumber(r.subtotal) : parseFloat(r.subtotal) || 0);
             } else {
@@ -17897,12 +18050,16 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 
     let rowsHtml = items.map(r => {
         const isHeaderRow = (r.codigo === '-' && r.cantidad === '-' && r.precio === '-');
-        const isUSD = (r.moneda === 'USD');
+        const isUSD = (
+            String(r.moneda || '').toUpperCase() === 'USD' ||
+            String(r.unidad || '').toUpperCase() === 'USD' ||
+            String(r.unidad || '').toUpperCase() === 'U$D'
+        );
         if (isHeaderRow) {
             const hasSub = (r.subtotal !== '-' && r.subtotal !== null && r.subtotal !== undefined);
             const subVal = hasSub ? (window.parseArgNumber ? window.parseArgNumber(r.subtotal) : parseFloat(r.subtotal)) : null;
             const subStr = (subVal !== null && !isNaN(subVal))
-                ? `$${subVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                ? `${isUSD ? 'U$D ' : '$'}${subVal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
                 : '-';
             return `
             <tr style="border-bottom: 2px solid #000; font-size: 11px; background: transparent; font-weight: 800; page-break-inside: avoid;">
@@ -20224,7 +20381,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '480';
+window.CURRENT_APP_VERSION = '484';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
