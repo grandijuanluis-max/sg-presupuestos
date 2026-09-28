@@ -41,7 +41,7 @@ window.findPedidoIndex = function(id) {
 };
 
 // --- ESTADO INICIAL Y ALMACENAMIENTO (SUPABASE DIRECT SYNC) ---
-console.warn('✅✅✅ APP.JS v206 - FUENTE DE DATOS EXCLUSIVA: SUPABASE ✅✅✅');
+console.warn('✅✅✅ APP.JS v491 - FUENTE DE DATOS EXCLUSIVA: SUPABASE ✅✅✅');
 const LOCAL_STATE_KEY = 'solicitudes_pedidos_local_state';
 
 // Bases de datos globales centralizadas (Sincronizadas dinámicamente desde Supabase)
@@ -847,18 +847,21 @@ function initSupabaseSync(callback) {
                 row.moneda = m || 'ARS';
 
                 // Guardar en customPrices para acceso rápido por clave
-                if (m) {
-                    if (p) customPrices[`${row.codigo}_${p}_${m}`] = cPrice;
-                    else customPrices[`${row.codigo}_${m}`] = cPrice;
-                }
-                // Clave base por planta / código: ARS tiene prioridad como precio base
-                if (p) {
-                    if (m === 'ARS' || customPrices[key] === undefined) {
-                        customPrices[key] = cPrice;
+                const isElecRow = String(row.codigo || '').toUpperCase().startsWith('ELE-');
+                if (cPrice > 0 || !isElecRow) {
+                    if (m) {
+                        if (p) customPrices[`${row.codigo}_${p}_${m}`] = cPrice;
+                        else customPrices[`${row.codigo}_${m}`] = cPrice;
                     }
-                } else {
-                    if (m === 'ARS' || customPrices[row.codigo] === undefined) {
-                        customPrices[row.codigo] = cPrice;
+                    // Clave base por planta / código: ARS tiene prioridad como precio base
+                    if (p) {
+                        if (m === 'ARS' || customPrices[key] === undefined) {
+                            customPrices[key] = cPrice;
+                        }
+                    } else {
+                        if (m === 'ARS' || customPrices[row.codigo] === undefined) {
+                            customPrices[row.codigo] = cPrice;
+                        }
                     }
                 }
 
@@ -875,10 +878,12 @@ function initSupabaseSync(callback) {
                         if (!rows || rows.length === 0) return { ...baseItem, moneda: baseItem.moneda || 'ARS' };
                         // Priorizar el que no tenga planta (o la vacía) para Eléctrico
                         const row = rows.find(r => !r.planta || r.planta.trim() === '') || rows[0];
+                        const dbPrice = parseFloat(row.precio);
+                        const finalPrice = (!isNaN(dbPrice) && dbPrice > 0) ? dbPrice : (baseItem.precio || 0);
                         return {
                             ...baseItem,
-                            precio: parseFloat(row.precio) || 0,
-                            precio_unitario: parseFloat(row.precio) || 0,
+                            precio: finalPrice,
+                            precio_unitario: finalPrice,
                             moneda: row.moneda || baseItem.moneda || 'ARS',
                             detalle: row.detalle || baseItem.detalle,
                             descripcion: row.detalle || baseItem.descripcion,
@@ -1046,6 +1051,155 @@ function initSupabaseSync(callback) {
         console.warn("Aviso al consultar tabla 'tarifario' en Supabase:", tarErr);
     });
 
+    // Función para sanear y actualizar presupuestos eléctricos existentes (elimina ítems mecánicos colados, restaura precios en 0 y recalcula totales)
+    window.actualizarPresupuestosElectricosExistentes = async function() {
+        if (typeof appData === 'undefined' || !appData || !Array.isArray(appData.pedidos)) return;
+        const dbClient = (typeof getDbClient === 'function') ? getDbClient() : (typeof client !== 'undefined' ? client : null);
+        const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+        let anyChanged = false;
+
+        // Reparar precios en ARS acortados en customPrices
+        try {
+            const cpStr = localStorage.getItem('PRESUPUESTO_CUSTOM_PRICES');
+            if (cpStr) {
+                const cp = JSON.parse(cpStr);
+                let cpChanged = false;
+                for (let k in cp) {
+                    if (k.startsWith('ELE-') && !k.endsWith('_USD')) {
+                        const val = parseFloat(cp[k]);
+                        if (val > 0 && val < 200) {
+                            cp[k] = Math.round(val * 1000);
+                            cpChanged = true;
+                        }
+                    }
+                }
+                if (cpChanged) {
+                    localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(cp));
+                    if (typeof appData !== 'undefined' && appData && appData.customPrices) {
+                        Object.assign(appData.customPrices, cp);
+                    }
+                }
+            }
+        } catch(eCp) {}
+
+        for (let p of appData.pedidos) {
+            if (!p) continue;
+            const pid = String(p.id || '').toUpperCase().trim();
+            const isElec = p.tipo_presupuesto === 'Eléctrico' || pid.includes('ELEC');
+            if (!isElec) continue;
+
+            let pChanged = false;
+            if (!Array.isArray(p.items)) p.items = [];
+
+            // 1. Quitar ítems mecánicos colados accidentalmente en el presupuesto eléctrico (ej: MEC-018)
+            const initialCount = p.items.length;
+            p.items = p.items.filter(it => it && !String(it.codigo || '').toUpperCase().startsWith('MEC-'));
+            if (p.items.length !== initialCount) {
+                pChanged = true;
+            }
+
+            // 2. Corregir precios de ítems eléctricos de stock y recalcular subtotales
+            p.items.forEach(it => {
+                if (!it) return;
+                const code = String(it.codigo || '').trim().toUpperCase();
+                const isUSD = String(it.moneda || '').toUpperCase() === 'USD' || it.is_material === true;
+                let currentPrice = parseFloat(it.precio !== undefined && it.precio !== null ? it.precio : (it.precio_unitario || 0)) || 0;
+                const cant = (parseFloat(it.cantidad) > 0) ? parseFloat(it.cantidad) : 1;
+
+                // Reparar precios en ARS que fueron acortados por el divisor decimal (ej: 10 -> 10000, 15.55 -> 15550)
+                if (!isUSD && currentPrice > 0 && currentPrice < 200) {
+                    currentPrice = Math.round(currentPrice * 1000);
+                    it.precio = currentPrice;
+                    it.precio_unitario = currentPrice;
+                    it.precio_ars = currentPrice;
+                    it.subtotal = cant * currentPrice;
+                    pChanged = true;
+                }
+
+                if (currentPrice <= 0 && !isUSD && (code.startsWith('ELE-') || isElec)) {
+                    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+                        const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === code);
+                        if (b && b.precio > 0) {
+                            currentPrice = b.precio;
+                            it.precio = currentPrice;
+                            it.precio_unitario = currentPrice;
+                            it.precio_ars = currentPrice;
+                            it.subtotal = cant * currentPrice;
+                            pChanged = true;
+                        }
+                    }
+                } else if (isUSD) {
+                    const puUSD = parseFloat(it.precio_usd || it.precio || 0) || 0;
+                    it.subtotal_usd = cant * puUSD;
+                    it.subtotal = cant * puUSD * cotizMat;
+                } else if (currentPrice > 0) {
+                    const expectedSub = cant * currentPrice;
+                    if (!it.subtotal || Math.abs((it.subtotal || 0) - expectedSub) > 0.01) {
+                        it.subtotal = expectedSub;
+                        pChanged = true;
+                    }
+                }
+            });
+
+            // 3. Recalcular importe neto del presupuesto según sumatoria real de sus ítems
+            const sumSubtotales = p.items.reduce((acc, it) => acc + (parseFloat(it.subtotal) || 0), 0);
+            if (sumSubtotales > 0 && Math.abs((p.importe || 0) - sumSubtotales) > 0.01) {
+                p.importe = sumSubtotales;
+                p.importe_neto = sumSubtotales;
+                pChanged = true;
+            }
+
+            if (pChanged) {
+                anyChanged = true;
+                if (typeof window.savePresupuestoItemsCache === 'function') {
+                    window.savePresupuestoItemsCache(p.id, p.items);
+                }
+                // Sincronizar en Supabase tanto en 'presupuestos' como en 'presupuesto_items'
+                if (dbClient) {
+                    try {
+                        const row = (typeof window.buildPresupuestoSupabaseRow === 'function') ? window.buildPresupuestoSupabaseRow(p) : null;
+                        if (row) {
+                            await dbClient.from('presupuestos').upsert([row], { onConflict: 'id' });
+                        }
+                        if (p.items.length > 0) {
+                            await dbClient.from('presupuesto_items').delete().eq('presupuesto_id', String(p.id).trim());
+                            const itemRows = p.items.map((it, idx) => {
+                                const cant = parseFloat(it.cantidad || 0) || 1;
+                                const isUSD = String(it.moneda || '').toUpperCase() === 'USD' || it.is_material === true;
+                                const pu = parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0;
+                                const sub = parseFloat(it.subtotal !== undefined ? it.subtotal : (cant * pu)) || 0;
+                                return {
+                                    id: `${String(p.id).trim()}-ITM-${String(idx + 1).padStart(2, '0')}`,
+                                    presupuesto_id: String(p.id).trim(),
+                                    codigo: String(it.codigo || '-'),
+                                    detalle: String(it.detalle || it.descripcion || 'Item Eléctrico'),
+                                    rubro: 'Eléctrico',
+                                    subrubro: it.subrubro || 'Mano de Obra MANTENIMIENTO',
+                                    cantidad: cant,
+                                    unidad: isUSD ? 'USD' : String(it.unidad || it.udm || 'horas'),
+                                    precio_unitario: pu,
+                                    subtotal: sub,
+                                    moneda: isUSD ? 'USD' : 'ARS',
+                                    orden: idx + 1
+                                };
+                            });
+                            await dbClient.from('presupuesto_items').upsert(itemRows, { onConflict: 'id' });
+                        }
+                        console.log("☁️ Supabase: Presupuesto eléctrico existente " + p.id + " recalculado con total $" + p.importe);
+                    } catch(upErr) {
+                        console.warn("Aviso al actualizar presupuesto eléctrico en Supabase:", upErr);
+                    }
+                }
+            }
+        }
+
+        if (anyChanged) {
+            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
+            if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
+            if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+        }
+    };
+
     // 3. LECTURA DIRECTA Y EXCLUSIVA DE LA TABLA 'presupuestos' (Fuente Única de Verdad)
     const syncPresupuestoItemsFromSupabase = function() {
         if (!client) return;
@@ -1058,7 +1212,7 @@ function initSupabaseSync(callback) {
                     const pid = String(it.presupuesto_id || '').trim();
                     if (!itemsMap[pid]) itemsMap[pid] = [];
                     const cant = (parseFloat(it.cantidad) > 0) ? parseFloat(it.cantidad) : 1;
-                    const pu = parseFloat(it.precio_unitario || it.precio) || 0;
+                    let pu = parseFloat(it.precio_unitario || it.precio) || 0;
                     const rawSubr = (it.subrubro && it.subrubro !== 'None' && it.subrubro !== 'null') ? String(it.subrubro).trim() : '';
                     const resolvedSubr = rawSubr || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(it, it.rubro) : 'Materiales y Equipos');
 
@@ -1073,10 +1227,21 @@ function initSupabaseSync(callback) {
                         String(it.unidad || '').toUpperCase() === 'U$D'
                     );
 
+                    // Si es ítem eléctrico y su precio es <= 0 (y no es USD), restaurar de PRESUPUESTO_ELECTRICO_STOCK
+                    const isElecItem = (it.rubro === 'Eléctrico' || pid.includes('ELEC') || String(it.codigo || '').startsWith('ELE-'));
+                    if (pu <= 0 && !isUSD && isElecItem) {
+                        if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+                            const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === it.codigo);
+                            if (b && b.precio > 0) {
+                                pu = b.precio;
+                            }
+                        }
+                    }
+
                     const finalPuUSD = isUSD ? (cachedItem && cachedItem.precio_usd ? parseFloat(cachedItem.precio_usd) : pu) : 0;
                     const finalPuARS = isUSD ? (finalPuUSD * cotizMat) : pu;
                     const finalSubUSD = isUSD ? (cant * finalPuUSD) : null;
-                    const finalSub = isUSD ? finalSubUSD : (parseFloat(it.subtotal) || (cant * pu));
+                    const finalSub = isUSD ? finalSubUSD : (parseFloat(it.subtotal) > 0 ? parseFloat(it.subtotal) : (cant * pu));
 
                     itemsMap[pid].push({
                         codigo: String(it.codigo || ''),
@@ -1225,6 +1390,9 @@ function initSupabaseSync(callback) {
                     try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
                     if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
                 }
+                if (typeof window.actualizarPresupuestosElectricosExistentes === 'function') {
+                    window.actualizarPresupuestosElectricosExistentes();
+                }
             }
         }).catch(function(err) { console.warn("Aviso presupuesto_items:", err); });
     };
@@ -1271,6 +1439,9 @@ function initSupabaseSync(callback) {
                 if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
                 if (appData.pedidos.length > 0) {
                     syncPresupuestoItemsFromSupabase();
+                    if (typeof window.actualizarPresupuestosElectricosExistentes === 'function') {
+                        window.actualizarPresupuestosElectricosExistentes();
+                    }
                 }
             }
         })
@@ -2777,18 +2948,65 @@ if (typeof window !== 'undefined' && !window._sidebarResizeBound) {
     });
 }
 
-// --- HELPER DE PARSEO NUMÉRICO CON SOPORTE PARA COMA DECIMAL (,) Y PUNTO (.) ---
+// --- HELPER DE PARSEO NUMÉRICO CON SOPORTE PARA COMA DECIMAL (,) Y PUNTO DE MILES (.) ---
 window.parseArgNumber = function(val) {
     if (val === null || val === undefined) return 0;
     if (typeof val === 'number') return isNaN(val) ? 0 : val;
     let str = val.toString().trim();
     if (!str) return 0;
-    // Si contiene puntos y comas (ej. 1.250,50), remover puntos de miles y cambiar coma por punto
+
+    // Limpiar caracteres no numéricos excepto coma, punto y signo menos
+    str = str.replace(/[^\d,.-]/g, '');
+    if (!str) return 0;
+
+    // Caso 1: Contiene tanto punto (.) como coma (,)
     if (str.includes('.') && str.includes(',')) {
-        str = str.replace(/\./g, '').replace(',', '.');
-    } else if (str.includes(',')) {
-        str = str.replace(',', '.');
+        const lastDot = str.lastIndexOf('.');
+        const lastComma = str.lastIndexOf(',');
+        if (lastComma > lastDot) {
+            // Estilo argentino: 1.250,50 o 1.500.000,00
+            str = str.replace(/\./g, '').replace(',', '.');
+        } else {
+            // Estilo anglosajón: 1,250.50
+            str = str.replace(/,/g, '');
+        }
+        const num = parseFloat(str);
+        return isNaN(num) ? 0 : num;
     }
+
+    // Caso 2: Contiene solo comas (,)
+    if (str.includes(',')) {
+        const commaCount = (str.match(/,/g) || []).length;
+        if (commaCount > 1) {
+            // Múltiples comas, ej: 1,500,000 -> separadores de miles
+            str = str.replace(/,/g, '');
+        } else {
+            // Una sola coma: separador decimal
+            str = str.replace(',', '.');
+        }
+        const num = parseFloat(str);
+        return isNaN(num) ? 0 : num;
+    }
+
+    // Caso 3: Contiene solo puntos (.)
+    if (str.includes('.')) {
+        const dotCount = (str.match(/\./g) || []).length;
+        if (dotCount > 1) {
+            // Múltiples puntos, ej: 1.500.000 -> separadores de miles
+            str = str.replace(/\./g, '');
+        } else {
+            const parts = str.split('.');
+            // Si la parte tras el punto tiene EXACTAMENTE 3 dígitos (ej: 10.000, 15.550, 71.062, 1.500)
+            // o más de 3 dígitos: es separador de miles en formato argentino/hispano
+            if (parts[1] && parts[1].length >= 3) {
+                str = parts[0] + parts[1];
+            }
+            // Si tiene 1 o 2 dígitos (ej: 10.5, 10.50): se interpreta como decimal
+        }
+        const num = parseFloat(str);
+        return isNaN(num) ? 0 : num;
+    }
+
     const num = parseFloat(str);
     return isNaN(num) ? 0 : num;
 };
@@ -3299,32 +3517,7 @@ window.setCotizacionMateriales = function(val, updateInputs = true) {
 
 window.parseCotizacionInput = function(raw) {
     if (!raw) return 0;
-    let s = String(raw).trim().replace(/[^0-9.,]/g, '');
-    if (!s) return 0;
-    if (s.includes('.') && s.includes(',')) {
-        const lastDot = s.lastIndexOf('.');
-        const lastComma = s.lastIndexOf(',');
-        if (lastComma > lastDot) {
-            s = s.replace(/\./g, '').replace(',', '.');
-        } else {
-            s = s.replace(/,/g, '');
-        }
-    } else if (s.includes(',')) {
-        const parts = s.split(',');
-        if (parts.length === 2 && parts[1].length === 3 && parseFloat(parts[0]) > 0 && parseFloat(parts[0]) <= 9) {
-            s = parts[0] + parts[1];
-        } else {
-            s = s.replace(',', '.');
-        }
-    } else if (s.includes('.')) {
-        const parts = s.split('.');
-        if (parts.length === 2 && parts[1].length === 3 && parseFloat(parts[0]) > 0 && parseFloat(parts[0]) <= 9) {
-            s = parts[0] + parts[1];
-        } else if (parts.length > 2) {
-            s = s.replace(/\./g, '');
-        }
-    }
-    const num = parseFloat(s);
+    const num = window.parseArgNumber ? window.parseArgNumber(raw) : (parseFloat(String(raw).replace(/[^0-9.]/g, '')) || 0);
     return (isNaN(num) || num <= 0) ? 0 : num;
 };
 
@@ -3422,13 +3615,25 @@ window.getItemPriceFor = function(codigo, planta, moneda) {
 
     // Para Eléctrico: tiene lista única (planta vacía en Supabase y DB). Soporta claves directas y retrocompatibles.
     if (isElec) {
-        if (customPrices[`${codigo}_${m}`] !== undefined) return parseFloat(customPrices[`${codigo}_${m}`]) || 0;
-        if (customPrices[`${codigo}_APS_${m}`] !== undefined) return parseFloat(customPrices[`${codigo}_APS_${m}`]) || 0;
-        if (customPrices[`${codigo}_APG_${m}`] !== undefined) return parseFloat(customPrices[`${codigo}_APG_${m}`]) || 0;
-        if (m === 'ARS') {
-            if (customPrices[codigo] !== undefined) return parseFloat(customPrices[codigo]) || 0;
-            if (customPrices[`${codigo}_APS`] !== undefined) return parseFloat(customPrices[`${codigo}_APS`]) || 0;
-            if (customPrices[`${codigo}_APG`] !== undefined) return parseFloat(customPrices[`${codigo}_APG`]) || 0;
+        let ep = undefined;
+        if (customPrices[`${codigo}_${m}`] !== undefined && parseFloat(customPrices[`${codigo}_${m}`]) > 0) ep = parseFloat(customPrices[`${codigo}_${m}`]);
+        else if (customPrices[`${codigo}_APS_${m}`] !== undefined && parseFloat(customPrices[`${codigo}_APS_${m}`]) > 0) ep = parseFloat(customPrices[`${codigo}_APS_${m}`]);
+        else if (customPrices[`${codigo}_APG_${m}`] !== undefined && parseFloat(customPrices[`${codigo}_APG_${m}`]) > 0) ep = parseFloat(customPrices[`${codigo}_APG_${m}`]);
+        else if (m === 'ARS') {
+            if (customPrices[codigo] !== undefined && parseFloat(customPrices[codigo]) > 0) ep = parseFloat(customPrices[codigo]);
+            else if (customPrices[`${codigo}_APS`] !== undefined && parseFloat(customPrices[`${codigo}_APS`]) > 0) ep = parseFloat(customPrices[`${codigo}_APS`]);
+            else if (customPrices[`${codigo}_APG`] !== undefined && parseFloat(customPrices[`${codigo}_APG`]) > 0) ep = parseFloat(customPrices[`${codigo}_APG`]);
+        }
+        if (ep !== undefined && ep > 0) return ep;
+
+        // Fallback a base de datos en memoria o stock base para Eléctrico
+        if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+            const baseE = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === codigo);
+            if (baseE && baseE.precio > 0) return baseE.precio;
+        }
+        if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+            const catE = window.presupuestosCatalogDB.find(x => x && x.codigo === codigo);
+            if (catE && catE.precio > 0) return catE.precio;
         }
     }
 
@@ -3509,10 +3714,10 @@ window.hasExplicitItemPrice = function(codigo, planta, moneda) {
     const customPrices = (typeof getCustomItemPrices === 'function') ? getCustomItemPrices() : {};
 
     if (isElec) {
-        if (customPrices[`${codigo}_${m}`] !== undefined) return true;
-        if (m === 'ARS' && customPrices[codigo] !== undefined) return true;
-        if (customPrices[`${codigo}_APS_${m}`] !== undefined || customPrices[`${codigo}_APG_${m}`] !== undefined) return true;
-        if (m === 'ARS' && (customPrices[`${codigo}_APS`] !== undefined || customPrices[`${codigo}_APG`] !== undefined)) return true;
+        if (customPrices[`${codigo}_${m}`] !== undefined && parseFloat(customPrices[`${codigo}_${m}`]) > 0) return true;
+        if (m === 'ARS' && customPrices[codigo] !== undefined && parseFloat(customPrices[codigo]) > 0) return true;
+        if (parseFloat(customPrices[`${codigo}_APS_${m}`]) > 0 || parseFloat(customPrices[`${codigo}_APG_${m}`]) > 0) return true;
+        if (m === 'ARS' && (parseFloat(customPrices[`${codigo}_APS`]) > 0 || parseFloat(customPrices[`${codigo}_APG`]) > 0)) return true;
         return false;
     }
 
@@ -4991,7 +5196,10 @@ function applyCustomPricesToCatalog(catalog) {
                 cPrice = customPrices[item.codigo];
             }
             if (cPrice !== undefined) {
-                item.precio = parseFloat(cPrice);
+                const parsed = parseFloat(cPrice);
+                if (!isNaN(parsed) && parsed > 0) {
+                    item.precio = parsed;
+                }
             }
         }
     });
@@ -5060,16 +5268,15 @@ function getElectricalDefaultQty(code) {
 
 window.seleccionarTipoPresupuesto = function(tipo) {
     reqTipoPresupuesto = tipo;
+    pedidoItems = []; // Limpieza total de ítems acumulados para evitar arrastrar ítems de otro rubro
+    if (typeof actualizarTablaItemsRequerimiento === 'function') {
+        actualizarTablaItemsRequerimiento();
+    }
+    window.activeMecaTab = 0;
 
     // Si estamos en la vista de Ingreso de Pedidos
     const formReq = document.getElementById('form-request-ped');
     if (formReq) {
-        pedidoItems = [];
-        if (typeof actualizarTablaItemsRequerimiento === 'function') {
-            actualizarTablaItemsRequerimiento();
-        }
-        window.activeMecaTab = 0;
-
         const container2 = document.getElementById('step-container-2');
         if (container2 && container2.style.display !== 'none') {
             const isExcelFlow = tipo === 'Mecánico' || tipo === 'Eléctrico';
@@ -6228,8 +6435,15 @@ window.goToRequestStep = function(step) {
 
     // Validaciones al intentar avanzar al paso 3 (Resumen/Confirmación)
     if (step === 3) {
+        // Asegurar sincronización total e inmediata de la grilla antes de validar
+        if (reqTipoPresupuesto === 'Mecánico' || reqTipoPresupuesto === 'Eléctrico' || document.querySelectorAll('.meca-excel-input').length > 0) {
+            if (typeof window.recalcMecaExcelAll === 'function') {
+                try { window.recalcMecaExcelAll(); } catch(e) {}
+            }
+        }
+
         if (pedidoItems.length === 0) {
-            showToast('Debe agregar al menos un artículo al detalle antes de continuar', 'error');
+            showToast('Debe agregar al menos un artículo al detalle antes de continuar (ingrese una cantidad estimada mayor a 0 en la grilla)', 'error');
             return;
         }
 
@@ -7267,6 +7481,24 @@ window.crearPresupuestoBasadoEnActual = function(id) {
         it.subtotal_usd = 0;
         return it;
     });
+    if (reqTipoPresupuesto === 'Eléctrico') {
+        pedidoItems = pedidoItems.filter(it => it && !String(it.codigo || '').toUpperCase().startsWith('MEC-'));
+        pedidoItems.forEach(it => {
+            if (it && it.codigo && String(it.codigo).toUpperCase().startsWith('ELE-')) {
+                const pu = parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0;
+                if (pu <= 0 && (!it.moneda || it.moneda === 'ARS')) {
+                    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
+                        const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === it.codigo);
+                        if (b && b.precio > 0) {
+                            it.precio = b.precio;
+                            it.precio_unitario = b.precio;
+                            it.precio_ars = b.precio;
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     // Resetear pestaña activa para el Paso 2
     window.activeMecaTab = 0;
@@ -7336,6 +7568,25 @@ window.cargarPresupuestoParaModificacion = function(id) {
 
     // Set pre-filled items for Step 2
     pedidoItems = JSON.parse(JSON.stringify(p.items || []));
+    if (reqTipoPresupuesto === 'Eléctrico') {
+        pedidoItems = pedidoItems.filter(it => it && !String(it.codigo || '').toUpperCase().startsWith('MEC-'));
+        pedidoItems.forEach(it => {
+            if (it && it.codigo && String(it.codigo).toUpperCase().startsWith('ELE-')) {
+                const pu = parseFloat(it.precio !== undefined ? it.precio : (it.precio_unitario || 0)) || 0;
+                if (pu <= 0 && (!it.moneda || it.moneda === 'ARS')) {
+                    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
+                        const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === it.codigo);
+                        if (b && b.precio > 0) {
+                            it.precio = b.precio;
+                            it.precio_unitario = b.precio;
+                            it.precio_ars = b.precio;
+                            it.subtotal = (parseFloat(it.cantidad) || 1) * b.precio;
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     // Open Step 1 directly
     goToRequestStep(1);
@@ -16082,6 +16333,19 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                         }
                     }
                 }
+                // Si aún así numItemPrice <= 0 para un ítem eléctrico, rescatar de PRESUPUESTO_ELECTRICO_STOCK o item.precio
+                const isElecItem = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') || String(item.codigo || '').toUpperCase().startsWith('ELE-');
+                if ((numItemPrice <= 0 || isNaN(numItemPrice)) && isElecItem) {
+                    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+                        const bItem = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === item.codigo);
+                        if (bItem && bItem.precio > 0) {
+                            numItemPrice = bItem.precio;
+                        }
+                    }
+                    if ((numItemPrice <= 0 || isNaN(numItemPrice)) && item.precio > 0) {
+                        numItemPrice = item.precio;
+                    }
+                }
             }
 
             if (existing) {
@@ -16184,7 +16448,8 @@ if (curPlanta === 'APA') curPlanta = 'APS';
             const formattedPrice = (numItemPrice !== undefined && numItemPrice !== null) ? numItemPrice.toString().replace(/\./g, ',') : '0';
 
             html += `
-                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.02);">
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.02); cursor: pointer;"
+                    onclick="const inp=this.querySelector('.meca-excel-input'); if(inp && document.activeElement!==inp && !event.target.closest('button') && !event.target.closest('input')){ inp.focus(); inp.select(); }">
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px; text-align: center; color: #38bdf8 !important; font-family: monospace; font-weight: 800; font-size: 11.5px;" title="Código del Ítem">${item.codigo}</td>
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px; font-weight: 600; color: #ffffff !important; font-size: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
@@ -16313,25 +16578,6 @@ window.onMecaPriceKeyDown = function(event, input) {
         return;
     }
 
-    // PROHIBIR TOTALMENTE EL PUNTO (.) Y AUTO-CONVERTIR A COMA (,):
-    if (event.key === '.') {
-        event.preventDefault();
-        if (!input.value.includes(',')) {
-            const start = input.selectionStart;
-            const end = input.selectionEnd;
-            input.value = input.value.substring(0, start) + ',' + input.value.substring(end);
-            input.setSelectionRange(start + 1, start + 1);
-            window.onMecaPriceInputChange(input);
-        }
-        return;
-    }
-
-    // Si presiona coma y ya existe una coma, evitar duplicar
-    if (event.key === ',' && input.value.includes(',')) {
-        event.preventDefault();
-        return;
-    }
-
     // Bloquear signos y letras exponenciales
     if (['e', 'E', '+', '-', '/'].includes(event.key)) {
         event.preventDefault();
@@ -16353,36 +16599,13 @@ window.onMecaPriceInputChange = function(input) {
     }
     const code = input.getAttribute('data-code');
 
-    // Mejor manejo de puntos y comas:
-    let cleanVal = input.value;
-
-    // Si contiene múltiples puntos (ej. 1.500.000), son separadores de miles, los eliminamos.
-    if ((cleanVal.match(/\./g) || []).length > 1) {
-        cleanVal = cleanVal.replace(/\./g, '');
-    }
-    // Si contiene un punto Y una coma (ej. 1.500,50), el punto es de mil, lo eliminamos.
-    else if (cleanVal.includes('.') && cleanVal.includes(',')) {
-        cleanVal = cleanVal.replace(/\./g, '');
-    }
-    // Si solo contiene un punto, asumimos que quiso poner una coma decimal.
-    else if (cleanVal.includes('.') && !cleanVal.includes(',')) {
-        cleanVal = cleanVal.replace(/\./g, ',');
-    }
-
-    // Filtrar caracteres inválidos (solo dejamos números y coma)
-    cleanVal = cleanVal.replace(/[^0-9,]/g, '');
-
-    // Asegurar que solo exista como máximo una sola coma
-    const parts = cleanVal.split(',');
-    if (parts.length > 2) {
-        cleanVal = parts[0] + ',' + parts.slice(1).join('');
-    }
-
+    // Filtrar caracteres inválidos (solo números, puntos y comas)
+    let cleanVal = input.value.replace(/[^0-9,.]/g, '');
     if (input.value !== cleanVal) {
         input.value = cleanVal;
     }
 
-    const newPrice = window.parseArgNumber(input.value);
+    const newPrice = window.parseArgNumber(cleanVal);
 
     // Buscar detalles del item original y actualizar pedidoItems inmediatamente
     let subr = null, det = null, u = null;
@@ -16419,9 +16642,6 @@ window.onMecaPriceInputChange = function(input) {
         }
     }
 
-    // saveCustomItemPrice removido de aquí para evitar race conditions en cada tecla.
-    // Ahora se llama en onMecaPriceInputBlur
-
     const qtyInput = document.querySelector(`.meca-excel-input[data-code="${code}"]`);
     if (qtyInput) {
         qtyInput.setAttribute('data-price', newPrice);
@@ -16431,33 +16651,26 @@ window.onMecaPriceInputChange = function(input) {
 };
 
 window.onMecaPriceInputBlur = function(input) {
-    let cleanVal = input.value.trim();
-    if ((cleanVal.match(/\./g) || []).length > 1) {
-        cleanVal = cleanVal.replace(/\./g, '');
-    } else if (cleanVal.includes('.') && cleanVal.includes(',')) {
-        cleanVal = cleanVal.replace(/\./g, '');
-    } else if (cleanVal.includes('.') && !cleanVal.includes(',')) {
-        cleanVal = cleanVal.replace(/\./g, ',');
+    if (!input) return;
+    const rawVal = input.value.trim();
+    const newPrice = window.parseArgNumber(rawVal);
+    const itemCurrency = (input.getAttribute('data-currency') || 'ARS').toUpperCase();
+    const isUSD = (itemCurrency === 'USD');
+
+    // Formatear visualmente el campo:
+    if (newPrice > 0) {
+        if (!isUSD && Number.isInteger(newPrice)) {
+            // En Pesos: si es entero, mostrar con separador de miles oficial (ej: 10.000, 15.550, 71.062)
+            input.value = newPrice.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        } else {
+            input.value = newPrice.toLocaleString('es-AR', { minimumFractionDigits: (isUSD ? 2 : 0), maximumFractionDigits: 2 });
+        }
+    } else {
+        input.value = '0';
     }
-    cleanVal = cleanVal.replace(/[^0-9,]/g, '');
-    const parts = cleanVal.split(',');
-    if (parts.length > 2) {
-        cleanVal = parts[0] + ',' + parts.slice(1).join('');
-    }
-    if (!cleanVal) {
-        cleanVal = '0';
-    }
-    input.value = cleanVal;
-    window.onMecaPriceInputChange(input);
-    // Format with dots for visual feedback
-    const vParts = cleanVal.split(',');
-    vParts[0] = vParts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    input.value = vParts.join(',');
 
     // Guardar en Supabase y DB local de forma segura solo al perder el foco (blur)
-    const newPrice = window.parseArgNumber(cleanVal);
     const code = input.getAttribute('data-code');
-    const itemCurrency = (input.getAttribute('data-currency') || 'ARS').toUpperCase();
     let curPlanta = '';
     const isElecItem = String(code || '').toUpperCase().trim().startsWith('ELE-') || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico');
     if (!isElecItem) {
@@ -16473,7 +16686,13 @@ window.onMecaPriceInputBlur = function(input) {
     let subr = null, det = null, u = null;
     if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems)) {
         const pItem = pedidoItems.find(i => i.codigo === code);
-        if (pItem) { subr = pItem.subrubro; det = pItem.detalle; u = pItem.unidad; }
+        if (pItem) {
+            subr = pItem.subrubro;
+            det = pItem.detalle;
+            u = pItem.unidad;
+            pItem.precio = newPrice;
+            pItem.precio_unitario = newPrice;
+        }
     }
     if (!det && typeof getActiveStockCatalog === 'function') {
         const cat = getActiveStockCatalog();
@@ -16485,43 +16704,76 @@ window.onMecaPriceInputBlur = function(input) {
     if (typeof window.saveItemPriceFor === 'function') {
         window.saveItemPriceFor(code, curPlanta, itemCurrency, newPrice, subr, det, u);
     }
+
+    const qtyInput = document.querySelector(`.meca-excel-input[data-code="${code}"]`);
+    if (qtyInput) {
+        qtyInput.setAttribute('data-price', newPrice);
+    }
+    recalcMecaExcelRow(input);
 };
 
 window.recalcMecaExcelRow = function(input) {
-    const code = input.getAttribute('data-code');
-    const priceInput = document.querySelector(`.meca-excel-price-input[data-code="${code}"]`);
-    const qtyInput = document.querySelector(`.meca-excel-input[data-code="${code}"]`);
-    const secIdx = parseInt(input.getAttribute('data-sec')) || 0;
-    const itemCurrency = priceInput ? (priceInput.getAttribute('data-currency') || 'ARS').toUpperCase() : 'ARS';
-    const isUSD = (itemCurrency === 'USD');
+    if (!input) return;
+    try {
+        const code = input.getAttribute('data-code');
+        if (!code) return;
+        const priceInput = document.querySelector(`.meca-excel-price-input[data-code="${code}"]`);
+        const qtyInput = document.querySelector(`.meca-excel-input[data-code="${code}"]`);
+        const secIdx = parseInt(input.getAttribute('data-sec')) || 0;
+        const itemCurrency = priceInput ? (priceInput.getAttribute('data-currency') || 'ARS').toUpperCase() : 'ARS';
+        const isUSD = (itemCurrency === 'USD');
+        let price = priceInput ? window.parseArgNumber(priceInput.value) : (input.hasAttribute('data-price') ? window.parseArgNumber(input.getAttribute('data-price')) : 0);
+        const isElecItem = String(code || '').toUpperCase().trim().startsWith('ELE-') || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico');
+        if (price <= 0 && isElecItem && !isUSD) {
+            if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+                const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === code);
+                if (b && b.precio > 0) {
+                    price = b.precio;
+                    if (priceInput) {
+                        priceInput.value = price.toString().replace(/\./g, ',');
+                    }
+                }
+            }
+        }
+        const qty = qtyInput ? (parseInt(qtyInput.value.replace(/[^0-9]/g, ''), 10) || 0) : 0;
+        const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
+        const totalEl = document.getElementById(`meca-total-${code}`);
 
-    const price = priceInput ? window.parseArgNumber(priceInput.value) : (input.hasAttribute('data-price') ? window.parseArgNumber(input.getAttribute('data-price')) : 0);
-    const qty = qtyInput ? (parseInt(qtyInput.value.replace(/[^0-9]/g, ''), 10) || 0) : 0;
-    const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
-    const totalEl = document.getElementById(`meca-total-${code}`);
+        if (qtyInput) {
+            qtyInput.style.background = (qty > 0 ? 'rgba(234, 179, 8, 0.18)' : 'rgba(15, 23, 42, 0.6)');
+            qtyInput.style.borderColor = (qty > 0 ? '#eab308' : 'rgba(255, 255, 255, 0.15)');
+            qtyInput.style.color = (qty > 0 ? '#fde047' : '#ffffff');
+        }
 
-    if (qtyInput) {
-        qtyInput.style.background = (qty > 0 ? 'rgba(234, 179, 8, 0.18)' : 'rgba(15, 23, 42, 0.6)');
-        qtyInput.style.borderColor = (qty > 0 ? '#eab308' : 'rgba(255, 255, 255, 0.15)');
-        qtyInput.style.color = (qty > 0 ? '#fde047' : '#ffffff');
+        if (totalEl) {
+            const subtotal = qty * price;
+            if (isUSD) {
+                totalEl.style.color = '#38bdf8';
+                totalEl.innerText = `U$D ${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            } else {
+                totalEl.style.color = '#34d399';
+                totalEl.innerText = `$ ${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            }
+        }
+    } catch(errRow) {
+        console.error("Error en recalcMecaExcelRow:", errRow);
     }
 
-    if (totalEl) {
-        const subtotal = qty * price;
-        if (isUSD) {
-            totalEl.style.color = '#38bdf8';
-            totalEl.innerText = `U$D ${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        } else {
-            totalEl.style.color = '#34d399';
-            totalEl.innerText = `$ ${subtotal.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    if (typeof window.recalcMecaExcelAll === 'function') {
+        try {
+            window.recalcMecaExcelAll();
+        } catch(errAll) {
+            console.error("Error en recalcMecaExcelAll desde recalcMecaExcelRow:", errAll);
         }
     }
-
-    recalcMecaExcelAll();
 };
 
 window.recalcMecaExcelAll = function() {
     const inputs = document.querySelectorAll('.meca-excel-input');
+    if (inputs.length === 0) {
+        // Si no hay inputs de grilla en el DOM, no vaciar ni alterar pedidoItems
+        return;
+    }
     const subtotals = [0, 0, 0, 0, 0, 0];
     let grandTotal = 0;
     let materialsTotalUSD = 0;
@@ -16536,14 +16788,24 @@ window.recalcMecaExcelAll = function() {
         const c = inp.getAttribute('data-code');
         if (c) gridCodes.add(c);
     });
-    const nonGridItems = (Array.isArray(pedidoItems) ? pedidoItems : []).filter(item => item && item.codigo && !gridCodes.has(item.codigo) && item.cantidad > 0);
+    const hasElecInputs = Array.from(inputs).some(inp => String(inp.getAttribute('data-code') || '').toUpperCase().startsWith('ELE-'));
+    const isElecBudget = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') || hasElecInputs;
+
+    const nonGridItems = (Array.isArray(pedidoItems) ? pedidoItems : []).filter(item => {
+        if (!item || !item.codigo || !item.cantidad || item.cantidad <= 0) return false;
+        if (gridCodes.has(item.codigo)) return false;
+        // Evitar contaminación cruzada de rubros:
+        if (isElecBudget && String(item.codigo).toUpperCase().startsWith('MEC-')) return false;
+        if (!isElecBudget && String(item.codigo).toUpperCase().startsWith('ELE-')) return false;
+        return true;
+    });
 
     // Reset items array
     pedidoItems = [];
 
     let catalog = getActiveStockCatalog();
 
-    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
+    if (!isElecBudget && typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') {
         const reqPlantaSelect = document.getElementById('req-meca-planta');
         if (reqPlantaSelect) {
             let curPlanta = (reqPlantaSelect.value || '').trim().toUpperCase();
@@ -16586,9 +16848,20 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         const priceInput = tr ? tr.querySelector('.meca-excel-price-input') : document.querySelector(`.meca-excel-price-input[data-code="${code}"]`);
         const itemCurrency = priceInput ? (priceInput.getAttribute('data-currency') || 'ARS').toUpperCase() : 'ARS';
         const isUSD = (itemCurrency === 'USD');
-        const price = priceInput ? window.parseArgNumber(priceInput.value) : window.parseArgNumber(input.getAttribute('data-price'));
+        let price = priceInput ? window.parseArgNumber(priceInput.value) : window.parseArgNumber(input.getAttribute('data-price'));
         const qty = parseInt(input.value.replace(/[^0-9]/g, ''), 10) || 0;
         const secIdx = parseInt(input.getAttribute('data-sec')) || 0;
+
+        const isItemElec = String(code || '').toUpperCase().startsWith('ELE-') || isElecBudget;
+        if (price <= 0 && isItemElec && !isUSD) {
+            if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+                const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === code);
+                if (b && b.precio > 0) {
+                    price = b.precio;
+                    if (priceInput) priceInput.value = price.toString().replace(/\./g, ',');
+                }
+            }
+        }
 
         const itemObj = catalog.find(i => i.codigo === code);
 
@@ -16677,10 +16950,15 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         }
     });
 
-    // Limpiar ítems con cantidad menor o igual a cero
-    pedidoItems = pedidoItems.filter(item => (parseFloat(item.cantidad) || 0) > 0);
+    // Limpiar ítems con cantidad menor o igual a cero y de rubro cruzado
+    pedidoItems = pedidoItems.filter(item => {
+        if ((parseFloat(item.cantidad) || 0) <= 0) return false;
+        if (isElecBudget && String(item.codigo).toUpperCase().startsWith('MEC-')) return false;
+        if (!isElecBudget && String(item.codigo).toUpperCase().startsWith('ELE-')) return false;
+        return true;
+    });
 
-    if (reqTipoPresupuesto === 'Eléctrico') {
+    if (isElecBudget) {
         const subMatTop = document.getElementById('elec-subtotal-materials-total-header');
         const subMatBottom = document.getElementById('elec-materials-subtotal-bottom');
         const subMatRow = document.getElementById('elec-materials-subtotal');
