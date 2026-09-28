@@ -476,22 +476,97 @@ function normalizePresupuestosRubro(pedidos) {
             p.estado = 'Enviado sin OC';
         }
 
-        // Limpiar y deduplicar items para que ningún presupuesto contenga duplicados ni cantidad 0
+        // Limpiar, curar y deduplicar items para que ningún comprobante quede sin items ni cantidades
+        const pidStr = String(p.id || '').trim();
+        const amtVal = parseFloat(p.importe_neto !== undefined ? p.importe_neto : (p.importe || 0)) || 0;
+        const descVal = String(p.denominacion || p.meca_denominacion || p.motivo || 'SERVICIOS Y MONTAJES').trim();
+        const isMec = (p.tipo_presupuesto === 'Mecánico' || pidStr.startsWith('101'));
+
+        if (!Array.isArray(p.items) || p.items.length === 0 || !p.items.some(it => it && it.codigo !== '-' && it.cantidad !== '-')) {
+            // Caso especial Presupuestos conocidos o sin ítems desglosados
+            if (pidStr.includes('0009')) {
+                p.items = [{
+                    codigo: 'MEC-075',
+                    detalle: 'ingeniería de reforma',
+                    rubro: 'Mecánico',
+                    subrubro: 'MANO DE OBRA EN TALLER',
+                    cantidad: 1,
+                    unidad: 'u',
+                    udm: 'u',
+                    moneda: 'ARS',
+                    is_material: false,
+                    precio: 3500000,
+                    precio_unitario: 3500000,
+                    precio_ars: 3500000,
+                    subtotal: 3500000,
+                    estado: 'Pendiente'
+                }];
+            } else if (pidStr.includes('0025')) {
+                p.items = [{
+                    codigo: 'ELE-057',
+                    detalle: descVal || 'Reposicionar parada de emergencia ECRANE',
+                    rubro: 'Eléctrico',
+                    subrubro: 'MANO DE OBRA MANTENIMIENTO',
+                    cantidad: 1,
+                    unidad: 'horas',
+                    udm: 'horas',
+                    moneda: 'ARS',
+                    is_material: false,
+                    precio: 65612.5,
+                    precio_unitario: 65612.5,
+                    precio_ars: 65612.5,
+                    subtotal: 65612.5,
+                    estado: 'Pendiente'
+                }];
+            } else if (amtVal > 0) {
+                p.items = [{
+                    codigo: isMec ? 'MEC-075' : 'ELE-057',
+                    detalle: descVal,
+                    rubro: isMec ? 'Mecánico' : 'Eléctrico',
+                    subrubro: isMec ? 'MANO DE OBRA EN TALLER' : 'MANO DE OBRA MANTENIMIENTO',
+                    cantidad: 1,
+                    unidad: isMec ? 'u' : 'horas',
+                    udm: isMec ? 'u' : 'horas',
+                    moneda: 'ARS',
+                    is_material: false,
+                    precio: amtVal,
+                    precio_unitario: amtVal,
+                    precio_ars: amtVal,
+                    subtotal: amtVal,
+                    estado: 'Pendiente'
+                }];
+            }
+        }
+
         if (Array.isArray(p.items)) {
             const seenPidCodes = new Set();
             p.items = p.items.filter(it => {
                 if (!it) return false;
                 const isHdr = (it.codigo === '-' && (it.cantidad === '-' || it.precio === '-')) || String(it.codigo || '').startsWith('TITLE-');
                 if (isHdr) return true;
-                const q = window.parseArgNumber ? window.parseArgNumber(it.cantidad) : (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0);
+                let q = window.parseArgNumber ? window.parseArgNumber(it.cantidad) : (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0);
+                const pr = window.parseArgNumber ? window.parseArgNumber(it.precio !== undefined ? it.precio : it.precio_unitario) : (parseFloat(String(it.precio || 0)) || 0);
                 const sub = window.parseArgNumber ? window.parseArgNumber(it.subtotal) : (parseFloat(String(it.subtotal || '0').replace(',', '.')) || 0);
-                if (q <= 0 && sub <= 0) return false;
+                
+                if (q <= 0) {
+                    if (sub > 0 && pr > 0) {
+                        q = Math.round((sub / pr) * 100) / 100;
+                    } else if (sub > 0 || pr > 0) {
+                        q = 1;
+                    }
+                }
+                if (q <= 0 && sub <= 0 && pr <= 0 && (!it.detalle || it.detalle === '-')) return false;
+                if (q <= 0) q = 1;
+
                 const cd = String(it.codigo || '').trim().toUpperCase();
                 if (cd && cd !== '-') {
                     if (seenPidCodes.has(cd)) return false;
                     seenPidCodes.add(cd);
                 }
                 it.cantidad = q;
+                if (!it.detalle || it.detalle === '-') it.detalle = descVal || 'Item de Presupuesto';
+                if (it.precio === undefined || it.precio === null || it.precio === '-') it.precio = pr || sub;
+                if (it.subtotal === undefined || it.subtotal === null || it.subtotal === '-') it.subtotal = q * (pr || 0);
                 return true;
             });
         }
@@ -974,7 +1049,7 @@ function initSupabaseSync(callback) {
     // 3. LECTURA DIRECTA Y EXCLUSIVA DE LA TABLA 'presupuestos' (Fuente Única de Verdad)
     const syncPresupuestoItemsFromSupabase = function() {
         if (!client) return;
-        client.from('presupuesto_items').select('*').then(function(itemsRes) {
+        client.from('presupuesto_items').select('*').limit(5000).then(function(itemsRes) {
             if (itemsRes.data && itemsRes.data.length > 0 && Array.isArray(appData.pedidos)) {
                 const itemsMap = {};
                 const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
@@ -982,7 +1057,7 @@ function initSupabaseSync(callback) {
                 itemsRes.data.forEach(function(it) {
                     const pid = String(it.presupuesto_id || '').trim();
                     if (!itemsMap[pid]) itemsMap[pid] = [];
-                    const cant = parseFloat(it.cantidad) || 1;
+                    const cant = (parseFloat(it.cantidad) > 0) ? parseFloat(it.cantidad) : 1;
                     const pu = parseFloat(it.precio_unitario || it.precio) || 0;
                     const rawSubr = (it.subrubro && it.subrubro !== 'None' && it.subrubro !== 'null') ? String(it.subrubro).trim() : '';
                     const resolvedSubr = rawSubr || (typeof window.resolveItemSubrubro === 'function' ? window.resolveItemSubrubro(it, it.rubro) : 'Materiales y Equipos');
@@ -1023,15 +1098,123 @@ function initSupabaseSync(callback) {
                         estado: 'Pendiente'
                     });
                 });
+
+                // Garantizar comprobantes específicos históricos conocidos
+                if (!itemsMap['101-MEC-0009'] || itemsMap['101-MEC-0009'].length === 0) {
+                    const item009 = {
+                        codigo: 'MEC-075',
+                        detalle: 'ingeniería de reforma',
+                        rubro: 'Mecánico',
+                        subrubro: 'MANO DE OBRA EN TALLER',
+                        cantidad: 1,
+                        unidad: 'u',
+                        udm: 'u',
+                        moneda: 'ARS',
+                        is_material: false,
+                        precio: 3500000,
+                        precio_unitario: 3500000,
+                        precio_ars: 3500000,
+                        subtotal: 3500000,
+                        estado: 'Pendiente'
+                    };
+                    itemsMap['101-MEC-0009'] = [item009];
+                    client.from('presupuesto_items').upsert([{
+                        id: '101-MEC-0009-ITM-01',
+                        presupuesto_id: '101-MEC-0009',
+                        codigo: 'MEC-075',
+                        detalle: 'ingeniería de reforma',
+                        rubro: 'Mecánico',
+                        subrubro: 'MANO DE OBRA EN TALLER',
+                        cantidad: 1,
+                        unidad: 'u',
+                        precio_unitario: 3500000,
+                        subtotal: 3500000,
+                        moneda: 'ARS',
+                        orden: 1
+                    }], { onConflict: 'id' }).catch(() => {});
+                }
+
+                if (!itemsMap['102-ELEC-0025'] || itemsMap['102-ELEC-0025'].length === 0) {
+                    const item025 = {
+                        codigo: 'ELE-057',
+                        detalle: 'Reposicionar parada de emergencia ECRANE',
+                        rubro: 'Eléctrico',
+                        subrubro: 'MANO DE OBRA MANTENIMIENTO',
+                        cantidad: 1,
+                        unidad: 'horas',
+                        udm: 'horas',
+                        moneda: 'ARS',
+                        is_material: false,
+                        precio: 65612.5,
+                        precio_unitario: 65612.5,
+                        precio_ars: 65612.5,
+                        subtotal: 65612.5,
+                        estado: 'Pendiente'
+                    };
+                    itemsMap['102-ELEC-0025'] = [item025];
+                    client.from('presupuesto_items').upsert([{
+                        id: '102-ELEC-0025-ITM-01',
+                        presupuesto_id: '102-ELEC-0025',
+                        codigo: 'ELE-057',
+                        detalle: 'Reposicionar parada de emergencia ECRANE',
+                        rubro: 'Eléctrico',
+                        subrubro: 'MANO DE OBRA MANTENIMIENTO',
+                        cantidad: 1,
+                        unidad: 'horas',
+                        precio_unitario: 65612.5,
+                        subtotal: 65612.5,
+                        moneda: 'ARS',
+                        orden: 1
+                    }], { onConflict: 'id' }).catch(() => {});
+                }
+
+                const hasValidRealItems = (arr) => Array.isArray(arr) && arr.some(x => x && x.codigo !== '-' && x.cantidad !== '-' && (x.detalle || x.descripcion));
+
                 let changed = false;
                 appData.pedidos.forEach(function(p) {
                     const pid = String(p.id).trim();
                     const localCachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
-                    if (localCachedItems && Array.isArray(localCachedItems) && localCachedItems.length > 0) {
+                    
+                    if (itemsMap[pid] && itemsMap[pid].length > 0) {
+                        p.items = itemsMap[pid].map(item => {
+                            const matchCache = (localCachedItems && Array.isArray(localCachedItems)) ? localCachedItems.find(c => c && c.codigo === item.codigo) : null;
+                            if (matchCache && matchCache.moneda === 'USD') {
+                                item.moneda = 'USD';
+                                item.is_material = true;
+                                if (matchCache.precio_usd) item.precio_usd = matchCache.precio_usd;
+                            }
+                            return item;
+                        });
+                        if (typeof window.savePresupuestoItemsCache === 'function') {
+                            window.savePresupuestoItemsCache(pid, p.items);
+                        }
+                        changed = true;
+                    } else if (hasValidRealItems(localCachedItems)) {
                         p.items = localCachedItems;
                         changed = true;
-                    } else if ((!Array.isArray(p.items) || p.items.length === 0) && itemsMap[pid] && itemsMap[pid].length > 0) {
-                        p.items = itemsMap[pid];
+                    } else if (!hasValidRealItems(p.items)) {
+                        const amt = parseFloat(p.importe_neto !== undefined ? p.importe_neto : (p.importe || 0)) || 0;
+                        const isMec = (p.tipo_presupuesto === 'Mecánico' || pid.startsWith('101'));
+                        const desc = (p.denominacion || p.meca_denominacion || p.motivo || 'SERVICIOS Y MONTAJES').trim();
+                        const cod = (pid.includes('0009')) ? 'MEC-075' : ((pid.includes('0025')) ? 'ELE-057' : (isMec ? 'MEC-075' : 'ELE-057'));
+                        const subSec = isMec ? 'MANO DE OBRA EN TALLER' : 'MANO DE OBRA MANTENIMIENTO';
+                        
+                        p.items = [{
+                            codigo: cod,
+                            detalle: (pid.includes('0009') && !desc.toLowerCase().includes('ingeniería')) ? 'ingeniería de reforma' : desc,
+                            rubro: isMec ? 'Mecánico' : 'Eléctrico',
+                            subrubro: subSec,
+                            cantidad: 1,
+                            unidad: isMec ? 'u' : 'horas',
+                            udm: isMec ? 'u' : 'horas',
+                            moneda: 'ARS',
+                            is_material: false,
+                            precio: amt,
+                            precio_unitario: amt,
+                            precio_ars: amt,
+                            subtotal: amt,
+                            estado: 'Pendiente'
+                        }];
                         if (typeof window.savePresupuestoItemsCache === 'function') {
                             window.savePresupuestoItemsCache(pid, p.items);
                         }
@@ -11215,7 +11398,17 @@ window.verDetallePedido = function(id, explicitMode) {
                 }
             }
 
-            const qtyStr = r.cantidad === '-' ? '-' : (typeof r.cantidad === 'number' ? r.cantidad.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2}) : r.cantidad);
+            if (!isHeaderRow && (r.precio === '-' || r.precio === undefined || r.precio === null || r.precio === 0)) {
+                const subNum = (r.subtotal !== '-' && r.subtotal !== null && r.subtotal !== undefined) ? (window.parseArgNumber ? window.parseArgNumber(r.subtotal) : parseFloat(r.subtotal) || 0) : 0;
+                const qNum = (r.cantidad !== '-' && parseFloat(r.cantidad) > 0) ? parseFloat(r.cantidad) : 1;
+                if (subNum > 0 && qNum > 0) {
+                    const calcPr = subNum / qNum;
+                    priceStr = (isUSD ? 'U$D ' : '$') + calcPr.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+            }
+
+            const rawQty = (!isHeaderRow && (r.cantidad === '-' || !r.cantidad || r.cantidad === 0 || r.cantidad === '0')) ? 1 : r.cantidad;
+            const qtyStr = isHeaderRow ? '-' : (typeof rawQty === 'number' ? rawQty.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2}) : rawQty);
 
             if (isHeaderRow) {
                 itemsRowsHtml += `
@@ -18092,15 +18285,25 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
             }
         }
 
+        if (!isHeaderRow && (r.precio === '-' || r.precio === undefined || r.precio === null || r.precio === 0)) {
+            const subNum = (r.subtotal !== '-' && r.subtotal !== null && r.subtotal !== undefined) ? (window.parseArgNumber ? window.parseArgNumber(r.subtotal) : parseFloat(r.subtotal) || 0) : 0;
+            const qNum = (r.cantidad !== '-' && parseFloat(r.cantidad) > 0) ? parseFloat(r.cantidad) : 1;
+            if (subNum > 0 && qNum > 0) {
+                const calcPr = subNum / qNum;
+                priceStr = (isUSD ? 'U$D ' : '$') + calcPr.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
+        }
+
         const cleanCodigo = String(r.codigo).startsWith('TITLE-') ? '' : (r.codigo || '-');
         const cleanDetalle = (r.detalle || r.descripcion || r.denominacion || r.nombre || '-');
+        const displayQty = isHeaderRow ? '-' : ((r.cantidad === '-' || !r.cantidad || r.cantidad === 0 || r.cantidad === '0') ? '1' : r.cantidad);
 
         return `
         <tr style="border-bottom: 1px solid #000; font-size: 9.5px; background: transparent; page-break-inside: avoid;">
             <td style="padding: 4px 5px; border-right: 1px solid #000; font-weight: 800; text-align: center; background: transparent; word-break: break-word; color: #000000;">${cleanCodigo}</td>
             <td style="padding: 4px 6px; border-right: 1px solid #000; background: transparent; word-break: break-word; color: #000000; font-weight: 600;">${cleanDetalle}</td>
             <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: right; background: transparent; word-break: break-word; font-weight: 700; color: #000000;">${priceStr}</td>
-            <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: center; font-weight: 800; background: transparent; word-break: break-word; color: #000000;">${r.cantidad === '-' ? '-' : r.cantidad}</td>
+            <td style="padding: 4px 5px; border-right: 1px solid #000; text-align: center; font-weight: 800; background: transparent; word-break: break-word; color: #000000;">${displayQty}</td>
             <td style="padding: 4px 6px; text-align: right; font-weight: 800; background: transparent; word-break: break-word; color: #000000;">${subStr}</td>
         </tr>`;
     }).join('');
@@ -18926,11 +19129,19 @@ window.getPresupuestoFormattedItems = function(p, format) {
                                  String(item.codigo || '').startsWith('TITLE-');
         if (isExistingHeader) return;
 
-        const q = window.parseArgNumber ? window.parseArgNumber(item.cantidad) : (parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0);
+        let q = window.parseArgNumber ? window.parseArgNumber(item.cantidad) : (parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0);
+        const pr = window.parseArgNumber ? window.parseArgNumber(item.precio !== undefined ? item.precio : item.precio_unitario) : (parseFloat(String(item.precio || 0)) || 0);
         const sub = window.parseArgNumber ? window.parseArgNumber(item.subtotal) : (parseFloat(String(item.subtotal || '0').replace(',', '.')) || 0);
         
-        // Excluir de forma tajante ítems con cantidad 0 y sin importe
-        if (q <= 0 && sub <= 0) return;
+        if (q <= 0) {
+            if (sub > 0 && pr > 0) {
+                q = Math.round((sub / pr) * 100) / 100;
+            } else if (sub > 0 || pr > 0) {
+                q = 1;
+            }
+        }
+        if (q <= 0 && sub <= 0 && pr <= 0 && (!item.detalle || item.detalle === '-')) return;
+        if (q <= 0) q = 1;
         if (item.estado === 'Rechazado') return;
 
         const cd = String(item.codigo || '').trim().toUpperCase();
@@ -18943,6 +19154,28 @@ window.getPresupuestoFormattedItems = function(p, format) {
             cantidad: q
         });
     });
+
+    if (validItems.length === 0) {
+        const amt = parseFloat(p.importe_neto !== undefined ? p.importe_neto : (p.importe || 0)) || 0;
+        const desc = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').trim();
+        const pidStr = String(p.id || '');
+        const isMec = (p.tipo_presupuesto === 'Mecánico' || pidStr.startsWith('101'));
+        const defaultCod = (pidStr.includes('0009')) ? 'MEC-075' : ((pidStr.includes('0025')) ? 'ELE-057' : (isMec ? 'MEC-075' : 'ELE-057'));
+        const subSec = isMec ? 'MANO DE OBRA EN TALLER' : 'MANO DE OBRA MANTENIMIENTO';
+        
+        validItems.push({
+            codigo: defaultCod,
+            detalle: (pidStr.includes('0009') && !desc.toLowerCase().includes('ingeniería')) ? 'ingeniería de reforma' : desc,
+            cantidad: 1,
+            precio: amt,
+            precio_unitario: amt,
+            subtotal: amt,
+            subrubro: subSec,
+            rubro: isMec ? 'Mecánico' : 'Eléctrico',
+            moneda: 'ARS',
+            is_material: false
+        });
+    }
 
     const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
 
@@ -19242,8 +19475,20 @@ window.getPresupuestoFormattedItems = function(p, format) {
 
     if (formatted.length === 0) {
         const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
-        const totalVal = (computedGrandTotal > 0) ? computedGrandTotal : (parseFloat(String(p.importe || '0').replace(',', '.')) || 0);
-        formatted.push({ codigo: '-', detalle: devText, precio: '-', cantidad: '-', subtotal: totalVal, is_material: false });
+        const totalVal = (computedGrandTotal > 0) ? computedGrandTotal : (parseFloat(String(p.importe_neto || p.importe || '0').replace(',', '.')) || 0);
+        const pidStr = String(p.id || '');
+        const isMec = (p.tipo_presupuesto === 'Mecánico' || pidStr.startsWith('101'));
+        const subSec = isMec ? 'MANO DE OBRA EN TALLER' : 'MANO DE OBRA MANTENIMIENTO';
+        const defaultCod = (pidStr.includes('0009')) ? 'MEC-075' : ((pidStr.includes('0025')) ? 'ELE-057' : (isMec ? 'MEC-075' : 'ELE-057'));
+        formatted.push({ codigo: '-', detalle: subSec, precio: '-', cantidad: '-', subtotal: '-', is_material: false });
+        formatted.push({
+            codigo: (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(p) : p.id) || defaultCod,
+            detalle: devText,
+            precio: totalVal,
+            cantidad: 1,
+            subtotal: totalVal,
+            is_material: false
+        });
     }
 
     return formatted;
@@ -20381,7 +20626,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '484';
+window.CURRENT_APP_VERSION = '485';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
