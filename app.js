@@ -3407,16 +3407,30 @@ window.onNuevoItemMonedaChange = function() {
 // ==========================================================
 window.getItemPriceFor = function(codigo, planta, moneda) {
     if (!codigo) return 0;
-    let p = (planta || '').trim().toUpperCase();
+    const isElec = String(codigo || '').toUpperCase().trim().startsWith('ELE-') ||
+                   (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico' && !String(codigo || '').toUpperCase().trim().startsWith('MEC-'));
+    let p = isElec ? '' : (planta || '').trim().toUpperCase();
     const m = (moneda || 'ARS').trim().toUpperCase();
     const customPrices = (typeof getCustomItemPrices === 'function') ? getCustomItemPrices() : {};
     const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
 
-    // Aplicar regla de lista de precios de planta (ej: PPA usa lista de APS)
+    // Aplicar regla de lista de precios de planta (ej: PPA usa lista de APS) para Mecánico
     if (p && p !== 'APS' && p !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[p]) {
         p = window.appData.plantasRules[p].trim().toUpperCase();
     }
     if (p === 'PPA' || p === 'APA') p = 'APS';
+
+    // Para Eléctrico: tiene lista única (planta vacía en Supabase y DB). Soporta claves directas y retrocompatibles.
+    if (isElec) {
+        if (customPrices[`${codigo}_${m}`] !== undefined) return parseFloat(customPrices[`${codigo}_${m}`]) || 0;
+        if (customPrices[`${codigo}_APS_${m}`] !== undefined) return parseFloat(customPrices[`${codigo}_APS_${m}`]) || 0;
+        if (customPrices[`${codigo}_APG_${m}`] !== undefined) return parseFloat(customPrices[`${codigo}_APG_${m}`]) || 0;
+        if (m === 'ARS') {
+            if (customPrices[codigo] !== undefined) return parseFloat(customPrices[codigo]) || 0;
+            if (customPrices[`${codigo}_APS`] !== undefined) return parseFloat(customPrices[`${codigo}_APS`]) || 0;
+            if (customPrices[`${codigo}_APG`] !== undefined) return parseFloat(customPrices[`${codigo}_APG`]) || 0;
+        }
+    }
 
     // 1. Clave exacta: CODIGO_PLANTA_MONEDA (ej: MEC-001_APS_USD o MEC-001_APS_ARS)
     if (p && customPrices[`${codigo}_${p}_${m}`] !== undefined) {
@@ -3428,7 +3442,6 @@ window.getItemPriceFor = function(codigo, planta, moneda) {
     }
 
     // Si la moneda solicitada es USD y no hay un precio explícito cargado en USD, DEBE SER 0
-    // ("cuando pongas en dolar ahora venga en 0 pq no cargaron ningun producto con dolar y q despues cuando ellos pongan vengan")
     if (m === 'USD') {
         const cat = (typeof getActiveStockCatalog === 'function') ? getActiveStockCatalog() : [];
         if (p) {
@@ -3485,13 +3498,24 @@ window.getItemPriceFor = function(codigo, planta, moneda) {
 // ==========================================================
 window.hasExplicitItemPrice = function(codigo, planta, moneda) {
     if (!codigo) return false;
-    let p = (planta || '').trim().toUpperCase();
+    const isElec = String(codigo || '').toUpperCase().trim().startsWith('ELE-') ||
+                   (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico' && !String(codigo || '').toUpperCase().trim().startsWith('MEC-'));
+    let p = isElec ? '' : (planta || '').trim().toUpperCase();
     const m = (moneda || 'ARS').trim().toUpperCase();
     if (p && p !== 'APS' && p !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[p]) {
         p = window.appData.plantasRules[p].trim().toUpperCase();
     }
     if (p === 'PPA' || p === 'APA') p = 'APS';
     const customPrices = (typeof getCustomItemPrices === 'function') ? getCustomItemPrices() : {};
+
+    if (isElec) {
+        if (customPrices[`${codigo}_${m}`] !== undefined) return true;
+        if (m === 'ARS' && customPrices[codigo] !== undefined) return true;
+        if (customPrices[`${codigo}_APS_${m}`] !== undefined || customPrices[`${codigo}_APG_${m}`] !== undefined) return true;
+        if (m === 'ARS' && (customPrices[`${codigo}_APS`] !== undefined || customPrices[`${codigo}_APG`] !== undefined)) return true;
+        return false;
+    }
+
     if (p && customPrices[`${codigo}_${p}_${m}`] !== undefined) return true;
     if (!p && customPrices[`${codigo}_${m}`] !== undefined) return true;
     if (m === 'ARS') {
@@ -3505,7 +3529,9 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
     if (!codigo) return;
     const numPrice = parseFloat(price !== undefined && price !== null ? price : 0);
     if (isNaN(numPrice)) return;
-    let p = (planta || '').trim().toUpperCase();
+    const isElec = String(codigo || '').toUpperCase().trim().startsWith('ELE-') ||
+                   (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico' && !String(codigo || '').toUpperCase().trim().startsWith('MEC-'));
+    let p = isElec ? '' : (planta || '').trim().toUpperCase();
     const m = (moneda || 'ARS').trim().toUpperCase();
     if (p && p !== 'APS' && p !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[p]) {
         p = window.appData.plantasRules[p].trim().toUpperCase();
@@ -3521,6 +3547,14 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
     } else {
         customPrices[`${codigo}_${m}`] = numPrice;
         if (m === 'ARS') customPrices[codigo] = numPrice;
+        if (isElec) {
+            customPrices[`${codigo}_APS_${m}`] = numPrice;
+            customPrices[`${codigo}_APG_${m}`] = numPrice;
+            if (m === 'ARS') {
+                customPrices[`${codigo}_APS`] = numPrice;
+                customPrices[`${codigo}_APG`] = numPrice;
+            }
+        }
     }
 
     if (typeof appData !== 'undefined' && appData) {
@@ -3531,12 +3565,20 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
         } else {
             appData.customPrices[`${codigo}_${m}`] = numPrice;
             if (m === 'ARS') appData.customPrices[codigo] = numPrice;
+            if (isElec) {
+                appData.customPrices[`${codigo}_APS_${m}`] = numPrice;
+                appData.customPrices[`${codigo}_APG_${m}`] = numPrice;
+                if (m === 'ARS') {
+                    appData.customPrices[`${codigo}_APS`] = numPrice;
+                    appData.customPrices[`${codigo}_APG`] = numPrice;
+                }
+            }
         }
     }
 
     try { localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices)); } catch(e) {}
 
-    // Sincronizar en DB arrays en memoria SOLAMENTE para la planta específica (o genérica si no hay planta)
+    // Sincronizar en DB arrays en memoria SOLAMENTE para la planta específica (o genérica si no hay planta / es eléctrico)
     const syncCatalogs = [
         window.presupuestoMecanicoDB,
         typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' ? PRESUPUESTO_MECANICO_STOCK : null,
@@ -3550,7 +3592,7 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
             catArr.forEach(i => {
                 if (i && i.codigo === codigo) {
                     const iPlanta = (i.planta || '').trim().toUpperCase();
-                    if ((p && iPlanta === p) || (!p && !iPlanta)) {
+                    if (isElec || (p && iPlanta === p) || (!p && !iPlanta)) {
                         foundPlantItem = true;
                         if (m === 'USD') {
                             i.precio_usd = numPrice;
@@ -3620,8 +3662,8 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
                 }).eq('id', 'globalData')).catch(function() {});
             }
 
-            const rubroVal = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') ? 'Mecánico' : 'Eléctrico';
-            const rowId = p ? `${codigo}_${p}_${m}` : `${codigo}_${m}`;
+            const rubroVal = isElec ? 'Eléctrico' : ((typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico') ? 'Mecánico' : 'Eléctrico');
+            const rowId = isElec ? `${codigo}_${m}` : (p ? `${codigo}_${p}_${m}` : `${codigo}_${m}`);
 
             // Garantizar detalle real en lugar del codigo
             let cleanDetalle = (originalDetalle || "").trim();
@@ -3653,7 +3695,7 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
                 stock: 999,
                 estado: 'ACTIVOS',
                 is_custom: true,
-                planta: p,
+                planta: isElec ? '' : p,
                 moneda: m
             };
             client.from('tarifario').upsert(upsertRow, { onConflict: 'id' }).then(function(res) {
@@ -16417,12 +16459,15 @@ window.onMecaPriceInputBlur = function(input) {
     const code = input.getAttribute('data-code');
     const itemCurrency = (input.getAttribute('data-currency') || 'ARS').toUpperCase();
     let curPlanta = '';
-    const reqPlantaSelect = document.getElementById('req-meca-planta');
-    if (reqPlantaSelect && reqPlantaSelect.value) {
-        curPlanta = reqPlantaSelect.value.trim().toUpperCase();
-        if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
-        if (curPlanta !== 'APS' && curPlanta !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
-            curPlanta = window.appData.plantasRules[curPlanta];
+    const isElecItem = String(code || '').toUpperCase().trim().startsWith('ELE-') || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico');
+    if (!isElecItem) {
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (reqPlantaSelect && reqPlantaSelect.value) {
+            curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+            if (curPlanta !== 'APS' && curPlanta !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
+                curPlanta = window.appData.plantasRules[curPlanta];
+            }
         }
     }
     let subr = null, det = null, u = null;
@@ -20220,18 +20265,21 @@ window.confirmarNuevoItemTarifario = function() {
         const parsedCant = window.parseArgNumber ? window.parseArgNumber(rawCantidad) : (parseFloat(String(rawCantidad).replace(',', '.')) || 0);
         const cantidad = (parsedCant !== undefined && !isNaN(parsedCant) && parsedCant >= 0) ? parsedCant : 1;
 
-        // Detectar planta directamente desde el Paso 1 (si Paso 1 dice APS va a APS, si dice APG va a APG)
+        // Detectar planta directamente desde el Paso 1 (solo para Mecánico; Eléctrico tiene lista única con planta vacía)
         let curPlanta = '';
-        const reqPlantaSelect = document.getElementById('req-meca-planta');
-        if (reqPlantaSelect && reqPlantaSelect.value) {
-            curPlanta = reqPlantaSelect.value.trim().toUpperCase();
-        } else if (typeof pedidoActivo !== 'undefined' && pedidoActivo && (pedidoActivo.planta || pedidoActivo.meca_planta)) {
-            curPlanta = String(pedidoActivo.planta || pedidoActivo.meca_planta).trim().toUpperCase();
-        } else if (typeof clienteSeleccionado !== 'undefined' && clienteSeleccionado && clienteSeleccionado.planta) {
-            curPlanta = String(clienteSeleccionado.planta).trim().toUpperCase();
+        const isMecaBudget = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico');
+        if (isMecaBudget) {
+            const reqPlantaSelect = document.getElementById('req-meca-planta');
+            if (reqPlantaSelect && reqPlantaSelect.value) {
+                curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+            } else if (typeof pedidoActivo !== 'undefined' && pedidoActivo && (pedidoActivo.planta || pedidoActivo.meca_planta)) {
+                curPlanta = String(pedidoActivo.planta || pedidoActivo.meca_planta).trim().toUpperCase();
+            } else if (typeof clienteSeleccionado !== 'undefined' && clienteSeleccionado && clienteSeleccionado.planta) {
+                curPlanta = String(clienteSeleccionado.planta).trim().toUpperCase();
+            }
+            if (!curPlanta) curPlanta = 'APS';
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
         }
-        if (!curPlanta) curPlanta = 'APS';
-        if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
 
         const catalog = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico')
             ? (window.presupuestoMecanicoDB || [])
@@ -20606,6 +20654,11 @@ window.eliminarItemDelTarifario = function(code) {
 };
 
 window.recalcularPreciosPorPlanta = function() {
+    // Si el presupuesto activo es Eléctrico, NO se recalculan precios por planta (Eléctrico solo tiene una lista única)
+    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') {
+        return;
+    }
+
     const reqPlantaSelect = document.getElementById('req-meca-planta');
     let curPlanta = (reqPlantaSelect ? reqPlantaSelect.value : '').trim().toUpperCase();
     if (curPlanta && curPlanta !== 'APS' && curPlanta !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
@@ -20613,11 +20666,14 @@ window.recalcularPreciosPorPlanta = function() {
     }
     if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
 
-    // Actualizar precios en pedidoItems según la lista de la nueva planta seleccionada
+    // Actualizar precios en pedidoItems según la lista de la nueva planta seleccionada (solo para Mecánico)
     if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems)) {
         const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
         pedidoItems.forEach(pItem => {
             if (pItem && pItem.codigo) {
+                const isElec = String(pItem.codigo || '').toUpperCase().trim().startsWith('ELE-');
+                if (isElec) return; // Eléctrico mantiene su lista única invariable
+
                 const itemMoneda = (pItem.moneda || 'ARS').toUpperCase();
                 const newPrice = (typeof window.getItemPriceFor === 'function')
                     ? window.getItemPriceFor(pItem.codigo, curPlanta, itemMoneda)
@@ -20666,7 +20722,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '486';
+window.CURRENT_APP_VERSION = '487';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
