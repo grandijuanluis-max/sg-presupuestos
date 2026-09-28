@@ -2945,6 +2945,21 @@ window.setCotizacionMateriales = function(val, updateInputs = true) {
         localStorage.setItem('PRESUPUESTO_COTIZACION_MATERIALES', num.toString());
     } catch(e) {}
 
+    // Actualizar catálogo en memoria dinámicamente con la nueva cotización
+    try {
+        const cat = (typeof getActiveStockCatalog === 'function') ? getActiveStockCatalog() : [];
+        cat.forEach(item => {
+            if (!item) return;
+            const pArs = (item.precio_ars !== undefined && item.precio_ars > 0) ? item.precio_ars : (item.moneda !== 'USD' ? (item.precio || item.precio_unitario || 0) : null);
+            const pUsd = (item.precio_usd !== undefined && item.precio_usd > 0) ? item.precio_usd : (item.moneda === 'USD' ? (item.precio || item.precio_unitario || 0) : null);
+            if (pArs && (!pUsd || item.moneda !== 'USD')) {
+                item.precio_usd = Math.round((pArs / num) * 100) / 100;
+            } else if (pUsd && (!pArs || item.moneda === 'USD')) {
+                item.precio_ars = Math.round(pUsd * num);
+            }
+        });
+    } catch(e) {}
+
     if (updateInputs) {
         const formatted = num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
@@ -2953,6 +2968,10 @@ window.setCotizacionMateriales = function(val, updateInputs = true) {
                 el.value = formatted;
             }
         });
+        const rateInp = document.getElementById('req-exchange-rate');
+        if (rateInp && document.activeElement !== rateInp) {
+            rateInp.value = num.toFixed(2);
+        }
         const sumStd = document.getElementById('summary-cotiz-materiales');
         if (sumStd) sumStd.innerText = `$${formatted}`;
         const sumMec = document.getElementById('summary-meca-cotiz-materiales');
@@ -2960,22 +2979,66 @@ window.setCotizacionMateriales = function(val, updateInputs = true) {
     }
 };
 
+window.parseCotizacionInput = function(raw) {
+    if (!raw) return 0;
+    let s = String(raw).trim().replace(/[^0-9.,]/g, '');
+    if (!s) return 0;
+    if (s.includes('.') && s.includes(',')) {
+        const lastDot = s.lastIndexOf('.');
+        const lastComma = s.lastIndexOf(',');
+        if (lastComma > lastDot) {
+            s = s.replace(/\./g, '').replace(',', '.');
+        } else {
+            s = s.replace(/,/g, '');
+        }
+    } else if (s.includes(',')) {
+        const parts = s.split(',');
+        if (parts.length === 2 && parts[1].length === 3 && parseFloat(parts[0]) > 0 && parseFloat(parts[0]) <= 9) {
+            s = parts[0] + parts[1];
+        } else {
+            s = s.replace(',', '.');
+        }
+    } else if (s.includes('.')) {
+        const parts = s.split('.');
+        if (parts.length === 2 && parts[1].length === 3 && parseFloat(parts[0]) > 0 && parseFloat(parts[0]) <= 9) {
+            s = parts[0] + parts[1];
+        } else if (parts.length > 2) {
+            s = s.replace(/\./g, '');
+        }
+    }
+    const num = parseFloat(s);
+    return (isNaN(num) || num <= 0) ? 0 : num;
+};
+
 window.onReqCotizacionMaterialesInput = function(input) {
-    let clean = input.value.replace(/\./g, ',').replace(/[^0-9,]/g, '');
-    const parts = clean.split(',');
-    if (parts.length > 2) clean = parts[0] + ',' + parts.slice(1).join('');
-    if (input.value !== clean) input.value = clean;
-    const parsed = window.parseArgNumber(clean);
+    if (!input) return;
+    const parsed = window.parseCotizacionInput(input.value);
     if (parsed > 0) {
         window.setCotizacionMateriales(parsed, false);
-        // Sincronizar todos los inputs en pantalla
+        // Sincronizar todos los inputs en pantalla SIN pisar el que el usuario está escribiendo
         ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
             const el = document.getElementById(id);
-            if (el && el !== input) el.value = clean;
+            if (el && el !== input && document.activeElement !== el) {
+                el.value = input.value;
+            }
         });
+        const rateInp = document.getElementById('req-exchange-rate');
+        if (rateInp && document.activeElement !== rateInp) {
+            rateInp.value = parsed.toFixed(2);
+        }
         if (typeof window.recalcMecaExcelAll === 'function') {
             window.recalcMecaExcelAll();
         }
+    }
+};
+
+window.onCotizacionBlur = function(input) {
+    if (!input) return;
+    const parsed = window.parseCotizacionInput(input.value);
+    const finalVal = (parsed > 0) ? parsed : (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450);
+    window.setCotizacionMateriales(finalVal, true);
+    if (typeof window.recalcMecaExcelAll === 'function') {
+        window.recalcMecaExcelAll();
     }
 };
 
@@ -3041,54 +3104,58 @@ window.getItemPriceFor = function(codigo, planta, moneda) {
     if (p && customPrices[`${codigo}_${p}_${m}`] !== undefined) {
         return parseFloat(customPrices[`${codigo}_${p}_${m}`]) || 0;
     }
-    // 2. Clave por planta legacy: CODIGO_PLANTA (ej: MEC-001_APS)
-    if (p && customPrices[`${codigo}_${p}`] !== undefined) {
-        const val = parseFloat(customPrices[`${codigo}_${p}`]) || 0;
-        if (m === 'ARS') return val;
-        if (m === 'USD') return Math.round((val / cotizMat) * 100) / 100;
-    }
-    // 3. Buscar en catálogo en memoria para esta planta específica 'p'
-    const cat = (typeof getActiveStockCatalog === 'function') ? getActiveStockCatalog() : [];
-    if (p) {
-        const plantItem = cat.find(x => x.codigo === codigo && (x.planta || '').trim().toUpperCase() === p);
-        if (plantItem) {
-            if (m === 'USD' && plantItem.precio_usd !== undefined && plantItem.precio_usd !== null && plantItem.precio_usd > 0) return parseFloat(plantItem.precio_usd) || 0;
-            if (m === 'ARS' && plantItem.precio_ars !== undefined && plantItem.precio_ars !== null && plantItem.precio_ars > 0) return parseFloat(plantItem.precio_ars) || 0;
-            const rawP = parseFloat(plantItem.precio !== undefined ? plantItem.precio : (plantItem.precio_unitario || 0));
-            const itemMoneda = (plantItem.moneda || 'ARS').toUpperCase();
-            if (m === itemMoneda) return rawP;
-            if (m === 'USD' && itemMoneda === 'ARS') return Math.round((rawP / cotizMat) * 100) / 100;
-            if (m === 'ARS' && itemMoneda === 'USD') return Math.round(rawP * cotizMat * 100) / 100;
-            return rawP;
-        }
-    }
-
-    // 4. Clave por moneda genérica (sin planta): CODIGO_MONEDA (ej: MEC-001_USD o MEC-001_ARS)
+    // 2. Clave por moneda genérica (sin planta): CODIGO_MONEDA (ej: MEC-001_USD o MEC-001_ARS)
     if (customPrices[`${codigo}_${m}`] !== undefined) {
         return parseFloat(customPrices[`${codigo}_${m}`]) || 0;
     }
-    // 5. Clave genérica legacy: CODIGO (ej: MEC-001)
-    if (customPrices[codigo] !== undefined) {
-        const val = parseFloat(customPrices[codigo]) || 0;
-        if (m === 'ARS') return val;
-        if (m === 'USD') return Math.round((val / cotizMat) * 100) / 100;
+
+    // Si la moneda solicitada es USD y no hay un precio explícito cargado en USD, DEBE SER 0
+    // ("cuando pongas en dolar ahora venga en 0 pq no cargaron ningun producto con dolar y q despues cuando ellos pongan vengan")
+    if (m === 'USD') {
+        const cat = (typeof getActiveStockCatalog === 'function') ? getActiveStockCatalog() : [];
+        if (p) {
+            const plantItem = cat.find(x => x && x.codigo === codigo && (x.planta || '').trim().toUpperCase() === p && (x.moneda || '').toUpperCase() === 'USD');
+            if (plantItem) {
+                return parseFloat(plantItem.precio_usd !== undefined ? plantItem.precio_usd : (plantItem.precio || 0)) || 0;
+            }
+        }
+        const genItem = cat.find(x => x && x.codigo === codigo && (x.moneda || '').toUpperCase() === 'USD');
+        if (genItem) {
+            return parseFloat(genItem.precio_usd !== undefined ? genItem.precio_usd : (genItem.precio || 0)) || 0;
+        }
+        return 0;
     }
 
-    // 6. Buscar en catálogo en memoria genérico (sin planta)
-    const genItem = cat.find(x => x.codigo === codigo && !(x.planta || '').trim()) || cat.find(x => x.codigo === codigo);
-    if (genItem) {
-        if (m === 'USD' && genItem.precio_usd !== undefined && genItem.precio_usd !== null && genItem.precio_usd > 0) return parseFloat(genItem.precio_usd) || 0;
-        if (m === 'ARS' && genItem.precio_ars !== undefined && genItem.precio_ars !== null && genItem.precio_ars > 0) return parseFloat(genItem.precio_ars) || 0;
-        
-        const rawP = parseFloat(genItem.precio !== undefined ? genItem.precio : (genItem.precio_unitario || 0));
-        const itemMoneda = (genItem.moneda || 'ARS').toUpperCase();
-        if (m === itemMoneda) {
+    // Para ARS:
+    // Clave por planta legacy: CODIGO_PLANTA (ej: MEC-001_APS)
+    if (p && customPrices[`${codigo}_${p}`] !== undefined) {
+        return parseFloat(customPrices[`${codigo}_${p}`]) || 0;
+    }
+    // Clave genérica legacy: CODIGO (ej: MEC-001)
+    if (customPrices[codigo] !== undefined) {
+        return parseFloat(customPrices[codigo]) || 0;
+    }
+
+    // Buscar en catálogo en memoria para esta planta específica 'p'
+    const cat = (typeof getActiveStockCatalog === 'function') ? getActiveStockCatalog() : [];
+    if (p) {
+        const plantItem = cat.find(x => x && x.codigo === codigo && (x.planta || '').trim().toUpperCase() === p);
+        if (plantItem) {
+            const rawP = parseFloat(plantItem.precio !== undefined ? plantItem.precio : (plantItem.precio_unitario || 0)) || 0;
+            const itemMoneda = (plantItem.moneda || 'ARS').toUpperCase();
+            if (itemMoneda === 'ARS' || !itemMoneda) return rawP;
+            if (itemMoneda === 'USD') return Math.round(rawP * cotizMat);
             return rawP;
-        } else if (m === 'USD' && itemMoneda === 'ARS') {
-            return Math.round((rawP / cotizMat) * 100) / 100;
-        } else if (m === 'ARS' && itemMoneda === 'USD') {
-            return Math.round(rawP * cotizMat * 100) / 100;
         }
+    }
+
+    // Buscar en catálogo en memoria genérico (sin planta)
+    const genItem = cat.find(x => x && x.codigo === codigo && !(x.planta || '').trim()) || cat.find(x => x && x.codigo === codigo);
+    if (genItem) {
+        const rawP = parseFloat(genItem.precio !== undefined ? genItem.precio : (genItem.precio_unitario || 0)) || 0;
+        const itemMoneda = (genItem.moneda || 'ARS').toUpperCase();
+        if (itemMoneda === 'ARS' || !itemMoneda) return rawP;
+        if (itemMoneda === 'USD') return Math.round(rawP * cotizMat);
         return rawP;
     }
 
@@ -3108,9 +3175,11 @@ window.hasExplicitItemPrice = function(codigo, planta, moneda) {
     if (p === 'PPA' || p === 'APA') p = 'APS';
     const customPrices = (typeof getCustomItemPrices === 'function') ? getCustomItemPrices() : {};
     if (p && customPrices[`${codigo}_${p}_${m}`] !== undefined) return true;
-    if (p && customPrices[`${codigo}_${p}`] !== undefined) return true;
     if (!p && customPrices[`${codigo}_${m}`] !== undefined) return true;
-    if (!p && customPrices[codigo] !== undefined) return true;
+    if (m === 'ARS') {
+        if (p && customPrices[`${codigo}_${p}`] !== undefined) return true;
+        if (!p && customPrices[codigo] !== undefined) return true;
+    }
     return false;
 };
 
@@ -7062,6 +7131,12 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
             targetPedido.meca_exclusiones = document.getElementById('req-meca-exclusiones') ? document.getElementById('req-meca-exclusiones').value : '';
             targetPedido.cotizacion_materiales = window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1;
             targetPedido.cotizacion = targetPedido.cotizacion_materiales;
+            const reqCurrencyEl = document.getElementById('req-currency');
+            const selectedMonedaId = reqCurrencyEl ? parseInt(reqCurrencyEl.value, 10) : (targetPedido.moneda_id || 1);
+            const allUsdItems = (pedidoItems || []).length > 0 && (pedidoItems || []).every(it => it && (it.moneda === 'USD' || it.is_material));
+            const finalMonedaId = selectedMonedaId === 2 ? 2 : (allUsdItems ? 2 : 1);
+            targetPedido.moneda_id = finalMonedaId;
+            targetPedido.moneda = finalMonedaId === 2 ? 'USD' : 'ARS';
             targetPedido.items = (pedidoItems || []).map(item => ({
                 ...item,
                 cantidad_original: item.cantidad,
@@ -7159,6 +7234,8 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
                 meca_exclusiones: document.getElementById('req-meca-exclusiones') ? document.getElementById('req-meca-exclusiones').value : '',
                 cotizacion_materiales: window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1,
                 cotizacion: window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1,
+                moneda_id: (document.getElementById('req-currency') && parseInt(document.getElementById('req-currency').value, 10) === 2) ? 2 : ((pedidoItems || []).length > 0 && (pedidoItems || []).every(it => it && (it.moneda === 'USD' || it.is_material)) ? 2 : 1),
+                moneda: ((document.getElementById('req-currency') && parseInt(document.getElementById('req-currency').value, 10) === 2) || ((pedidoItems || []).length > 0 && (pedidoItems || []).every(it => it && (it.moneda === 'USD' || it.is_material)))) ? 'USD' : 'ARS',
                 operador: user ? user.username : 'admin',
                 requiere_autorizacion: isReqAuth,
                 estado: finalInitialState,
@@ -9232,6 +9309,61 @@ window.toggleDetalleExpand = function(el) {
     }
 };
 
+window.formatPresupuestoImporte = function(p) {
+    if (!p) return '$0,00';
+    const isExplicitUsd = (p.moneda_id === 2 || (p.moneda || '').toUpperCase() === 'USD' || (p.moneda || '').toUpperCase() === 'U$D');
+
+    let totalUsd = 0;
+    let totalArs = 0;
+    let hasItems = false;
+
+    if (Array.isArray(p.items) && p.items.length > 0) {
+        p.items.forEach(it => {
+            if (!it || it.estado === 'Rechazado') return;
+            const q = window.parseArgNumber ? window.parseArgNumber(it.cantidad) : (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0);
+            if (q <= 0) return;
+            hasItems = true;
+            const isUsdItem = (it.moneda === 'USD' || it.is_material);
+            if (isUsdItem) {
+                const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
+                    ? parseFloat(it.precio_usd)
+                    : (window.parseArgNumber ? window.parseArgNumber(it.precio !== undefined ? it.precio : it.precio_unitario) : (parseFloat(String(it.precio || 0)) || 0));
+                const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd)))
+                    ? parseFloat(it.subtotal_usd)
+                    : (q * prUSD);
+                totalUsd += subUSD;
+            } else {
+                const prARS = window.parseArgNumber ? window.parseArgNumber(it.precio !== undefined ? it.precio : it.precio_unitario) : (parseFloat(String(it.precio || 0)) || 0);
+                const subARS = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(parseFloat(it.subtotal)))
+                    ? parseFloat(it.subtotal)
+                    : (q * prARS);
+                totalArs += subARS;
+            }
+        });
+    }
+
+    if (hasItems) {
+        if (totalUsd > 0 && totalArs > 0) {
+            return `
+                <div style="display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25;">
+                    <span style="color: #38bdf8; font-weight: 900; font-size: 11.5px;">U$D ${totalUsd.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    <span style="color: #34d399; font-weight: 700; font-size: 11px;">$ ${totalArs.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>
+                </div>
+            `;
+        } else if (totalUsd > 0) {
+            return `<span style="color: #38bdf8; font-weight: 900; font-size: 12px;">U$D ${totalUsd.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>`;
+        } else if (totalArs > 0) {
+            return `<span style="color: #ffffff; font-weight: 800; font-size: 12px;">$${totalArs.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>`;
+        }
+    }
+
+    const rawImp = parseFloat(p.importe !== undefined && p.importe !== null ? p.importe : (p.importe_neto || 0)) || 0;
+    if (isExplicitUsd) {
+        return `<span style="color: #38bdf8; font-weight: 900; font-size: 12px;">U$D ${rawImp.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>`;
+    }
+    return `<span style="color: #ffffff; font-weight: 800; font-size: 12px;">$${rawImp.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</span>`;
+};
+
 function renderAssignmentsTable() {
     renderTableViewsTabs();
     renderTableHeaderRow();
@@ -9607,7 +9739,7 @@ function renderAssignmentsTable() {
                     }
                     return `<td style="text-align: center; padding: 6px 6px; white-space: nowrap; width: 135px; min-width: 135px;">${statusBadge}</td>`;
                 case 'importe':
-                    return `<td style="text-align: right; font-family: monospace; font-weight: 800; font-size: 12px; color: #ffffff; white-space: nowrap; width: 110px; min-width: 105px; padding: 6px 8px;">$${parseFloat(p.importe || 0).toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 2})}</td>`;
+                    return `<td style="text-align: right; font-family: monospace; font-size: 12px; white-space: nowrap; width: 115px; min-width: 105px; padding: 6px 8px;">${window.formatPresupuestoImporte(p)}</td>`;
                 case 'accion':
                     return `<td style="text-align: center; padding: 6px 6px; white-space: nowrap; width: 140px; min-width: 130px;">${actionBtnHtml}</td>`;
                 default:
@@ -10722,7 +10854,11 @@ window.verDetallePedido = function(id, explicitMode) {
             setElemText('auth-meca-planta-val-el', rawPlanta);
             setElemText('auth-meca-nro-presupuesto-val', rawNroPres);
         }
+
+        const cotizMatVal = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
+        const hasUsdItms = Array.isArray(p.items) && p.items.some(it => it && (it.moneda === 'USD' || it.is_material));
     }
+
     if (customerInfoBox) {
         customerInfoBox.style.display = 'none';
     }
@@ -10942,23 +11078,23 @@ window.verDetallePedido = function(id, explicitMode) {
 
             if (isHeaderRow) {
                 itemsRowsHtml += `
-                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.12); background: rgba(56, 189, 248, 0.10); font-weight: 800;">
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; font-family: monospace; color: #38bdf8; text-align: center;">-</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; color: #38bdf8; letter-spacing: 0.5px;">${r.detalle}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; text-align: center; color: #cbd5e1;">-</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; text-align: center; color: #cbd5e1;">-</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; text-align: right; font-family: monospace; font-weight: 900; color: #38bdf8;">${subStr}</td>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.12); background: transparent; font-weight: 800;">
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; font-family: monospace; color: #38bdf8; text-align: center; background: transparent;">-</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; color: #38bdf8; letter-spacing: 0.5px; background: transparent;">${r.detalle}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; text-align: center; color: #cbd5e1; background: transparent;">-</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; text-align: center; color: #cbd5e1; background: transparent;">-</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 8px 10px; text-align: right; font-family: monospace; font-weight: 900; color: #38bdf8; background: transparent;">${subStr}</td>
                     </tr>
                 `;
             } else {
                 const safeDet = (r.detalle || r.descripcion || r.denominacion || r.nombre || '-');
                 itemsRowsHtml += `
-                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: ${idx % 2 === 0 ? 'rgba(15, 23, 42, 0.15)' : 'transparent'};">
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${codeStr}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-weight: 600; color: #f8fafc;">${safeDet}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; color: ${isUSD ? '#38bdf8' : '#f8fafc'}; font-weight: 600;">${priceStr}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: center; font-weight: 800; font-family: monospace; color: #f8fafc;">${qtyStr}</td>
-                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8;">${subStr}</td>
+                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: transparent;">
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-family: monospace; font-weight: 700; color: #38bdf8; background: transparent;">${codeStr}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; font-weight: 600; color: #f8fafc; background: transparent;">${safeDet}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; color: ${isUSD ? '#38bdf8' : '#f8fafc'}; font-weight: 600; background: transparent;">${priceStr}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: center; font-weight: 800; font-family: monospace; color: #f8fafc; background: transparent;">${qtyStr}</td>
+                        <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 800; color: #38bdf8; background: transparent;">${subStr}</td>
                     </tr>
                 `;
             }
@@ -11019,36 +11155,36 @@ window.verDetallePedido = function(id, explicitMode) {
         let breakdownTfootHtml = '';
         if (laborTotalARS > 0 && materialsTotalUSD > 0) {
             breakdownTfootHtml = `
-                <tr style="background: rgba(15, 23, 42, 0.40); border-top: 1px solid rgba(255, 255, 255, 0.12); font-size: 11.5px;">
-                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; color: #cbd5e1; font-weight: 600;">Total en Pesos ($ ARS):</td>
-                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; font-family: monospace; color: #f8fafc; font-weight: 700;">$${laborTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <tr style="background: transparent; border-top: 1px solid rgba(255, 255, 255, 0.12); font-size: 11.5px;">
+                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; color: #cbd5e1; font-weight: 600; background: transparent;">Total en Pesos ($ ARS):</td>
+                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; font-family: monospace; color: #f8fafc; font-weight: 700; background: transparent;">$${laborTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
-                <tr style="background: rgba(15, 23, 42, 0.40); border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 11.5px;">
-                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; color: #38bdf8; font-weight: 600;">Total en Dólares (U$D):</td>
-                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; font-family: monospace; color: #38bdf8; font-weight: 700;">U$D ${materialsTotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <tr style="background: transparent; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 11.5px;">
+                    <td colspan="4" style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; color: #38bdf8; font-weight: 600; background: transparent;">Total en Dólares (U$D):</td>
+                    <td style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 5px 12px; text-align: right; font-family: monospace; color: #38bdf8; font-weight: 700; background: transparent;">U$D ${materialsTotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 </tr>
             `;
         }
 
         authMecaContainer.innerHTML = rejectedBannerHtml + `
-            <div style="background: rgba(15, 23, 42, 0.28); backdrop-filter: blur(2px); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; color: #f8fafc; font-family: inherit; margin-bottom: 12px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
-                <div style="overflow-x: auto; padding: 0;">
+            <div style="background: transparent; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; color: #f8fafc; font-family: inherit; margin-bottom: 12px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
+                <div style="overflow-x: auto; padding: 0; background: transparent;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; color: #f8fafc; background: transparent;">
                         <thead>
-                            <tr style="background: rgba(15, 23, 42, 0.50); border-bottom: 2px solid rgba(255, 255, 255, 0.14); font-weight: bold; text-align: left;">
-                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; width: 100px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                            <tr style="background: transparent; border-bottom: 2px solid rgba(255, 255, 255, 0.14); font-weight: bold; text-align: left;">
+                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; width: 100px; color: #f8fafc; font-weight: 800; font-size: 11px; background: transparent;">
                                     <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">CÓDIGO</span>
                                 </th>
-                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; color: #f8fafc; font-weight: 800; font-size: 11px; background: transparent;">
                                     <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">DETALLE DE PRODUCTOS / SERVICIOS</span>
                                 </th>
-                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 130px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 130px; color: #f8fafc; font-weight: 800; font-size: 11px; background: transparent;">
                                     <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">PRECIO</span>
                                 </th>
-                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: center; width: 95px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: center; width: 95px; color: #f8fafc; font-weight: 800; font-size: 11px; background: transparent;">
                                     <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">CANTIDAD</span>
                                 </th>
-                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 140px; color: #f8fafc; font-weight: 800; font-size: 11px;">
+                                <th style="border: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 10px; text-align: right; width: 140px; color: #f8fafc; font-weight: 800; font-size: 11px; background: transparent;">
                                     <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 6px; border-radius: 3px; font-weight: 800;">PRECIO TOTAL</span>
                                 </th>
                             </tr>
@@ -11058,10 +11194,15 @@ window.verDetallePedido = function(id, explicitMode) {
                         </tbody>
                         <tfoot>
                             ${breakdownTfootHtml}
-                            <tr style="background: rgba(16, 185, 129, 0.18); border-top: 2px solid #10b981; font-size: 13px;">
-                                <td colspan="4" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; text-transform: uppercase; color: #4ade80; font-weight: 900; letter-spacing: 0.5px;"><strong>TOTAL GENERAL:</strong></td>
-                                <td style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 900; font-size: 15px; color: #4ade80; white-space: nowrap;">${grandTotalDisplay}</td>
+                            <tr style="background: transparent; border-top: 2px solid #10b981; font-size: 13px;">
+                                <td colspan="4" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; text-transform: uppercase; color: #4ade80; font-weight: 900; letter-spacing: 0.5px; background: transparent;"><strong>TOTAL GENERAL:</strong></td>
+                                <td style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 900; font-size: 15px; color: #4ade80; white-space: nowrap; background: transparent;">${grandTotalDisplay}</td>
                             </tr>
+                            ${materialsTotalUSD > 0 ? `
+                            <tr style="background: transparent; border-top: 1px solid rgba(56, 189, 248, 0.25); font-size: 11px;">
+                                <td colspan="4" style="border: 1px solid rgba(56, 189, 248, 0.18); padding: 5px 14px; text-align: right; color: #38bdf8; font-weight: 700; background: transparent;">Cotiz. U$D:</td>
+                                <td style="border: 1px solid rgba(56, 189, 248, 0.18); padding: 5px 14px; text-align: right; font-family: monospace; color: #38bdf8; font-weight: 700; background: transparent;">$${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            </tr>` : ''}
                         </tfoot>
                     </table>
                 </div>
@@ -11698,6 +11839,16 @@ window.imprimirPresupuestoModal = function() {
             if (typeof window.renderModalReportTable === 'function') {
                 window.renderModalReportTable(pedidoActivo, targetReport);
             }
+
+            // Asegurar que la clase modal-open esté en body para las reglas de @media print
+            document.body.classList.add('modal-open');
+
+            // Forzar que todos los elementos de la tabla y del contenedor sean 100% transparentes
+            const allTableElements = document.querySelectorAll('#auth-mecanico-excel-container, #auth-mecanico-excel-container *, .palaversich-sheet table, .palaversich-sheet table *');
+            allTableElements.forEach(el => {
+                el.style.backgroundColor = 'transparent';
+                el.style.background = 'transparent';
+            });
         }
     } catch(err) {
         console.error('Error preparando impresión:', err);
@@ -11707,6 +11858,7 @@ window.imprimirPresupuestoModal = function() {
         window.print();
     }, 150);
 };
+
 
 window.addEventListener('beforeprint', () => {
     const modalOverlay = document.getElementById('modal-overlay');
@@ -11728,8 +11880,15 @@ window.addEventListener('beforeprint', () => {
         if (typeof renderModalReportTable === 'function') {
             renderModalReportTable(pedidoActivo, pedidoActivo.tipo_reporte || 'detallado');
         }
+        document.body.classList.add('modal-open');
+        const allTableElements = document.querySelectorAll('#auth-mecanico-excel-container, #auth-mecanico-excel-container *, .palaversich-sheet table, .palaversich-sheet table *');
+        allTableElements.forEach(el => {
+            el.style.backgroundColor = 'transparent';
+            el.style.background = 'transparent';
+        });
     }
 });
+
 
 window.addEventListener('afterprint', () => {
     if (pedidoActivo && document.body.classList.contains('modal-open') && typeof window.getBudgetDocTitle === 'function') {
@@ -11750,10 +11909,11 @@ window.onReqCurrencyChange = function() {
             rateContainer.style.display = (val === 2 || val === 60) ? 'block' : 'none';
         }
         if (rateInput) {
+            const currentCotiz = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
             if (val === 2) {
-                rateInput.value = "1011.00000000";
+                rateInput.value = currentCotiz.toFixed(2);
             } else if (val === 60) {
-                rateInput.value = "1100.00000000";
+                rateInput.value = (currentCotiz * 1.08).toFixed(2);
             } else {
                 rateInput.value = "1.00000000";
             }
@@ -15182,24 +15342,34 @@ window.toggleMecaItemCurrency = function(code) {
         if (gItem) basePriceARS = parseFloat(gItem.precio !== undefined ? gItem.precio : (gItem.precio_unitario || 0)) || 0;
     }
 
-    // Consultar precio exacto de Supabase / customPrices para la nueva moneda
+    // Precio actual en el input
+    const currentPriceInField = window.parseArgNumber ? window.parseArgNumber(priceInput.value) : (parseFloat(priceInput.value.replace(/[^0-9.,]/g, '')) || 0);
+
     let targetPrice = 0;
-    if (typeof window.getItemPriceFor === 'function') {
-        targetPrice = window.getItemPriceFor(code, curPlanta, newCurrency);
-    }
-    if (!targetPrice || targetPrice <= 0) {
-        if (newCurrency === 'USD') {
-            const baseARS = (typeof window.getItemPriceFor === 'function') ? window.getItemPriceFor(code, curPlanta, 'ARS') : basePriceARS;
-            targetPrice = Math.round(((baseARS || basePriceARS) / cotizMat) * 100) / 100;
-        } else {
-            const baseUSD = (typeof window.getItemPriceFor === 'function') ? window.getItemPriceFor(code, curPlanta, 'USD') : 0;
-            targetPrice = baseUSD > 0 ? Math.round(baseUSD * cotizMat) : basePriceARS;
+    if (newCurrency === 'USD') {
+        // Al pasar a USD: SIEMPRE 0, a menos que ya haya un precio USD explícito guardado en customPrices
+        // (no usar el precio del catálogo - el usuario debe ingresar el precio en dólares manualmente)
+        const hasExplicitUSD = (typeof window.hasExplicitItemPrice === 'function')
+            ? window.hasExplicitItemPrice(code, curPlanta, 'USD')
+            : false;
+        if (hasExplicitUSD && typeof window.getItemPriceFor === 'function') {
+            targetPrice = window.getItemPriceFor(code, curPlanta, 'USD');
+        }
+        // Si no hay precio explícito guardado, targetPrice queda en 0
+    } else {
+        // Al volver a ARS: buscar el precio en pesos configurado para este ítem
+        if (typeof window.getItemPriceFor === 'function') {
+            targetPrice = window.getItemPriceFor(code, curPlanta, 'ARS');
+        }
+        if (!targetPrice) {
+            targetPrice = basePriceARS;
         }
     }
 
     // Actualizar atributos y visual del input de la grilla
     priceInput.setAttribute('data-currency', newCurrency);
-    priceInput.value = targetPrice.toString().replace(/\./g, ',');
+    priceInput.setAttribute('data-is-material', (newCurrency === 'USD') ? '1' : '0');
+    priceInput.value = targetPrice > 0 ? targetPrice.toString().replace(/\./g, ',') : '0';
     priceInput.style.borderColor = (newCurrency === 'USD') ? 'rgba(56, 189, 248, 0.5)' : 'rgba(16, 185, 129, 0.5)';
 
     if (btn) {
@@ -15211,20 +15381,23 @@ window.toggleMecaItemCurrency = function(code) {
 
     // Actualizar en pedidoItems si ya existe en la cotización activa
     if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems)) {
-        const exist = pedidoItems.find(i => i.codigo === code);
+        const exist = pedidoItems.find(i => i && i.codigo === code);
         if (exist) {
             exist.moneda = newCurrency;
             exist.precio = targetPrice;
             exist.precio_unitario = targetPrice;
+            exist.is_material = (newCurrency === 'USD');
             if (newCurrency === 'USD') {
                 exist.precio_usd = targetPrice;
                 exist.precio_ars = targetPrice * cotizMat;
-                exist.subtotal = exist.cantidad * targetPrice * cotizMat;
-                exist.subtotal_usd = exist.cantidad * targetPrice;
+                exist.cotizacion_aplicada = cotizMat;
+                exist.subtotal = (exist.cantidad || 0) * targetPrice * cotizMat;
+                exist.subtotal_usd = (exist.cantidad || 0) * targetPrice;
             } else {
                 exist.precio_ars = targetPrice;
-                exist.precio_usd = targetPrice / cotizMat;
-                exist.subtotal = exist.cantidad * targetPrice;
+                exist.precio_usd = cotizMat > 0 ? (targetPrice / cotizMat) : 0;
+                exist.cotizacion_aplicada = null;
+                exist.subtotal = (exist.cantidad || 0) * targetPrice;
                 exist.subtotal_usd = null;
             }
         }
@@ -15235,6 +15408,16 @@ window.toggleMecaItemCurrency = function(code) {
         window.recalcMecaExcelRow(qtyInput);
     } else if (typeof window.recalcMecaExcelAll === 'function') {
         window.recalcMecaExcelAll();
+    }
+
+    // Si pasó a USD y está en 0, auto-enfocamos el campo para que puedan ingresar el valor fácilmente
+    if (newCurrency === 'USD' && targetPrice === 0) {
+        setTimeout(() => {
+            try {
+                priceInput.focus();
+                priceInput.select();
+            } catch(e) {}
+        }, 60);
     }
 
     if (typeof showToast === 'function') {
@@ -15472,14 +15655,35 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                 ? window.hasExplicitItemPrice(item.codigo, curPlanta, itemCurrency)
                 : false;
 
-            if (typeof window.getItemPriceFor === 'function') {
-                numItemPrice = window.getItemPriceFor(item.codigo, curPlanta, itemCurrency);
-            }
-            if ((numItemPrice === 0 || isNaN(numItemPrice)) && !hasCustom) {
-                if (item.precio !== undefined && item.precio !== null && item.precio > 0) {
-                    numItemPrice = item.precio;
+            if (itemCurrency === 'USD') {
+                // Para ítems USD: SOLO mostrar precio si fue guardado explícitamente por el usuario en customPrices,
+                // o si ya existe en pedidoItems con precio_usd > 0 (precio que el usuario ingresó previamente)
+                if (existing && existing.precio_usd !== undefined && existing.precio_usd !== null) {
+                    // Respetar el precio USD que el usuario ingresó (puede ser 0 si aún no cargaron)
+                    numItemPrice = parseFloat(existing.precio_usd) || 0;
+                } else if (hasCustom && typeof window.getItemPriceFor === 'function') {
+                    // Hay precio USD guardado en customPrices
+                    numItemPrice = window.getItemPriceFor(item.codigo, curPlanta, 'USD');
+                } else {
+                    // Sin precio USD explícito: mostrar 0 (el usuario debe ingresar)
+                    numItemPrice = 0;
+                }
+            } else {
+                // Para ítems ARS: lógica normal
+                if (hasCustom && typeof window.getItemPriceFor === 'function') {
+                    numItemPrice = window.getItemPriceFor(item.codigo, curPlanta, 'ARS');
+                } else {
+                    if (typeof window.getItemPriceFor === 'function') {
+                        numItemPrice = window.getItemPriceFor(item.codigo, curPlanta, 'ARS');
+                    }
+                    if ((numItemPrice === 0 || isNaN(numItemPrice)) && !hasCustom) {
+                        if (item.precio !== undefined && item.precio !== null && item.precio > 0) {
+                            numItemPrice = item.precio;
+                        }
+                    }
                 }
             }
+
             if (existing) {
                 existing.precio = numItemPrice;
                 existing.precio_unitario = numItemPrice;
@@ -15495,6 +15699,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                     existing.subtotal_usd = null;
                 }
             }
+
 
             const initialSubtotalPesos = existing
                 ? (isUSD ? (existing.cantidad * numItemPrice * cotizMat) : (existing.cantidad * numItemPrice))
@@ -16030,8 +16235,14 @@ if (curPlanta === 'APA') curPlanta = 'APS';
             if (existingIdx >= 0) {
                 pedidoItems[existingIdx].cantidad = qty;
                 pedidoItems[existingIdx].precio = price;
+                pedidoItems[existingIdx].precio_unitario = price;
                 pedidoItems[existingIdx].subtotal = subtotalPesos;
                 pedidoItems[existingIdx].subtotal_usd = isUSD ? (qty * price) : null;
+                pedidoItems[existingIdx].moneda = itemCurrency;
+                pedidoItems[existingIdx].is_material = isUSD;
+                pedidoItems[existingIdx].precio_usd = isUSD ? price : (price / cotizMat);
+                pedidoItems[existingIdx].precio_ars = isUSD ? (price * cotizMat) : price;
+                pedidoItems[existingIdx].cotizacion_aplicada = isUSD ? cotizMat : null;
             } else {
                 pedidoItems.push({
                     codigo: code,
@@ -17793,6 +18004,20 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     #pdf-wrapper-download {
                         width: 100% !important;
                         max-width: 100% !important;
+                        background: #ffffff !important;
+                        background-color: #ffffff !important;
+                    }
+                    #pdf-wrapper-download table,
+                    #pdf-wrapper-download thead,
+                    #pdf-wrapper-download tbody,
+                    #pdf-wrapper-download tfoot,
+                    #pdf-wrapper-download tr,
+                    #pdf-wrapper-download th,
+                    #pdf-wrapper-download td {
+                        background: transparent !important;
+                        background-color: transparent !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                 }
             </style>
@@ -17870,6 +18095,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <strong style="border: 1px solid #000; border-radius: 3px; padding: 1px 5px; flex: 1; background: transparent; font-size: 9.5px; font-weight: bold; text-transform: uppercase; display: flex; align-items: center;">${condicion}</strong>
                             </div>
                         </div>
+
                         <div style="width: 45%; padding: 2px 0 2px 8px;">
                             <div style="margin-bottom: 3px; display: flex; gap: 5px; align-items: stretch;">
                                 <span style="border: 1px solid #000; border-radius: 3px; padding: 1px 5px; width: 80px; min-width: 80px; text-align: center; background: transparent; font-weight: 600; font-size: 9.5px; display: flex; align-items: center; justify-content: center;">Código:</span>
@@ -17896,6 +18122,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <strong style="border: 1px solid #000; border-radius: 3px; padding: 1px 5px; flex: 1; background: transparent; font-size: 9.5px; font-weight: bold; text-transform: uppercase; display: flex; align-items: center;">${nro}</strong>
                             </div>
                         </div>
+
                     </div>
                 </div>
 
@@ -17920,6 +18147,11 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <td colspan="4" style="padding: 5px 8px; font-weight: 800; border-right: 1px solid #000; background: transparent; color: #000000;">TOTAL GENERAL:</td>
                                 <td style="padding: 5px 6px; text-align: right; font-weight: 800; background: transparent; color: #000000; font-size: 11px; white-space: nowrap;">${grandTotalPdfDisplay}</td>
                             </tr>
+                            ${materialsTotalUSD > 0 ? `
+                            <tr style="border-top: 1px solid #000; font-size: 9.5px; background: transparent;">
+                                <td colspan="4" style="padding: 3px 8px; font-weight: 700; border-right: 1px solid #000; background: transparent; color: #000000;">Cotiz. U$D:</td>
+                                <td style="padding: 3px 6px; text-align: right; font-weight: 700; background: transparent; color: #000000; white-space: nowrap;">$${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            </tr>` : ''}
                         </tfoot>
                     </table>
                 </div>
@@ -18022,7 +18254,12 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
                 scrollY: 0,
                 x: 0,
                 y: 0,
-                windowWidth: 715
+                windowWidth: 715,
+                backgroundColor: '#ffffff',
+                onclone: function(clonedDoc) {
+                    var els = clonedDoc.querySelectorAll('#pdf-wrapper-download tr, #pdf-wrapper-download td, #pdf-wrapper-download th, #pdf-wrapper-download tbody, #pdf-wrapper-download thead, #pdf-wrapper-download tfoot');
+                    els.forEach(function(el) { el.style.backgroundColor = 'transparent'; el.style.background = 'transparent'; });
+                }
             },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
@@ -18086,7 +18323,12 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
                 scrollY: 0,
                 x: 0,
                 y: 0,
-                windowWidth: 715
+                windowWidth: 715,
+                backgroundColor: '#ffffff',
+                onclone: function(clonedDoc) {
+                    var els = clonedDoc.querySelectorAll('#pdf-wrapper-download tr, #pdf-wrapper-download td, #pdf-wrapper-download th, #pdf-wrapper-download tbody, #pdf-wrapper-download thead, #pdf-wrapper-download tfoot');
+                    els.forEach(function(el) { el.style.backgroundColor = 'transparent'; el.style.background = 'transparent'; });
+                }
             },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
@@ -18174,7 +18416,12 @@ window.abrirPDFPresupuesto = async function(id, format = null) {
             scrollY: 0,
             x: 0,
             y: 0,
-            windowWidth: 715
+            windowWidth: 715,
+                backgroundColor: '#ffffff',
+                onclone: function(clonedDoc) {
+                    var els = clonedDoc.querySelectorAll('#pdf-wrapper-download tr, #pdf-wrapper-download td, #pdf-wrapper-download th, #pdf-wrapper-download tbody, #pdf-wrapper-download thead, #pdf-wrapper-download tfoot');
+                    els.forEach(function(el) { el.style.backgroundColor = 'transparent'; el.style.background = 'transparent'; });
+                }
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
@@ -19461,13 +19708,25 @@ window.abrirModalNuevoItemTarifario = function(subrubroDefault) {
             priceInput.title = 'Ingrese el precio unitario del nuevo ítem';
         }
 
-        // Sync currency label and populate plant options
-        const plantaSelect = document.getElementById('nuevo-item-planta');
-        if (plantaSelect) {
-            const list = (typeof window.getPlantas === 'function') ? window.getPlantas() : ['APS', 'APG', 'PPA'];
-            const curP = (document.getElementById('req-meca-planta')?.value || '').trim().toUpperCase();
-            plantaSelect.innerHTML = `<option value="">Todas las Plantas (General)</option>` +
-                list.map(p => `<option value="${p}" ${p === curP ? 'selected' : ''}>Planta ${p}</option>`).join('');
+        // Detectar planta directamente desde el Paso 1 (si Paso 1 dice APS se agrega en APS, si dice APG en APG)
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        let paso1Planta = '';
+        if (reqPlantaSelect && reqPlantaSelect.value) {
+            paso1Planta = reqPlantaSelect.value.trim().toUpperCase();
+        } else if (typeof pedidoActivo !== 'undefined' && pedidoActivo && (pedidoActivo.planta || pedidoActivo.meca_planta)) {
+            paso1Planta = String(pedidoActivo.planta || pedidoActivo.meca_planta).trim().toUpperCase();
+        } else if (typeof clienteSeleccionado !== 'undefined' && clienteSeleccionado && clienteSeleccionado.planta) {
+            paso1Planta = String(clienteSeleccionado.planta).trim().toUpperCase();
+        }
+        if (!paso1Planta) paso1Planta = 'APS';
+        if (paso1Planta === 'PPA' || paso1Planta === 'APA') paso1Planta = 'APS';
+
+        const plantaInput = document.getElementById('nuevo-item-planta');
+        if (plantaInput) plantaInput.value = paso1Planta;
+
+        const badgeEl = document.getElementById('nuevo-item-rubro-badge');
+        if (badgeEl) {
+            badgeEl.innerText = `Propuesta Comercial — Planta ${paso1Planta}`;
         }
 
         const monSelect = document.getElementById('nuevo-item-moneda');
@@ -19499,7 +19758,6 @@ window.confirmarNuevoItemTarifario = function() {
         const priceInput = document.getElementById('nuevo-item-precio');
         const cantInput = document.getElementById('nuevo-item-cantidad');
         const monSelect = document.getElementById('nuevo-item-moneda');
-        const plantaSelect = document.getElementById('nuevo-item-planta');
 
         const subrubro = (subSelect?.value || 'Materiales y Equipos').trim() || 'Materiales y Equipos';
         const detalle = (detInput?.value || '').trim();
@@ -19520,19 +19778,17 @@ window.confirmarNuevoItemTarifario = function() {
         const parsedCant = window.parseArgNumber ? window.parseArgNumber(rawCantidad) : (parseFloat(String(rawCantidad).replace(',', '.')) || 0);
         const cantidad = (parsedCant !== undefined && !isNaN(parsedCant) && parsedCant >= 0) ? parsedCant : 1;
 
-        // Detectar planta seleccionada o activa
+        // Detectar planta directamente desde el Paso 1 (si Paso 1 dice APS va a APS, si dice APG va a APG)
         let curPlanta = '';
-        if (plantaSelect) {
-            curPlanta = (plantaSelect.value || '').trim().toUpperCase();
-        } else {
-            const reqPlantaSelect = document.getElementById('req-meca-planta');
-            if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico' && reqPlantaSelect && reqPlantaSelect.value) {
-                curPlanta = reqPlantaSelect.value.trim().toUpperCase();
-            }
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (reqPlantaSelect && reqPlantaSelect.value) {
+            curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+        } else if (typeof pedidoActivo !== 'undefined' && pedidoActivo && (pedidoActivo.planta || pedidoActivo.meca_planta)) {
+            curPlanta = String(pedidoActivo.planta || pedidoActivo.meca_planta).trim().toUpperCase();
+        } else if (typeof clienteSeleccionado !== 'undefined' && clienteSeleccionado && clienteSeleccionado.planta) {
+            curPlanta = String(clienteSeleccionado.planta).trim().toUpperCase();
         }
-        if (curPlanta && curPlanta !== 'APS' && curPlanta !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[curPlanta]) {
-            curPlanta = window.appData.plantasRules[curPlanta].trim().toUpperCase();
-        }
+        if (!curPlanta) curPlanta = 'APS';
         if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
 
         const catalog = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Mecánico')
@@ -19968,7 +20224,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '474';
+window.CURRENT_APP_VERSION = '480';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 

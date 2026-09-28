@@ -14,7 +14,7 @@
     <script src="html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="logo_base64.js?v=2"></script>
-    <link rel="stylesheet" href="styles.css?v=343">
+    <link rel="stylesheet" href="styles.css?v=480">
 </head>
 <body>
     <div id="app">
@@ -744,6 +744,8 @@
                                     <span style="position: absolute; left: 10px; color: #fde047; font-weight: 800; font-family: monospace;">$</span>
                                     <input type="text" id="req-cotizacion-materiales" value="1.450,00" placeholder="1.450,00" inputmode="decimal"
                                            style="font-family: monospace; text-align: right; height: 42px; font-weight: 800; color: #fde047; border: 1.5px solid rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.08); padding-left: 24px;"
+                                           onfocus="this.select()"
+                                           onblur="if(typeof onCotizacionBlur==='function') onCotizacionBlur(this)"
                                            oninput="if(typeof onReqCotizacionMaterialesInput==='function') onReqCotizacionMaterialesInput(this)">
                                 </div>
                             </div>
@@ -872,6 +874,8 @@
                                         <span style="position: absolute; left: 10px; color: #fde047; font-weight: 800; font-family: monospace;">$</span>
                                         <input type="text" id="req-meca-cotizacion-materiales" value="1.450,00" placeholder="1.450,00" inputmode="decimal"
                                                style="background: rgba(56, 189, 248, 0.1); color: #fde047; border: 1.5px solid rgba(56, 189, 248, 0.4); border-radius: 6px; padding: 8px 12px 8px 24px; font-size: 13px; font-weight: 800; font-family: monospace; width: 150px; text-align: right;"
+                                               onfocus="this.select()"
+                                               onblur="if(typeof onCotizacionBlur==='function') onCotizacionBlur(this)"
                                                oninput="if(typeof onReqCotizacionMaterialesInput==='function') onReqCotizacionMaterialesInput(this)"
                                                onkeydown="if(event.key==='Enter'){event.preventDefault();const pBox=document.getElementById('req-meca-propuesta-box');if(pBox&&pBox.style.display!=='none'){document.getElementById('req-meca-propuesta')?.focus();}else{document.getElementById('btn-next-step1')?.click();}}">
                                     </div>
@@ -1663,6 +1667,8 @@
                             <span id="auth-meca-nro-presupuesto-val" style="font-weight: 700; font-size: 11.5px; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                     </div>
+
+
                 </div>
 
                 <!-- Contenedor del Tarifario / Propuesta Comercial con Pestañas -->
@@ -2407,27 +2413,16 @@
             </div>
 
             <form id="form-nuevo-item-tarifario" novalidate onsubmit="event.preventDefault(); confirmarNuevoItemTarifario();" style="display: flex; flex-direction: column; gap: 14px;">
-                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Sección / Pestaña de Destino <span style="color: #22d3ee;">*</span></label>
-                        <select id="nuevo-item-subrubro" onchange="if(typeof onNuevoItemSubrubroChange==='function') onNuevoItemSubrubroChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
-                            <option value="Materiales y Equipos">Materiales y Equipos</option>
-                            <option value="Mano de Obra EN TALLER">Mano de Obra EN TALLER</option>
-                            <option value="Mano de Obra MANTENIMIENTO">Mano de Obra MANTENIMIENTO</option>
-                            <option value="Mano de Obra PARADA DE PLANTA">Mano de Obra PARADA DE PLANTA</option>
-                            <option value="Mano de Obra EMERGENCIA MANTENIMIENTO">Mano de Obra EMERGENCIA MANTENIMIENTO</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Planta Asignada</label>
-                        <select id="nuevo-item-planta" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
-                            <option value="">Todas las Plantas (General)</option>
-                            <option value="APS">Planta APS</option>
-                            <option value="APG">Planta APG</option>
-                            <option value="PPA">Planta PPA</option>
-                        </select>
-                    </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Sección / Pestaña de Destino <span style="color: #22d3ee;">*</span></label>
+                    <select id="nuevo-item-subrubro" onchange="if(typeof onNuevoItemSubrubroChange==='function') onNuevoItemSubrubroChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
+                        <option value="Materiales y Equipos">Materiales y Equipos</option>
+                        <option value="Mano de Obra EN TALLER">Mano de Obra EN TALLER</option>
+                        <option value="Mano de Obra MANTENIMIENTO">Mano de Obra MANTENIMIENTO</option>
+                        <option value="Mano de Obra PARADA DE PLANTA">Mano de Obra PARADA DE PLANTA</option>
+                        <option value="Mano de Obra EMERGENCIA MANTENIMIENTO">Mano de Obra EMERGENCIA MANTENIMIENTO</option>
+                    </select>
+                    <input type="hidden" id="nuevo-item-planta" value="">
                 </div>
 
                 <div class="form-group" style="margin-bottom: 0;">
@@ -3118,7 +3113,7 @@
             }
         } catch(e) {}
     </script>
-    <script src="app.js?v=474"></script>
+    <script src="app.js?v=480"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>
