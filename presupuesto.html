@@ -1170,11 +1170,11 @@
                             Contado
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: white; font-size: 13px; font-weight: normal;">
-                            <input type="radio" name="modal-req-forma-pago" value="30dias" style="width: 16px; height: 16px; accent-color: var(--warning);">
+                            <input type="radio" name="modal-req-forma-pago" value="30dias" checked style="width: 16px; height: 16px; accent-color: var(--warning);">
                             A 30 días
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: white; font-size: 13px; font-weight: normal;">
-                            <input type="radio" name="modal-req-forma-pago" value="cheque" checked style="width: 16px; height: 16px; accent-color: var(--warning);">
+                            <input type="radio" name="modal-req-forma-pago" value="cheque" style="width: 16px; height: 16px; accent-color: var(--warning);">
                             Pago Cheque
                         </label>
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: white; font-size: 13px; font-weight: normal;">
@@ -1588,59 +1588,59 @@
                     <!-- Fila 1: Cliente | Código -->
                     <div id="modal-row-1" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div id="modal-col-cliente" style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Cliente:</span>
-                            <span id="auth-meca-cliente-val" style="font-weight: 800; color: #ffffff; text-transform: uppercase;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 68px; min-width: 68px; display: inline-block; text-align: center;">Cliente:</span>
+                            <span id="auth-meca-cliente-val" style="font-weight: 700; font-size: 11.5px; color: #ffffff; text-transform: uppercase;">-</span>
                         </div>
                         <div id="modal-col-f1-codigo" style="flex: 1; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Código:</span>
-                            <span id="auth-meca-cliente-codigo-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 85px; min-width: 85px; display: inline-block; text-align: center;">Código:</span>
+                            <span id="auth-meca-cliente-codigo-val" style="font-weight: 700; font-size: 11.5px; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                     </div>
                     
                     <!-- Fila 2: Título/Detalle | Número de OT -->
                     <div id="modal-row-2" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div id="modal-col-titulo-denominacion" style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
-                            <span id="lbl-modal-titulo" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Título:</span>
-                            <span id="auth-meca-denominacion-val" style="font-weight: 800; color: #ffffff; text-transform: uppercase;">-</span>
+                            <span id="lbl-modal-titulo" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 68px; min-width: 68px; display: inline-block; text-align: center;">Título:</span>
+                            <span id="auth-meca-denominacion-val" style="font-weight: 700; font-size: 11.5px; color: #ffffff; text-transform: uppercase;">-</span>
                         </div>
                         <div id="modal-col-ot-row2" style="flex: 1; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Número de OT:</span>
-                            <span id="auth-meca-nro-ot-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 85px; min-width: 85px; display: inline-block; text-align: center;">Número de OT:</span>
+                            <span id="auth-meca-nro-ot-val" style="font-weight: 700; font-size: 11.5px; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                     </div>
                     <!-- Fila 3: Detalle | Planta (Solo Mecánico) -->
-                    <div id="modal-row-detalle-planta" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: flex-start; justify-content: space-between;">
-                        <div id="modal-col-detalle-prop" style="flex: 1.5; display: flex; align-items: flex-start; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Detalle:</span>
-                            <span id="auth-meca-detalle-prop-val" style="font-weight: 700; color: #f8fafc; font-size: 11px; margin-top: 1px; white-space: pre-wrap;">-</span>
+                    <div id="modal-row-detalle-planta" style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
+                        <div id="modal-col-detalle-prop" style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 68px; min-width: 68px; display: inline-block; text-align: center;">Detalle:</span>
+                            <span id="auth-meca-detalle-prop-val" style="font-weight: 700; font-size: 11.5px; color: #f8fafc; line-height: 1.25; white-space: pre-wrap; text-transform: uppercase;">-</span>
                         </div>
                         <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Planta:</span>
-                            <span id="auth-meca-planta-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase; margin-top: 1px;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 85px; min-width: 85px; display: inline-block; text-align: center;">Planta:</span>
+                            <span id="auth-meca-planta-val" style="font-weight: 700; font-size: 11.5px; color: #f8fafc; text-transform: uppercase;">-</span>
                         </div>
                     </div>
 
                     <!-- Fila 4: Domicilio | Localidad -->
                     <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Domicilio:</span>
-                            <span id="auth-meca-domicilio-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 68px; min-width: 68px; display: inline-block; text-align: center;">Domicilio:</span>
+                            <span id="auth-meca-domicilio-val" style="font-weight: 700; font-size: 11.5px; color: #f8fafc; text-transform: uppercase;">-</span>
                         </div>
                         <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Localidad:</span>
-                            <span id="auth-meca-localidad-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 85px; min-width: 85px; display: inline-block; text-align: center;">Localidad:</span>
+                            <span id="auth-meca-localidad-val" style="font-weight: 700; font-size: 11.5px; color: #f8fafc; text-transform: uppercase;">-</span>
                         </div>
                     </div>
 
                     <!-- Fila 5: C.U.I.T. | Fecha de Entrega -->
                     <div style="display: flex; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding: 6px 12px; align-items: center; justify-content: space-between;">
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">C.U.I.T.:</span>
-                            <span id="auth-meca-cuit-val" style="font-weight: 700; color: #38bdf8; font-family: monospace;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 68px; min-width: 68px; display: inline-block; text-align: center;">C.U.I.T.:</span>
+                            <span id="auth-meca-cuit-val" style="font-weight: 700; font-size: 11.5px; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                         <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">F. Entrega:</span>
-                            <span id="auth-meca-entrega-val" style="font-weight: 700; color: #38bdf8; font-family: monospace;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 85px; min-width: 85px; display: inline-block; text-align: center;">F. Entrega:</span>
+                            <span id="auth-meca-entrega-val" style="font-weight: 700; font-size: 11.5px; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                     </div>
 
@@ -1649,18 +1649,18 @@
                         <div style="flex: 1.5; display: flex; align-items: center; gap: 8px;">
                             <!-- Para Eléctrico: Planta (en lugar de Condición) -->
                             <div id="modal-col-f6-planta-el" style="display: none; align-items: center; gap: 8px;">
-                                <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Planta:</span>
-                                <span id="auth-meca-planta-val-el" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
+                                <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 68px; min-width: 68px; display: inline-block; text-align: center;">Planta:</span>
+                                <span id="auth-meca-planta-val-el" style="font-weight: 700; font-size: 11.5px; color: #f8fafc; text-transform: uppercase;">-</span>
                             </div>
                             <!-- Para Mecánico: Condición -->
                             <div id="modal-col-f6-condicion-meca" style="display: flex; align-items: center; gap: 8px;">
-                                <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 65px; display: inline-block; text-align: center;">Condición:</span>
-                                <span id="auth-meca-condicion-val" style="font-weight: 700; color: #f8fafc; text-transform: uppercase;">-</span>
+                                <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 68px; min-width: 68px; display: inline-block; text-align: center;">Condición:</span>
+                                <span id="auth-meca-condicion-val" style="font-weight: 700; font-size: 11.5px; color: #f8fafc; text-transform: uppercase;">-</span>
                             </div>
                         </div>
                         <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
-                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px;">Nro Pres.:</span>
-                            <span id="auth-meca-nro-presupuesto-val" style="font-weight: 800; color: #38bdf8; font-family: monospace;">-</span>
+                            <span style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-weight: 800; font-size: 11px; width: 85px; min-width: 85px; display: inline-block; text-align: center;">Nro Pres.:</span>
+                            <span id="auth-meca-nro-presupuesto-val" style="font-weight: 700; font-size: 11.5px; color: #38bdf8; font-family: monospace;">-</span>
                         </div>
                     </div>
                 </div>
@@ -2407,27 +2407,47 @@
             </div>
 
             <form id="form-nuevo-item-tarifario" novalidate onsubmit="event.preventDefault(); confirmarNuevoItemTarifario();" style="display: flex; flex-direction: column; gap: 14px;">
-                <div class="form-group" style="margin-bottom: 0;">
-                    <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Sección / Pestaña de Destino <span style="color: #22d3ee;">*</span></label>
-                    <select id="nuevo-item-subrubro" onchange="if(typeof onNuevoItemSubrubroChange==='function') onNuevoItemSubrubroChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
-                        <option value="Materiales y Equipos">Materiales y Equipos</option>
-                        <option value="Mano de Obra EN TALLER">Mano de Obra EN TALLER</option>
-                        <option value="Mano de Obra MANTENIMIENTO">Mano de Obra MANTENIMIENTO</option>
-                        <option value="Mano de Obra PARADA DE PLANTA">Mano de Obra PARADA DE PLANTA</option>
-                        <option value="Mano de Obra EMERGENCIA MANTENIMIENTO">Mano de Obra EMERGENCIA MANTENIMIENTO</option>
-                    </select>
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Sección / Pestaña de Destino <span style="color: #22d3ee;">*</span></label>
+                        <select id="nuevo-item-subrubro" onchange="if(typeof onNuevoItemSubrubroChange==='function') onNuevoItemSubrubroChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
+                            <option value="Materiales y Equipos">Materiales y Equipos</option>
+                            <option value="Mano de Obra EN TALLER">Mano de Obra EN TALLER</option>
+                            <option value="Mano de Obra MANTENIMIENTO">Mano de Obra MANTENIMIENTO</option>
+                            <option value="Mano de Obra PARADA DE PLANTA">Mano de Obra PARADA DE PLANTA</option>
+                            <option value="Mano de Obra EMERGENCIA MANTENIMIENTO">Mano de Obra EMERGENCIA MANTENIMIENTO</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Planta Asignada</label>
+                        <select id="nuevo-item-planta" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
+                            <option value="">Todas las Plantas (General)</option>
+                            <option value="APS">Planta APS</option>
+                            <option value="APG">Planta APG</option>
+                            <option value="PPA">Planta PPA</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Descripción / Detalle del Concepto <span style="color: #22d3ee;">*</span></label>
                     <input type="text" id="nuevo-item-detalle" placeholder="Ej: Oficial Especialista / Tareas Extra ..." autocomplete="off"
                            style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 13px; font-weight: 600;"
-                           onkeydown="if(event.key==='Enter'){ event.preventDefault(); const q = document.getElementById('nuevo-item-cantidad'); if(q){ q.focus(); q.select(); } }">
+                           onkeydown="if(event.key==='Enter'){ event.preventDefault(); const q = document.getElementById('nuevo-item-precio'); if(q){ q.focus(); q.select(); } }">
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Unidad de Medida (U.D.M.)</label>
+                        <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Moneda</label>
+                        <select id="nuevo-item-moneda" onchange="if(typeof onNuevoItemMonedaChange==='function') onNuevoItemMonedaChange()" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(56,189,248,0.4); background: rgba(15,23,42,0.9); color: #38bdf8; font-size: 12px; font-weight: 800;">
+                            <option value="ARS">Pesos ($ ARS)</option>
+                            <option value="USD">Dólares (U$D)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">U.D.M.</label>
                         <select id="nuevo-item-udm" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #ffffff; font-size: 12px; font-weight: 600;">
                             <option value="Hs">Hs (Horas)</option>
                             <option value="c/u">c/u (Unidad)</option>
@@ -2443,14 +2463,16 @@
                         <label id="nuevo-item-precio-label" style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Precio Unitario ($)</label>
                         <input type="text" id="nuevo-item-precio" placeholder="0,00" inputmode="decimal"
                                style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #fde047; font-family: monospace; font-size: 13px; font-weight: 800; text-align: right;"
-                               oninput="this.value=this.value.replace(/[^0-9,.]/g,'');">
+                               oninput="this.value=this.value.replace(/[^0-9,.]/g,'');"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault(); const q = document.getElementById('nuevo-item-cantidad'); if(q){ q.focus(); q.select(); }}">
                     </div>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 0;">
                     <label style="display: block; font-size: 11px; color: #94a3b8; font-weight: 700; margin-bottom: 5px;">Cantidad Estimada para este Presupuesto (opcional)</label>
                     <input type="number" id="nuevo-item-cantidad" placeholder="0" min="0" step="1"
-                           style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #38bdf8; font-family: monospace; font-size: 13px; font-weight: 800;">
+                           style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.9); color: #38bdf8; font-family: monospace; font-size: 13px; font-weight: 800;"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault(); confirmarNuevoItemTarifario();}">
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 14px;">
@@ -3096,7 +3118,7 @@
             }
         } catch(e) {}
     </script>
-    <script src="app.js?v=464"></script>
+    <script src="app.js?v=474"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

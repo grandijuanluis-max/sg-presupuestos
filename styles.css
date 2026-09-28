@@ -1713,8 +1713,14 @@ input:focus, select:focus, textarea:focus {
 
     body.modal-open #auth-mecanico-header-box > div {
         border-bottom: 1px solid #000000 !important;
-        padding: 4px 6px !important;
+        padding: 3px 6px !important;
         background: transparent !important;
+        align-items: center !important;
+    }
+
+    body.modal-open #modal-row-detalle-planta,
+    body.modal-open #modal-col-detalle-prop {
+        align-items: center !important;
     }
 
     body.modal-open #auth-mecanico-header-box > div:last-child {
@@ -1731,6 +1737,23 @@ input:focus, select:focus, textarea:focus {
         font-size: 10px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+    }
+
+    body.modal-open #auth-mecanico-header-box span:not([style*="background"]) {
+        font-size: 10.5px !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+        line-height: 1.2 !important;
+        color: #000000 !important;
+    }
+
+    body.modal-open #auth-meca-detalle-prop-val {
+        font-size: 10.5px !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+        line-height: 1.2 !important;
+        color: #000000 !important;
+        margin-top: 0 !important;
     }
 
     body.modal-open #auth-mecanico-header-box span,
@@ -3843,8 +3866,8 @@ input[type=number] {
         color: #000000 !important;
         border-bottom: 1.5px solid #000000 !important;
         font-weight: 900 !important;
-        font-size: 9.5px !important;
-        padding: 4px 8px !important;
+        font-size: 11px !important;
+        padding: 5px 8px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
@@ -3853,16 +3876,38 @@ input[type=number] {
     .print-meca-propuesta div {
         color: #000000 !important;
         background: transparent !important;
-        border-color: #94a3b8 !important;
-        font-size: 9px !important;
+        border-color: #000000 !important;
     }
 
     body.modal-open .print-meca-propuesta div > div:first-child,
     .print-meca-propuesta div > div:first-child {
         color: #000000 !important;
         font-weight: 800 !important;
+        font-size: 11px !important;
         background: transparent !important;
-        border-right: 1px solid #94a3b8 !important;
+        border-right: 1px solid #000000 !important;
+        padding: 6px 8px !important;
+    }
+
+    body.modal-open .print-meca-propuesta div > div:last-child,
+    .print-meca-propuesta div > div:last-child {
+        color: #000000 !important;
+        font-weight: 700 !important;
+        font-size: 12px !important;
+        text-transform: uppercase !important;
+        padding: 6px 10px !important;
+    }
+
+    /* Supervisor mucho más grande en impresión */
+    body.modal-open .print-meca-supervisor-val,
+    .print-meca-supervisor-val,
+    body.modal-open [data-supervisor-row="true"],
+    [data-supervisor-row="true"] {
+        font-size: 14px !important;
+        font-weight: 900 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        color: #000000 !important;
     }
 
     .print-meca-propuesta * {
