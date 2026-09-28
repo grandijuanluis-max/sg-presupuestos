@@ -3955,51 +3955,51 @@ const PRESUPUESTO_ELECTRICO_STOCK = [
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-028",
-    "detalle": "Tecnico en seguridad",
+    "codigo": "ELE-038",
+    "detalle": "Técnico en Seguridad",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 10023.0,
+    "precio": 5695.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-029",
+    "codigo": "ELE-039",
     "detalle": "Oficial Esp",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 20616.0,
+    "precio": 11712.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-030",
+    "codigo": "ELE-040",
     "detalle": "Ayudante",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 17577.0,
+    "precio": 9992.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-031",
+    "codigo": "ELE-041",
     "detalle": "Supervisor",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 16363.0,
+    "precio": 12072.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-032",
-    "detalle": "Hidro elevador",
+    "codigo": "ELE-042",
+    "detalle": "Camion Hidro elevador",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
-    "udm": "u",
+    "udm": "horas",
     "precio": 24028.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
@@ -4055,51 +4055,51 @@ const PRESUPUESTO_ELECTRICO_STOCK = [
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-038",
-    "detalle": "Técnico en Seguridad",
+    "codigo": "ELE-028",
+    "detalle": "Tecnico en seguridad",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 5695.0,
+    "precio": 10023.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-039",
+    "codigo": "ELE-029",
     "detalle": "Oficial Esp",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 11712.0,
+    "precio": 20616.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-040",
+    "codigo": "ELE-030",
     "detalle": "Ayudante",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 9992.0,
+    "precio": 17577.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-041",
+    "codigo": "ELE-031",
     "detalle": "Supervisor",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 12072.0,
+    "precio": 16363.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-042",
-    "detalle": "Camion Hidro elevador",
+    "codigo": "ELE-032",
+    "detalle": "Hidro elevador",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
-    "udm": "horas",
+    "udm": "u",
     "precio": 24028.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
@@ -4135,51 +4135,51 @@ const PRESUPUESTO_ELECTRICO_STOCK = [
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-046",
-    "detalle": "Tecnico en seguridad",
+    "codigo": "ELE-056",
+    "detalle": "Técnico en Seguridad",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 7720.0,
+    "precio": 4386.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-047",
+    "codigo": "ELE-057",
     "detalle": "Oficial Esp",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 20889.0,
+    "precio": 11871.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-048",
+    "codigo": "ELE-058",
     "detalle": "Ayudante",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 17830.0,
+    "precio": 10128.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-049",
+    "codigo": "ELE-059",
     "detalle": "Supervisor",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 21521.0,
+    "precio": 12233.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-050",
-    "detalle": "Hidro elevador",
+    "codigo": "ELE-060",
+    "detalle": "Camion Hidro elevador",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
-    "udm": "u",
+    "udm": "horas",
     "precio": 24028.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
@@ -4235,51 +4235,51 @@ const PRESUPUESTO_ELECTRICO_STOCK = [
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-056",
-    "detalle": "Técnico en Seguridad",
+    "codigo": "ELE-046",
+    "detalle": "Tecnico en seguridad",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 4386.0,
+    "precio": 7720.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-057",
+    "codigo": "ELE-047",
     "detalle": "Oficial Esp",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 11871.0,
+    "precio": 20889.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-058",
+    "codigo": "ELE-048",
     "detalle": "Ayudante",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 10128.0,
+    "precio": 17830.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-059",
+    "codigo": "ELE-049",
     "detalle": "Supervisor",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 12233.0,
+    "precio": 21521.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-060",
-    "detalle": "Camion Hidro elevador",
+    "codigo": "ELE-050",
+    "detalle": "Hidro elevador",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
-    "udm": "horas",
+    "udm": "u",
     "precio": 24028.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
@@ -15860,6 +15860,27 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         }
     ];
 
+    if (reqTipoPresupuesto === 'Eléctrico') {
+        const getElePriority = (code) => {
+            const c = String(code || '').toUpperCase().trim();
+            // Mantenimiento: Hs Normales (1), Hs 36% (2), Hs 76% (3)
+            if (['ELE-038', 'ELE-039', 'ELE-040', 'ELE-041', 'ELE-042'].includes(c)) return 1;
+            if (['ELE-033', 'ELE-034', 'ELE-035', 'ELE-036', 'ELE-037'].includes(c)) return 2;
+            if (['ELE-028', 'ELE-029', 'ELE-030', 'ELE-031', 'ELE-032'].includes(c)) return 3;
+            // Parada de Planta: Hs Normales (1), Hs 36% (2), Hs 76% (3)
+            if (['ELE-056', 'ELE-057', 'ELE-058', 'ELE-059', 'ELE-060'].includes(c)) return 1;
+            if (['ELE-051', 'ELE-052', 'ELE-053', 'ELE-054', 'ELE-055'].includes(c)) return 2;
+            if (['ELE-046', 'ELE-047', 'ELE-048', 'ELE-049', 'ELE-050'].includes(c)) return 3;
+            return 99;
+        };
+        if (sections[2] && Array.isArray(sections[2].items)) {
+            sections[2].items.sort((a, b) => getElePriority(a.codigo) - getElePriority(b.codigo));
+        }
+        if (sections[3] && Array.isArray(sections[3].items)) {
+            sections[3].items.sort((a, b) => getElePriority(a.codigo) - getElePriority(b.codigo));
+        }
+    }
+
     // Catch-all: Asegurar que ningún ítem quede oculto por nombre de subrubro no coincidente
     const categorized = new Set();
     sections.forEach(sec => sec.items.forEach(it => categorized.add(it.codigo)));
@@ -16054,7 +16075,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                             </tr>
                             <tr style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-weight: 800;">
                                 <td style="text-align: center; color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px;"></td>
-                                <td colspan="5" style="border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px; color: #fde047 !important; font-size: 12px;"><strong>Mano de obra por Hs al 76%</strong></td>
+                                <td colspan="5" style="border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px; color: #fde047 !important; font-size: 12px;"><strong>Mano de Obra por hs Normales</strong></td>
                             </tr>
                         `;
                     } else if (index === 5) {
@@ -16068,7 +16089,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                         html += `
                             <tr style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-weight: 800;">
                                 <td style="text-align: center; color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px;"></td>
-                                <td colspan="5" style="border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px; color: #fde047 !important; font-size: 12px;"><strong>Mano de Obra por hs Normales</strong></td>
+                                <td colspan="5" style="border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px; color: #fde047 !important; font-size: 12px;"><strong>Mano de obra por Hs al 76%</strong></td>
                             </tr>
                         `;
                     }
@@ -16081,7 +16102,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                             </tr>
                             <tr style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-weight: 800;">
                                 <td style="text-align: center; color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px;"></td>
-                                <td colspan="5" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; color: #6ee7b7 !important;"><strong>Mano de obra por Hs al 76% en parada de planta</strong></td>
+                                <td colspan="5" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; color: #6ee7b7 !important;"><strong>Mano de Obra por hs Normales en parada de planta</strong></td>
                             </tr>
                         `;
                     } else if (index === 5) {
@@ -16095,7 +16116,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                         html += `
                             <tr style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-weight: 800;">
                                 <td style="text-align: center; color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px;"></td>
-                                <td colspan="5" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; color: #6ee7b7 !important;"><strong>Mano de Obra por hs Normales en parada de planta</strong></td>
+                                <td colspan="5" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; color: #6ee7b7 !important;"><strong>Mano de obra por Hs al 76% en parada de planta</strong></td>
                             </tr>
                         `;
                     }
@@ -19464,10 +19485,29 @@ window.getPresupuestoFormattedItems = function(p, format) {
         return a.localeCompare(b);
     });
 
+    const getElePriority = (code) => {
+        const c = String(code || '').toUpperCase().trim();
+        // Mantenimiento: Hs Normales (1), Hs 36% (2), Hs 76% (3)
+        if (['ELE-038', 'ELE-039', 'ELE-040', 'ELE-041', 'ELE-042'].includes(c)) return 1;
+        if (['ELE-033', 'ELE-034', 'ELE-035', 'ELE-036', 'ELE-037'].includes(c)) return 2;
+        if (['ELE-028', 'ELE-029', 'ELE-030', 'ELE-031', 'ELE-032'].includes(c)) return 3;
+        // Parada de Planta: Hs Normales (1), Hs 36% (2), Hs 76% (3)
+        if (['ELE-056', 'ELE-057', 'ELE-058', 'ELE-059', 'ELE-060'].includes(c)) return 1;
+        if (['ELE-051', 'ELE-052', 'ELE-053', 'ELE-054', 'ELE-055'].includes(c)) return 2;
+        if (['ELE-046', 'ELE-047', 'ELE-048', 'ELE-049', 'ELE-050'].includes(c)) return 3;
+        return 99;
+    };
+
     const formatted = [];
     sortedCategoryKeys.forEach(catTitle => {
         const catItems = groupsMap[catTitle];
         if (catItems && catItems.length > 0) {
+            catItems.sort((a, b) => {
+                const pA = getElePriority(a.codigo);
+                const pB = getElePriority(b.codigo);
+                if (pA !== 99 || pB !== 99) return pA - pB;
+                return 0;
+            });
             formatted.push({ codigo: '-', detalle: catTitle, precio: '-', cantidad: '-', subtotal: '-', is_material: false });
             catItems.forEach(item => formatted.push(item));
         }
@@ -20626,7 +20666,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '485';
+window.CURRENT_APP_VERSION = '486';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
