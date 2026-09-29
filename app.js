@@ -505,28 +505,42 @@ function normalizePresupuestosRubro(pedidos) {
         const ocVal = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
         const estStr = String(p.estado || '').trim();
         const estLower = estStr.toLowerCase();
+        const factPct = parseFloat(p.facturado_porcentaje || 0);
 
         if (estLower === 'rechazado' || estLower === 'anulado') {
             p.estado = 'Rechazado';
+        } else if (estLower === 'facturado total' || factPct >= 99.99) {
+            p.estado = 'Facturado Total';
+            p.estado_facturacion = 'Total';
+            if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
+            if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
+        } else if (estLower === 'facturado parcial' || factPct > 0) {
+            p.estado = 'Facturado Parcial';
+            p.estado_facturacion = 'Parcial';
+            if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
+            if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
         } else if (
             estLower === 'aprobado con oc' ||
             estLower.includes('con oc') ||
             estLower.includes('con orden') ||
-            estLower === 'facturado parcial' ||
-            estLower === 'facturado total' ||
             estLower === 'cargado con orden de compra' ||
             estLower === 'autorizado' ||
             estLower === 'aprobado' ||
-            (ocVal !== '' && ocVal !== '-' && estLower !== 'rechazado')
+            (ocVal !== '' && ocVal !== '-' && !estLower.includes('sin oc') && estLower !== 'rechazado')
         ) {
             if (!p.estado_facturacion) {
-                p.estado_facturacion = (estLower === 'facturado total' || parseFloat(p.facturado_porcentaje || 0) >= 100) ? 'Total' : (parseFloat(p.facturado_porcentaje || 0) > 0 ? 'Parcial' : 'Pendiente');
+                p.estado_facturacion = (parseFloat(p.facturado_porcentaje || 0) >= 100) ? 'Total' : (parseFloat(p.facturado_porcentaje || 0) > 0 ? 'Parcial' : 'Pendiente');
             }
             p.estado = 'Aprobado con OC';
             if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
             if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
         } else if (estLower === 'aprobado sin oc' || (estLower.includes('sin oc') && estLower.includes('aprobado'))) {
             p.estado = 'Aprobado sin OC';
+        } else if (estLower === 'pendiente' || estLower === 'enviado sin oc' || estLower === 'cargado sin orden de compra') {
+            p.estado = 'Enviado sin OC';
+        } else if (p.estado) {
+            // Preservar cualquier otro estado válido existente
+            p.estado = p.estado;
         } else {
             p.estado = 'Enviado sin OC';
         }
@@ -1357,6 +1371,29 @@ function initSupabaseSync(callback) {
         }
     };
 
+    // Helper universal para ordenar ítems de presupuestos respetando el orden oficial del tarifario
+    window.getItemTarifarioSortIndex = function(it) {
+        if (!it) return 999999;
+        const code = String(it.codigo || it.id || '').toUpperCase().trim();
+        if (!code || code === '-') return 999998;
+        const catalog = [
+            ...(window.presupuestoMecanicoDB || []),
+            ...(window.presupuestosCatalogDB || []),
+            ...(typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' ? PRESUPUESTO_MECANICO_STOCK : []),
+            ...(typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' ? PRESUPUESTO_ELECTRICO_STOCK : [])
+        ];
+        const cIdx = catalog.findIndex(c => c && (String(c.codigo).toUpperCase().trim() === code || String(c.id).toUpperCase().trim() === code));
+        if (cIdx !== -1) return cIdx;
+        const match = code.match(/^[A-Z]+-0*(\d+)/);
+        if (match) {
+            const num = parseInt(match[1], 10);
+            if (code.startsWith('MEC-')) return num;
+            if (code.startsWith('ELE-')) return 1000 + num;
+            return num;
+        }
+        return 999999;
+    };
+
     // 2.9. FUNCIÓN DIRECTA PARA TRAER Y CACHEAR ÍTEMS DE UN PRESUPUESTO DESDE 'presupuesto_items'
     window.fetchPresupuestoItemsDirect = async function(pid) {
         if (!pid) return [];
@@ -1472,6 +1509,13 @@ function initSupabaseSync(callback) {
                 };
             });
 
+            mapped.sort((a, b) => {
+                const sA = window.getItemTarifarioSortIndex(a);
+                const sB = window.getItemTarifarioSortIndex(b);
+                if (sA !== sB) return sA - sB;
+                return (a.orden || 0) - (b.orden || 0);
+            });
+
             window._presupuestoItemsByPid = window._presupuestoItemsByPid || {};
             window._presupuestoItemsByPid[pid] = mapped;
             if (typeof window.savePresupuestoItemsCache === 'function') {
@@ -1493,7 +1537,7 @@ function initSupabaseSync(callback) {
     const syncPresupuestoItemsFromSupabase = function() {
         if (!client) return Promise.resolve();
         window.syncPresupuestoItemsFromSupabase = syncPresupuestoItemsFromSupabase;
-        return client.from('presupuesto_items').select('*').order('id', { ascending: false }).limit(5000).then(function(itemsRes) {
+        return client.from('presupuesto_items').select('*').order('id', { ascending: true }).limit(5000).then(function(itemsRes) {
             if (itemsRes.data && itemsRes.data.length > 0 && Array.isArray(appData.pedidos)) {
                 const itemsMap = {};
                 const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
@@ -1631,7 +1675,12 @@ function initSupabaseSync(callback) {
                 }
 
                 Object.keys(itemsMap).forEach(pid => {
-                    itemsMap[pid].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+                    itemsMap[pid].sort((a, b) => {
+                        const sA = window.getItemTarifarioSortIndex(a);
+                        const sB = window.getItemTarifarioSortIndex(b);
+                        if (sA !== sB) return sA - sB;
+                        return (a.orden || 0) - (b.orden || 0);
+                    });
                 });
                 window._presupuestoItemsByPid = itemsMap;
 
@@ -1747,14 +1796,12 @@ function initSupabaseSync(callback) {
                 return;
             }
             if (pRes.data) {
-                const existingItemsMap = {};
+                const existingPedidosMap = {};
                 if (Array.isArray(appData.pedidos)) {
                     appData.pedidos.forEach(oldP => {
                         if (oldP && oldP.id) {
                             const pid = String(oldP.id);
-                            if (Array.isArray(oldP.items) && oldP.items.length > 0) {
-                                existingItemsMap[pid] = oldP.items;
-                            }
+                            existingPedidosMap[pid] = oldP;
                         }
                     });
                 }
@@ -1764,8 +1811,17 @@ function initSupabaseSync(callback) {
                     const cached = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
                     if (cached && Array.isArray(cached) && cached.length > 0) {
                         p.items = cached;
-                    } else if (existingItemsMap[pid] && Array.isArray(existingItemsMap[pid]) && existingItemsMap[pid].length > 0) {
-                        p.items = existingItemsMap[pid];
+                    } else if (existingPedidosMap[pid] && Array.isArray(existingPedidosMap[pid].items) && existingPedidosMap[pid].items.length > 0) {
+                        p.items = existingPedidosMap[pid].items;
+                    }
+                    if (existingPedidosMap[pid]) {
+                        if (!p.estado && existingPedidosMap[pid].estado) {
+                            p.estado = existingPedidosMap[pid].estado;
+                        }
+                        if (!p.nro_oc && (existingPedidosMap[pid].nro_oc || existingPedidosMap[pid].meca_nro_oc)) {
+                            p.nro_oc = existingPedidosMap[pid].nro_oc || existingPedidosMap[pid].meca_nro_oc;
+                            p.meca_nro_oc = p.nro_oc;
+                        }
                     }
                 });
 
@@ -1776,8 +1832,8 @@ function initSupabaseSync(callback) {
                     const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
                     if (cachedItems && Array.isArray(cachedItems) && cachedItems.length > 0) {
                         p.items = cachedItems;
-                    } else if ((!Array.isArray(p.items) || p.items.length === 0) && existingItemsMap[pid]) {
-                        p.items = existingItemsMap[pid];
+                    } else if ((!Array.isArray(p.items) || p.items.length === 0) && existingPedidosMap[pid] && Array.isArray(existingPedidosMap[pid].items)) {
+                        p.items = existingPedidosMap[pid].items;
                     }
                 });
 
@@ -2619,6 +2675,87 @@ window.guardarPresupuestoEnSupabase = async function(p) {
     }
 
     return { success: uploadedSuccessfully };
+};
+
+window.sincronizarEstadoPresupuestoEnSupabase = async function(p) {
+    if (!p || !p.id) return { success: false };
+    const pid = String(p.id).trim();
+    const client = (typeof getDbClient === 'function') ? getDbClient() : null;
+    const estadoVal = p.estado || 'Enviado sin OC';
+    const nroOcVal = String(p.meca_nro_oc || p.nro_oc || '').trim();
+    const motivoVal = String(p.motivo_rechazo || '').trim();
+    const fechaResVal = String(p.fecha_resolucion || '').trim();
+
+    // 1. Persistir inmediatamente en memoria y localStorage
+    try {
+        localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData));
+    } catch(e) {}
+
+    let synced = false;
+
+    // 2. Actualizar Supabase (SDK)
+    if (client) {
+        try {
+            const updatePayload = {
+                estado: estadoVal,
+                nro_oc: nroOcVal,
+                motivo_rechazo: motivoVal,
+                avance_porcentaje_acumulado: parseFloat(p.avance_porcentaje_acumulado) || 0,
+                facturado_porcentaje: parseFloat(p.facturado_porcentaje || 0) || 0,
+                monto_facturado: parseFloat(p.monto_facturado || 0) || 0
+            };
+            if (fechaResVal) updatePayload.fecha_resolucion = fechaResVal;
+
+            const { data, error: updErr } = await client.from('presupuestos').update(updatePayload).eq('id', pid);
+            if (updErr) {
+                console.warn("⚠️ Aviso update estado Supabase SDK:", updErr);
+            } else {
+                synced = true;
+                console.log(`☁️ Supabase: Estado de presupuesto ${pid} sincronizado a "${estadoVal}"`);
+            }
+        } catch(err) {
+            console.error("Error sincronizando estado en Supabase SDK:", err);
+        }
+    }
+
+    // 3. Si no pudo por SDK o hubo error, fallback directo REST
+    if (!synced) {
+        try {
+            const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+            const headers = {
+                'apikey': config.anonKey,
+                'Authorization': `Bearer ${config.anonKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            };
+            const patchRes = await fetch(`${config.url}/rest/v1/presupuestos?id=eq.${encodeURIComponent(pid)}`, {
+                method: 'PATCH',
+                headers: headers,
+                body: JSON.stringify({
+                    estado: estadoVal,
+                    nro_oc: nroOcVal,
+                    motivo_rechazo: motivoVal,
+                    facturado_porcentaje: parseFloat(p.facturado_porcentaje || 0) || 0,
+                    monto_facturado: parseFloat(p.monto_facturado || 0) || 0
+                })
+            });
+            if (patchRes.ok) {
+                synced = true;
+                console.log(`☁️ Supabase REST: Estado de presupuesto ${pid} sincronizado a "${estadoVal}"`);
+            } else {
+                console.warn("Aviso REST patch estado:", await patchRes.text());
+            }
+        } catch(fErr) {
+            console.warn("Error en fallback REST patch estado:", fErr);
+        }
+    }
+
+    // 4. Fallback final completo: guardarPresupuestoEnSupabase
+    if (!synced && typeof window.guardarPresupuestoEnSupabase === 'function') {
+        await window.guardarPresupuestoEnSupabase(p);
+    }
+
+    return { success: synced };
 };
 
 window.forzarSincronizacionSupabase = async function() {
@@ -8175,14 +8312,21 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
             } else {
                 const prARS = parseFloat(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)) || 0;
                 const sARS = parseFloat(item.subtotal !== undefined && item.subtotal !== null ? item.subtotal : (q * prARS)) || 0;
+                const subStr = String(item.subrubro || '').toLowerCase();
+                const codeUp = String(item.codigo || '').toUpperCase();
+                const isMatMec = codeUp.startsWith('MEC-') && parseInt(codeUp.replace(/^MEC-0*/, ''), 10) <= 9;
+                const isMatEle = codeUp.startsWith('ELE-') && parseInt(codeUp.replace(/^ELE-0*/, ''), 10) <= 27;
+                const isMatARS = item.is_material === true || subStr.includes('material') || subStr.includes('equipo') || isMatMec || isMatEle;
                 item.moneda = 'ARS';
-                item.is_material = false;
+                item.is_material = isMatARS;
                 item.precio = prARS;
                 item.precio_unitario = prARS;
                 item.precio_ars = prARS;
                 item.subtotal = sARS;
                 item.subtotal_usd = null;
-                sumLaborARS += sARS;
+                if (!isMatARS) {
+                    sumLaborARS += sARS;
+                }
                 sumTotalPesos += sARS;
             }
         });
@@ -8943,6 +9087,9 @@ window.editarOrdenesDeCompra = async function(id) {
             p.fecha_resolucion = new Date().toLocaleDateString('es-AR');
         }
         saveData();
+        if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+            window.sincronizarEstadoPresupuestoEnSupabase(p);
+        }
         showToast(`✅ Órdenes de Compra guardadas: MO: ${cleanMo || '-'} | MAT: ${cleanMat || '-'}`, 'success');
         if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
         return true;
@@ -9064,6 +9211,9 @@ window.editarOrdenesDeCompra = async function(id) {
     }
 
     saveData();
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(p);
+    }
     showToast(`✅ Órdenes de Compra guardadas: MO: ${cleanMo || '-'} | MAT: ${cleanMat || '-'}`, 'success');
 
     if (!previousWasApprovedConOc && typeof window.notificarAprobacionEquipo === 'function') {
@@ -9133,6 +9283,9 @@ Ingrese el % acumulado facturado (Máx: ${String(maxPermitido).replace('.', ',')
     }
 
     saveData();
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(p);
+    }
     showToast(`✅ % Facturado actualizado a ${String(finalPct).replace('.', ',')}% (Estado: ${estadoFact}) para el Presupuesto ${typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(p) : p.id}.`, 'success');
     if (typeof renderAssignmentsTable === 'function') {
         renderAssignmentsTable();
@@ -9310,6 +9463,9 @@ window.cambiarEstadoPresupuesto = async function(id, nuevoEstado) {
     pTarget.fecha_resolucion = new Date().toLocaleDateString('es-AR');
 
     saveData();
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(pTarget);
+    }
     const ocMsg = (pTarget.meca_nro_oc || pTarget.nro_oc) ? ` (OC: ${pTarget.meca_nro_oc || pTarget.nro_oc})` : '';
     showToast(`Estado del Presupuesto actualizado a: "${nuevoEstado}"${ocMsg}`, 'success');
 
@@ -9942,6 +10098,9 @@ window.cambiarEstadoPresupuestoDirecto = async function(id, nuevoEstado) {
     p.estado = nuevoEstado;
     p.fecha_resolucion = new Date().toLocaleDateString('es-AR');
     saveData();
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(p);
+    }
     const ocMsg = (p.meca_nro_oc || p.nro_oc) ? ` (OC: ${p.meca_nro_oc || p.nro_oc})` : '';
     showToast(`Presupuesto #${p.id}: Estado actualizado a "${nuevoEstado}"${ocMsg}`, 'success');
     if (typeof window.notificarAprobacionEquipo === 'function') {
@@ -10003,6 +10162,9 @@ Si el cliente ya emitió Orden de Compra (OC), ingrese el número (opcional):`, 
     }
     p.fecha_resolucion = new Date().toLocaleDateString('es-AR');
     saveData();
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(p);
+    }
     showToast(`✅ Presupuesto #${p.id} AUTORIZADO (${p.estado}).`, 'success');
     if (typeof window.notificarAprobacionEquipo === 'function') {
         window.notificarAprobacionEquipo(p, p.estado);
@@ -10094,6 +10256,9 @@ window.rechazarPedidoRapido = async function(id) {
     p.motivo_rechazo = motivo.trim();
     p.fecha_resolucion = new Date().toLocaleDateString('es-AR');
     saveData();
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(p);
+    }
     showToast(`❌ Presupuesto #${p.id} fue RECHAZADO.`, 'danger');
     if (typeof window.notificarAprobacionEquipo === 'function') {
         window.notificarAprobacionEquipo(p, 'Rechazado');
@@ -12070,14 +12235,23 @@ window.verDetallePedido = function(id, explicitMode) {
 
     // System footer info
     const sysUser = document.getElementById('auth-sys-user');
-    if (sysUser) sysUser.innerText = p.vendedor_id || '1';
+    if (sysUser) sysUser.innerText = p.vendedor_id || p.operador || '1';
     const sysDate = document.getElementById('auth-sys-date');
-    if (sysDate) sysDate.innerText = p.fecha || formattedDate;
+    if (sysDate) {
+        let rawD = String(p.fecha || formattedDate || '').split('T')[0].split(' ')[0];
+        const dateParts = rawD.split('-');
+        if (dateParts.length === 3 && dateParts[0].length === 4) {
+            rawD = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+        }
+        sysDate.innerText = rawD || '-';
+    }
     const sysCount = document.getElementById('auth-sys-items-count');
     if (sysCount) sysCount.innerText = p.items ? p.items.length : 0;
     const sysReportName = document.getElementById('auth-sys-report-name');
     if (sysReportName) {
-        sysReportName.innerText = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(p) : `Presupuesto ${p.cliente_nombre || ''} ${p.id || ''}`.trim();
+        const nroCode = (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(p) : (p.id || '')).toString().trim();
+        const cli = (p.cliente_nombre || p.cliente || '').trim();
+        sysReportName.innerText = cli ? `${nroCode} - ${cli}` : nroCode;
     }
 
     // Render condition, deposit, and transport into container elements
@@ -12378,7 +12552,7 @@ window.verDetallePedido = function(id, explicitMode) {
         }
 
         authMecaContainer.innerHTML = rejectedBannerHtml + `
-            <div style="background: transparent; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; color: #f8fafc; font-family: inherit; margin-bottom: 12px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
+            <div style="background: transparent; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; overflow: hidden; color: #f8fafc; font-family: inherit; margin-bottom: 4px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25);">
                 <div style="overflow-x: auto; padding: 0; background: transparent;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; color: #f8fafc; background: transparent;">
                         <thead>
@@ -12403,9 +12577,9 @@ window.verDetallePedido = function(id, explicitMode) {
                         <tbody>
                             ${itemsRowsHtml}
                         </tbody>
-                        <tfoot>
+                        <tfoot style="display: table-row-group; page-break-inside: avoid; break-inside: avoid;">
                             ${breakdownTfootHtml}
-                            <tr style="background: transparent; border-top: 2px solid #10b981; font-size: 13px;">
+                            <tr style="background: transparent; border-top: 2px solid #10b981; font-size: 13px; page-break-inside: avoid; break-inside: avoid;">
                                 <td colspan="4" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; text-transform: uppercase; color: #4ade80; font-weight: 900; letter-spacing: 0.5px; background: transparent;"><strong>TOTAL GENERAL:</strong></td>
                                 <td style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 900; font-size: 15px; color: #4ade80; white-space: nowrap; background: transparent;">${grandTotalDisplay}</td>
                             </tr>
@@ -12989,7 +13163,20 @@ window.imprimirPresupuestoModal = async function() {
             const docTitle = window.getBudgetDocTitle(pedidoActivo);
             document.title = docTitle;
             const sysReportName = document.getElementById('auth-sys-report-name');
-            if (sysReportName) sysReportName.innerText = docTitle;
+            if (sysReportName) {
+                const nroCode = (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(pedidoActivo) : (pedidoActivo.id || '')).toString().trim();
+                const cli = (pedidoActivo.cliente_nombre || pedidoActivo.cliente || '').trim();
+                sysReportName.innerText = cli ? `${nroCode} - ${cli}` : nroCode;
+            }
+            const sysDate = document.getElementById('auth-sys-date');
+            if (sysDate && pedidoActivo) {
+                let rawD = String(pedidoActivo.fecha || '').split('T')[0].split(' ')[0];
+                const dateParts = rawD.split('-');
+                if (dateParts.length === 3 && dateParts[0].length === 4) {
+                    rawD = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+                }
+                sysDate.innerText = rawD || new Date().toLocaleDateString('es-AR');
+            }
 
             // 1. Sincronizar ítems editados desde la grilla activa si existieran
             if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
@@ -13313,6 +13500,9 @@ window.resolveOrder = function(accion) {
     window.notificarAprobacionEquipo(appData.pedidos[orderIdx], appData.pedidos[orderIdx].estado);
 
     saveData();
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(appData.pedidos[orderIdx]);
+    }
     closeModal();
     renderAssignmentsTable();
 };
@@ -13492,25 +13682,24 @@ window.recalcAuthTotal = function() {
     if (sysDateEl) {
         let formattedDate = '-';
         if (pedidoActivo.fecha) {
-            // Usar la fecha del pedido + hora actual o la guardada
-            if (pedidoActivo.fecha.includes(' ')) {
-                const parts = pedidoActivo.fecha.split(' ');
-                const dateParts = parts[0].split('-');
-                if (dateParts.length === 3) {
-                    formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${parts[1]}`;
-                }
+            const rawD = String(pedidoActivo.fecha).split('T')[0].split(' ')[0];
+            const dateParts = rawD.split('-');
+            if (dateParts.length === 3 && dateParts[0].length === 4) {
+                formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
             } else {
-                formattedDate = pedidoActivo.fecha;
+                formattedDate = rawD;
             }
         }
-        sysDateEl.innerText = formattedDate;
+        sysDateEl.innerText = formattedDate || new Date().toLocaleDateString('es-AR');
     }
     if (sysUserEl) {
         sysUserEl.innerText = (pedidoActivo.operador || 'admin').toUpperCase();
     }
     const sysReportNameEl = document.getElementById('auth-sys-report-name');
     if (sysReportNameEl && pedidoActivo) {
-        sysReportNameEl.innerText = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(pedidoActivo) : `Presupuesto ${pedidoActivo.cliente_nombre || ''} ${pedidoActivo.id || ''}`.trim();
+        const nroCode = (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(pedidoActivo) : (pedidoActivo.id || '')).toString().trim();
+        const cli = (pedidoActivo.cliente_nombre || pedidoActivo.cliente || '').trim();
+        sysReportNameEl.innerText = cli ? `${nroCode} - ${cli}` : nroCode;
     }
 };
 
@@ -19363,8 +19552,11 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;
                     }
+                    .items-table-container {
+                        position: relative !important;
+                    }
                     .watermark-bg-print {
-                        position: fixed !important;
+                        position: absolute !important;
                         top: 50% !important;
                         left: 50% !important;
                         transform: translate(-50%, -50%) rotate(-25deg) !important;
@@ -19373,11 +19565,6 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     }
                 }
             </style>
-
-            <!-- Watermark Gota de Agua Oficial Centrada (Visible, Nítida y Dorada) -->
-            <div class="watermark-bg-print" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 480px; max-width: 82%; opacity: ${_isAcosta ? '0.34' : '0.62'}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                <img src="${_activeWatermark}" alt="Marca de agua" style="width: 100%; height: auto; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; ${_isAcosta ? 'filter: contrast(1.1);' : 'filter: contrast(1.15) saturate(1.15);'}">
-            </div>
 
             <div style="position: relative; z-index: 1;">
 
@@ -19478,8 +19665,11 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     </div>
                 </div>
 
-                <!-- Items Table (con fondo transparente sobre Marca de Agua) -->
-                <div style="position: relative; margin-bottom: 4px;">
+                <!-- Items Table (con fondo transparente sobre Marca de Agua Centrada en Productos) -->
+                <div class="items-table-container" style="position: relative; margin-bottom: 4px;">
+                    <div class="watermark-bg-print" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 440px; max-width: 82%; opacity: ${_isAcosta ? '0.34' : '0.60'}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                        <img src="${_activeWatermark}" alt="Marca de agua" style="width: 100%; height: auto; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; ${_isAcosta ? 'filter: contrast(1.1);' : 'filter: contrast(1.15) saturate(1.15);'}">
+                    </div>
                     <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000; position: relative; z-index: 1; background: transparent; table-layout: fixed;">
                         <thead style="font-size: 9.5px; background: transparent;">
                             <tr style="border-bottom: 1.5px solid #000; background: transparent; page-break-inside: avoid !important; break-inside: avoid !important;">
@@ -19493,14 +19683,14 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                         <tbody style="background: transparent;">
                             ${rowsHtml}
                         </tbody>
-                        <tfoot style="background: transparent;">
+                        <tfoot style="background: transparent; display: table-row-group;">
                             ${pdfBreakdownRows}
-                            <tr style="border-top: 1.5px solid #000; font-size: 11px; background: transparent; page-break-inside: avoid;">
+                            <tr style="border-top: 1.5px solid #000; font-size: 11px; background: transparent; page-break-inside: avoid; break-inside: avoid; break-before: avoid;">
                                 <td colspan="4" style="padding: 5px 8px; font-weight: 800; border-right: 1px solid #000; background: transparent; color: #000000;">TOTAL GENERAL:</td>
                                 <td style="padding: 5px 6px; text-align: right; font-weight: 800; background: transparent; color: #000000; font-size: 11px; white-space: nowrap;">${grandTotalPdfDisplay}</td>
                             </tr>
                             ${materialsTotalUSD > 0 ? `
-                            <tr style="border-top: 1px solid #000; font-size: 9.5px; background: transparent;">
+                            <tr style="border-top: 1px solid #000; font-size: 9.5px; background: transparent; page-break-inside: avoid; break-inside: avoid;">
                                 <td colspan="4" style="padding: 3px 8px; font-weight: 700; border-right: 1px solid #000; background: transparent; color: #000000;">Cotiz. U$D:</td>
                                 <td style="padding: 3px 6px; text-align: right; font-weight: 700; background: transparent; color: #000000; white-space: nowrap;">$${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                             </tr>` : ''}
@@ -19536,11 +19726,11 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     <div><strong>iii. Forma de Pago:</strong> 30 días fecha de factura</div>
                 </div>
 
-                <div class="no-page-break" style="display: flex; justify-content: space-between; border: 1px solid #cbd5e1; border-radius: 4px; padding: 3px 8px; font-size: 8.5px; color: #334155; font-weight: 600; background: #f8fafc; page-break-inside: avoid; break-inside: avoid;">
+                <div class="no-page-break" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 6px; font-size: 8px; color: #334155; font-weight: 600; background: #f8fafc; page-break-inside: avoid; break-inside: avoid; white-space: nowrap; flex-wrap: nowrap;">
                     <span>Usuario: ${p.operador || 'mel'}</span>
-                    <span>Fecha: ${nowStr} 10:38:14</span>
+                    <span>Fecha: ${nowStr}</span>
                     <span>Item: ${items.length}</span>
-                    <span>Presupuesto Nro. ${nro} ${cliName}</span>
+                    <span>Presupuesto Nro: ${nro}${cliName ? ` - ${cliName}` : ''}</span>
                     <span>Página: 1</span>
                     <span>Nro C.A.I.: 0   Vto: //</span>
                 </div>
@@ -19549,6 +19739,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     `;
     return htmlContent;
 };
+
 
 window.generarPDFPresupuestoBase64 = async function(p, format = null) {
     if (!p) return null;
@@ -20181,6 +20372,15 @@ window.getPresupuestoFormattedItems = function(p, format) {
         });
     });
 
+    if (typeof window.getItemTarifarioSortIndex === 'function') {
+        validItems.sort((a, b) => {
+            const sA = window.getItemTarifarioSortIndex(a);
+            const sB = window.getItemTarifarioSortIndex(b);
+            if (sA !== sB) return sA - sB;
+            return String(a.codigo || '').localeCompare(String(b.codigo || ''));
+        });
+    }
+
     if (validItems.length === 0) {
         const amt = parseFloat(p.importe_neto !== undefined ? p.importe_neto : (p.importe || 0)) || 0;
         const desc = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').trim();
@@ -20252,41 +20452,91 @@ window.getPresupuestoFormattedItems = function(p, format) {
 
         validItems.forEach((item, idx) => {
             let subrubro = (item.subrubro || '').trim();
-            if (!subrubro) {
-                 const foundCat = catalog.find(c => c && (c.codigo === item.codigo || c.id === item.codigo));
-                 if (foundCat && foundCat.subrubro) subrubro = foundCat.subrubro.trim();
+            const foundCat = catalog.find(c => c && (c.codigo === item.codigo || c.id === item.codigo));
+            if (!subrubro && foundCat && foundCat.subrubro) {
+                subrubro = foundCat.subrubro.trim();
             }
             const q = window.parseArgNumber ? window.parseArgNumber(item.cantidad) : (parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0);
-            const isUSD = (typeof window.isItemUSD === 'function') ? window.isItemUSD(item, p) : (item.moneda === 'USD' || item.moneda === 'U$D');
+            const isUSD = (typeof window.isItemUSD === 'function') ? window.isItemUSD(item, p) : (item.moneda === 'USD' || item.moneda === 'U$D' || (item.precio_usd && parseFloat(item.precio_usd) > 0));
 
-            if (isUSD) {
+            const subLow = subrubro.toLowerCase();
+            const rubLow = String(item.rubro || '').toLowerCase();
+            const codeUpper = String(item.codigo || '').toUpperCase().trim();
+
+            // Identificar Materiales y Equipos en ambos rubros (Eléctrico y Mecánico)
+            let isMaterial = isUSD || item.is_material === true ||
+                subLow.includes('material') || subLow.includes('equipo') || subLow.includes('insumo') ||
+                rubLow.includes('material') || rubLow.includes('equipo');
+
+            if (!isMaterial && codeUpper) {
+                const mecNum = parseInt(codeUpper.replace(/^MEC-0*/, ''), 10);
+                if (codeUpper.startsWith('MEC-') && !isNaN(mecNum) && mecNum >= 1 && mecNum <= 9) {
+                    isMaterial = true;
+                }
+                const eleNum = parseInt(codeUpper.replace(/^ELE-0*/, ''), 10);
+                if (codeUpper.startsWith('ELE-') && !isNaN(eleNum) && eleNum >= 1 && eleNum <= 27) {
+                    isMaterial = true;
+                }
+            }
+            if (!isMaterial && foundCat) {
+                const fSub = String(foundCat.subrubro || '').toLowerCase();
+                if (foundCat.is_material || fSub.includes('material') || fSub.includes('equipo') || fSub.includes('insumo')) {
+                    isMaterial = true;
+                }
+            }
+
+            if (isMaterial) {
                 const code = item.codigo || item.id || `MAT-${idx + 1}`;
-                const desc = item.detalle || item.descripcion || item.denominacion || item.nombre || 'Material';
-                const prUSD = (item.precio_usd !== undefined && item.precio_usd !== null && !isNaN(parseFloat(item.precio_usd)))
-                    ? parseFloat(item.precio_usd)
-                    : (parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0);
-                const subUSD = (item.subtotal_usd !== undefined && item.subtotal_usd !== null && !isNaN(parseFloat(item.subtotal_usd)))
-                    ? parseFloat(item.subtotal_usd)
-                    : (q * prUSD);
-                const subPesos = (subUSD * cotizMat);
+                let desc = item.detalle || item.descripcion || item.denominacion || item.nombre || 'Material';
+                if (foundCat && (!desc || desc === '-' || desc.length > 50)) {
+                    desc = foundCat.detalle || foundCat.descripcion || desc;
+                }
+                const prVal = (item.precio !== undefined && item.precio !== null && !isNaN(parseFloat(item.precio)))
+                    ? parseFloat(item.precio)
+                    : (parseFloat(item.precio_unitario || 0) || 0);
 
-                materials.push({
-                    codigo: code,
-                    detalle: desc,
-                    precio: prUSD,
-                    precio_usd: prUSD,
-                    moneda: item.moneda || 'USD',
-                    is_material: true,
-                    cantidad: q,
-                    subtotal: subPesos,
-                    subtotal_usd: subUSD
-                });
+                if (isUSD) {
+                    const prUSD = (item.precio_usd !== undefined && item.precio_usd !== null && !isNaN(parseFloat(item.precio_usd)))
+                        ? parseFloat(item.precio_usd)
+                        : (prVal || 0);
+                    const subUSD = (item.subtotal_usd !== undefined && item.subtotal_usd !== null && !isNaN(parseFloat(item.subtotal_usd)))
+                        ? parseFloat(item.subtotal_usd)
+                        : (q * prUSD);
+                    const subPesos = (subUSD * cotizMat);
+
+                    materials.push({
+                        codigo: code,
+                        detalle: desc,
+                        precio: prUSD,
+                        precio_usd: prUSD,
+                        moneda: 'USD',
+                        is_material: true,
+                        cantidad: q,
+                        subtotal: subPesos,
+                        subtotal_usd: subUSD
+                    });
+                } else {
+                    const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+                        ? parseFloat(String(item.subtotal).replace(',', '.'))
+                        : (q * prVal);
+
+                    materials.push({
+                        codigo: code,
+                        detalle: desc,
+                        precio: prVal,
+                        precio_usd: null,
+                        moneda: 'ARS',
+                        is_material: true,
+                        cantidad: q,
+                        subtotal: sub,
+                        subtotal_usd: null
+                    });
+                }
             } else {
                 const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)).replace(',', '.')) || 0;
                 const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.')))) ? parseFloat(String(item.subtotal).replace(',', '.')) : (q * pr);
 
                 let catKey = '';
-                const subLow = subrubro.toLowerCase();
                 if (subLow.includes('taller')) {
                     catKey = 'MANO DE OBRA EN TALLER';
                 } else if (subLow.includes('emergencia')) {
@@ -20356,6 +20606,9 @@ window.getPresupuestoFormattedItems = function(p, format) {
         });
 
         if (materials.length > 0) {
+            if (typeof window.getItemTarifarioSortIndex === 'function') {
+                materials.sort((a, b) => window.getItemTarifarioSortIndex(a) - window.getItemTarifarioSortIndex(b));
+            }
             formatted.push({
                 codigo: '-',
                 detalle: 'MATERIALES Y EQUIPOS',
@@ -20376,48 +20629,61 @@ window.getPresupuestoFormattedItems = function(p, format) {
         return formatted;
     }
 
-    // Separar con títulos según subrubro unificado (Mecánico y Eléctrico)
+    // Separar con títulos según subrubro unificado (Mecánico y Eléctrico) para modo DETALLADO
     const catalog = [...(window.presupuestoMecanicoDB || []), ...(window.presupuestosCatalogDB || []), ...(typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' ? PRESUPUESTO_MECANICO_STOCK : []), ...(typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' ? PRESUPUESTO_ELECTRICO_STOCK : [])];
     const groupsMap = {};
 
     validItems.forEach((it, idx) => {
         let subrubro = (it.subrubro || '').trim();
-        if (!subrubro) {
-             const foundCat = catalog.find(c => c && (c.codigo === it.codigo || c.id === it.codigo));
-             if (foundCat && foundCat.subrubro) subrubro = foundCat.subrubro.trim();
+        const foundCatItem = catalog.find(c => c && (c.codigo === it.codigo || c.id === it.codigo));
+        if (!subrubro && foundCatItem && foundCatItem.subrubro) {
+            subrubro = foundCatItem.subrubro.trim();
+        }
+
+        const subLow = subrubro.toLowerCase();
+        const rubLow = String(it.rubro || '').toLowerCase();
+        const codeUpper = String(it.codigo || '').toUpperCase().trim();
+        const q = window.parseArgNumber ? window.parseArgNumber(it.cantidad) : (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0);
+        const isUSD = (typeof window.isItemUSD === 'function') ? window.isItemUSD(it, p) : (it.moneda === 'USD' || it.moneda === 'U$D' || (it.precio_usd && parseFloat(it.precio_usd) > 0));
+
+        let isMaterial = isUSD || it.is_material === true ||
+            subLow.includes('material') || subLow.includes('equipo') || subLow.includes('insumo') ||
+            rubLow.includes('material') || rubLow.includes('equipo');
+
+        if (!isMaterial && codeUpper) {
+            const mecNum = parseInt(codeUpper.replace(/^MEC-0*/, ''), 10);
+            if (codeUpper.startsWith('MEC-') && !isNaN(mecNum) && mecNum >= 1 && mecNum <= 9) isMaterial = true;
+            const eleNum = parseInt(codeUpper.replace(/^ELE-0*/, ''), 10);
+            if (codeUpper.startsWith('ELE-') && !isNaN(eleNum) && eleNum >= 1 && eleNum <= 27) isMaterial = true;
+        }
+        if (!isMaterial && foundCatItem) {
+            const fSub = String(foundCatItem.subrubro || '').toLowerCase();
+            if (foundCatItem.is_material || fSub.includes('material') || fSub.includes('equipo') || fSub.includes('insumo')) isMaterial = true;
         }
 
         let catKey = '';
-        const subLow = subrubro.toLowerCase();
-        if (subLow.includes('taller')) {
+        if (isMaterial) {
+            catKey = 'MATERIALES Y EQUIPOS';
+        } else if (subLow.includes('taller')) {
             catKey = 'MANO DE OBRA EN TALLER';
         } else if (subLow.includes('emergencia')) {
             catKey = 'MANO DE OBRA EMERGENCIA MANTENIMIENTO';
-        } else if (subLow.includes('parada')) {
+        } else if (subLow.includes('parada') || subLow.includes('planta')) {
             catKey = 'MANO DE OBRA PARADA DE PLANTA';
-        } else if (subLow.includes('mantenimiento')) {
+        } else if (subLow.includes('civil') || subLow.includes('obra civil')) {
+            catKey = 'OBRA CIVIL Y EDILICIA';
+        } else if (subLow.includes('mantenimiento') || subLow.includes('servicio')) {
             catKey = 'MANO DE OBRA MANTENIMIENTO';
-        } else if (subLow.includes('material') || subLow.includes('equipo') || subLow.includes('insumo')) {
-            catKey = 'MATERIALES Y EQUIPOS';
         } else if (subrubro) {
             catKey = subrubro.toUpperCase();
         } else {
-            const detLow = (it.detalle || it.descripcion || '').toLowerCase();
-            if (detLow.includes('taller')) {
-                catKey = 'MANO DE OBRA EN TALLER';
-            } else if (detLow.includes('material') || detLow.includes('perfil') || detLow.includes('chapa') || detLow.includes('bulon') || detLow.includes('tornillo')) {
-                catKey = 'MATERIALES Y EQUIPOS';
-            } else {
-                catKey = 'MANO DE OBRA MANTENIMIENTO';
-            }
+            catKey = (p.tipo_presupuesto === 'Eléctrico' || (p.id && String(p.id).includes('ELEC'))) ? 'MANO DE OBRA MANTENIMIENTO' : 'MANO DE OBRA EN TALLER';
         }
 
         if (!groupsMap[catKey]) {
             groupsMap[catKey] = [];
         }
 
-        const q = window.parseArgNumber ? window.parseArgNumber(it.cantidad) : (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0);
-        const isUSD = (typeof window.isItemUSD === 'function') ? window.isItemUSD(it, p) : (it.moneda === 'USD' || it.moneda === 'U$D');
         const itemMoneda = isUSD ? 'USD' : 'ARS';
 
         let pr = window.parseArgNumber ? window.parseArgNumber(it.precio !== undefined ? it.precio : it.precio_unitario) : (parseFloat(String(it.precio || 0)) || 0);
@@ -20438,10 +20704,7 @@ window.getPresupuestoFormattedItems = function(p, format) {
             pr = priceUSD;
         }
 
-        let foundCatItem = null;
-        if (it.codigo && it.codigo !== '-') {
-            foundCatItem = catalog.find(c => c && (c.codigo === it.codigo || c.id === it.codigo));
-        }
+
 
         let itemDetalle = String(it.detalle || it.descripcion || it.denominacion || it.nombre || '').trim();
         const pDenom = String(p.denominacion || p.meca_denominacion || p.motivo || '').trim().toUpperCase();
@@ -20486,13 +20749,19 @@ window.getPresupuestoFormattedItems = function(p, format) {
         });
     });
 
-    // Orden estándar preferido para Mecánico
+    // Orden estándar preferido según tarifario (Materiales primero, luego Taller, Mantenimiento, Parada, Emergencia...)
     const preferredOrder = [
+        'MATERIALES Y EQUIPOS',
         'MANO DE OBRA EN TALLER',
         'MANO DE OBRA MANTENIMIENTO',
         'MANO DE OBRA PARADA DE PLANTA',
         'MANO DE OBRA EMERGENCIA MANTENIMIENTO',
-        'MATERIALES Y EQUIPOS'
+        'INSTALACIONES ELÉCTRICAS Y TABLEROS',
+        'OBRA CIVIL Y EDILICIA',
+        'FABRICACIÓN Y MONTAJE DE ESTRUCTURAS',
+        'MONTAJE DE CAÑERÍAS / PIPING',
+        'AUTOMATIZACIÓN E INSTRUMENTACIÓN',
+        'INGENIERÍA, CÁLCULO Y DISEÑO'
     ];
 
     const sortedCategoryKeys = Object.keys(groupsMap).sort((a, b) => {
@@ -20524,8 +20793,11 @@ window.getPresupuestoFormattedItems = function(p, format) {
             catItems.sort((a, b) => {
                 const pA = getElePriority(a.codigo);
                 const pB = getElePriority(b.codigo);
-                if (pA !== 99 || pB !== 99) return pA - pB;
-                return 0;
+                if (pA !== 99 && pB !== 99 && pA !== pB) return pA - pB;
+                const oA = (typeof window.getItemTarifarioSortIndex === 'function') ? window.getItemTarifarioSortIndex(a) : 999999;
+                const oB = (typeof window.getItemTarifarioSortIndex === 'function') ? window.getItemTarifarioSortIndex(b) : 999999;
+                if (oA !== oB) return oA - oB;
+                return String(a.codigo || '').localeCompare(String(b.codigo || ''));
             });
             formatted.push({ codigo: '-', detalle: catTitle, precio: '-', cantidad: '-', subtotal: '-', is_material: false });
             catItems.forEach(item => formatted.push(item));
@@ -20687,6 +20959,9 @@ window.revivirPedido = function(id) {
         guardarPedidosEnArchivo(false);
     } else if (typeof saveData === 'function') {
         saveData();
+    }
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(p);
     }
 
     if (typeof showToast === 'function') {
@@ -21734,7 +22009,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '506';
+window.CURRENT_APP_VERSION = '514';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 

@@ -1492,13 +1492,20 @@ input:focus, select:focus, textarea:focus {
         background-color: transparent !important;
     }
 
-    /* Logo de fondo (Marca de Agua Oficial SG MONTAJES que se repite en CADA hoja impresa) */
+    /* Logo de fondo (Marca de Agua Oficial SG MONTAJES centrada directamente en la tabla de productos) */
+    body.modal-open #auth-mecanico-products-wrapper {
+        position: relative !important;
+        overflow: visible !important;
+        min-height: 0 !important;
+        margin-bottom: 4px !important;
+    }
+
     body.modal-open .sheet-watermark {
-        position: fixed !important;
+        position: absolute !important;
         top: 50% !important;
         left: 50% !important;
         transform: translate(-50%, -50%) rotate(-25deg) !important;
-        width: 480px !important;
+        width: 440px !important;
         max-width: 80% !important;
         opacity: 0.55 !important;
         pointer-events: none !important;
@@ -1535,8 +1542,8 @@ input:focus, select:focus, textarea:focus {
         border-radius: 0 !important;
         background: transparent !important;
         color: #000000 !important;
-        padding-bottom: 6px !important;
-        margin-bottom: 8px !important;
+        padding-bottom: 3px !important;
+        margin-bottom: 4px !important;
         overflow: visible !important;
         width: 100% !important;
         box-sizing: border-box !important;
@@ -1713,10 +1720,10 @@ input:focus, select:focus, textarea:focus {
         background: transparent !important;
         border: 1.5px solid #000000 !important;
         border-radius: 4px !important;
-        margin-bottom: 8px !important;
+        margin-bottom: 4px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        font-size: 11.5px !important;
+        font-size: 11px !important;
         color: #000000 !important;
         box-shadow: none !important;
         -webkit-print-color-adjust: exact !important;
@@ -1743,7 +1750,7 @@ input:focus, select:focus, textarea:focus {
 
     body.modal-open #auth-mecanico-header-box > div {
         border-bottom: 1px solid #000000 !important;
-        padding: 3px 6px !important;
+        padding: 2px 6px !important;
         background: transparent !important;
         align-items: center !important;
     }
@@ -1821,7 +1828,7 @@ input:focus, select:focus, textarea:focus {
     }
 
     body.modal-open #auth-mecanico-excel-container {
-        margin-bottom: 8px !important;
+        margin-bottom: 4px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         overflow: visible !important;
@@ -1837,7 +1844,7 @@ input:focus, select:focus, textarea:focus {
         border-radius: 4px !important;
         box-shadow: none !important;
         color: #000000 !important;
-        margin-bottom: 8px !important;
+        margin-bottom: 4px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         overflow: visible !important;
@@ -1874,8 +1881,11 @@ input:focus, select:focus, textarea:focus {
         display: table-header-group !important;
     }
 
-    body.modal-open #auth-mecanico-excel-container tfoot {
-        display: table-footer-group !important;
+    body.modal-open #auth-mecanico-excel-container tfoot,
+    body.modal-open .palaversich-sheet tfoot {
+        display: table-row-group !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
     }
 
     body.modal-open #auth-mecanico-excel-container tbody {
@@ -2059,11 +2069,11 @@ input:focus, select:focus, textarea:focus {
         background: #f0f9ff !important;
         border: 1.5px solid #0284c7 !important;
         color: #0f172a !important;
-        font-size: 11.5px !important;
+        font-size: 10.5px !important;
         font-weight: 700 !important;
-        padding: 6px 10px !important;
-        margin-top: 6px !important;
-        margin-bottom: 8px !important;
+        padding: 3px 8px !important;
+        margin-top: 3px !important;
+        margin-bottom: 4px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         border-radius: 4px !important;
@@ -2096,11 +2106,11 @@ input:focus, select:focus, textarea:focus {
         background: #e0f2fe !important;
         border: 1.5px solid #0284c7 !important;
         color: #0369a1 !important;
-        font-size: 11.5px !important;
+        font-size: 10px !important;
         font-weight: 900 !important;
-        letter-spacing: 0.8px !important;
-        padding: 6px 10px !important;
-        margin: 6px 0 8px 0 !important;
+        letter-spacing: 0.5px !important;
+        padding: 3px 6px !important;
+        margin: 3px 0 4px 0 !important;
         width: 100% !important;
         box-sizing: border-box !important;
         border-radius: 4px !important;
@@ -2116,13 +2126,13 @@ input:focus, select:focus, textarea:focus {
         background: #fffbeb !important;
         border: 1.5px solid #f59e0b !important;
         color: #1e293b !important;
-        font-size: 11px !important;
-        padding: 6px 10px !important;
-        margin-top: 6px !important;
-        margin-bottom: 8px !important;
+        font-size: 9.5px !important;
+        padding: 3px 8px !important;
+        margin-top: 3px !important;
+        margin-bottom: 4px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        line-height: 1.45 !important;
+        line-height: 1.3 !important;
         border-radius: 4px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
@@ -2138,30 +2148,72 @@ input:focus, select:focus, textarea:focus {
     body.modal-open #auth-mecanico-aclaraciones div:first-child {
         color: #b45309 !important;
         font-weight: 900 !important;
-        font-size: 11.5px !important;
-        margin-bottom: 4px !important;
+        font-size: 10.5px !important;
+        margin-bottom: 2px !important;
     }
 
     /* Pie de página oficial Presea / CAI */
     body.modal-open .invoice-footer-info {
-        font-size: 10.5px !important;
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        white-space: nowrap !important;
+        flex-wrap: nowrap !important;
+        font-size: 8px !important;
         color: #0369a1 !important;
         border: 1.5px solid #0284c7 !important;
         background: #f0f9ff !important;
-        padding: 4px 8px !important;
-        margin-top: 6px !important;
-        margin-bottom: 6px !important;
+        padding: 2px 6px !important;
+        margin-top: 3px !important;
+        margin-bottom: 2px !important;
         width: 100% !important;
         box-sizing: border-box !important;
         border-radius: 4px !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    body.modal-open .invoice-footer-info .footer-info-left {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        white-space: nowrap !important;
+        flex-wrap: nowrap !important;
+        border-right: none !important;
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+    }
+
+    body.modal-open .invoice-footer-info .system-footer-line {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 6px !important;
+        white-space: nowrap !important;
+        flex-wrap: nowrap !important;
+        padding: 0 !important;
+        font-size: 8px !important;
+    }
+
+    body.modal-open .invoice-footer-info .footer-info-right {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        white-space: nowrap !important;
+        flex-wrap: nowrap !important;
+        flex: 0 0 auto !important;
+        margin-left: 8px !important;
     }
 
     body.modal-open .invoice-footer-info span,
     body.modal-open .invoice-footer-info strong {
         color: #0f172a !important;
-        font-weight: 900 !important;
+        font-weight: 800 !important;
+        white-space: nowrap !important;
+        font-size: 8px !important;
     }
 
     body.modal-open .system-footer-line,
@@ -2169,6 +2221,9 @@ input:focus, select:focus, textarea:focus {
         background: transparent !important;
         color: #0369a1 !important;
         font-weight: 600 !important;
+        white-space: nowrap !important;
+        font-size: 8px !important;
+        padding: 0 !important;
     }
 
     /* Estilos de tablas impresas */
@@ -2427,15 +2482,20 @@ body[data-theme="light"] .theme-btn.active {
     box-sizing: border-box !important;
 }
 
-/* Marca de Agua Central SG MONTAJES (Ajustada y nítida) */
+/* Marca de Agua Central SG MONTAJES (Centrada en los productos) */
+#auth-mecanico-products-wrapper {
+    position: relative !important;
+    overflow: visible !important;
+}
+
 .sheet-watermark {
     position: absolute !important;
     top: 50% !important;
     left: 50% !important;
     transform: translate(-50%, -50%) rotate(-25deg) !important;
-    width: 480px !important;
+    width: 440px !important;
     max-width: 80% !important;
-    opacity: 0.65 !important;
+    opacity: 0.60 !important;
     pointer-events: none !important;
     user-select: none !important;
     z-index: 0 !important;

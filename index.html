@@ -1540,10 +1540,6 @@
                     <i class="fa-solid fa-arrows-left-right"></i> Deslice horizontalmente para consultar la planilla completa
                 </div>
                 <div class="palaversich-sheet" style="position: relative;">
-                <!-- Marca de Agua Central SG MONTAJES (Marca personal oficial PRESEA en Amarillo Dorado Intenso) -->
-                <div class="sheet-watermark" aria-hidden="true">
-                    <img id="modal-header-watermark" src="logo_sg_watermark_gold.png" alt="Marca de agua SG MONTAJES">
-                </div>
 
                 <!-- Cabecera Oficial -->
                 <div class="invoice-header" style="background: rgba(30, 41, 59, 0.78); backdrop-filter: blur(2px);">
@@ -1681,11 +1677,15 @@
 
                 </div>
 
-                <!-- Contenedor del Tarifario / Propuesta Comercial con Pestañas -->
-                <div id="auth-mecanico-excel-container" style="display: block; margin-bottom: 12px;"></div>
+                <!-- Contenedor del Tarifario / Propuesta Comercial con Marca de Agua Centrada en Productos -->
+                <div id="auth-mecanico-products-wrapper" style="position: relative; margin-bottom: 4px;">
+                    <div class="sheet-watermark" aria-hidden="true">
+                        <img id="modal-header-watermark" src="logo_sg_watermark_gold.png" alt="Marca de agua SG MONTAJES">
+                    </div>
+                    <div id="auth-mecanico-excel-container" style="display: block; position: relative; z-index: 1;"></div>
+                </div>
 
                 
-
 
                 <!-- Desglose de Artículos (Grilla Oficial) -->
                 <div id="auth-items-panel" style="display: none; margin-bottom: 15px;">
@@ -1745,12 +1745,12 @@
                 </div>
 
                 <!-- Banner Informativo de Precios -->
-                <div style="border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 7px 12px; text-align: center; font-weight: 800; font-size: 11px; margin-top: 10px; margin-bottom: 8px; color: #94a3b8; background: rgba(15, 23, 42, 0.35); letter-spacing: 0.5px;">
+                <div style="border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; padding: 4px 8px; text-align: center; font-weight: 800; font-size: 10px; margin-top: 4px; margin-bottom: 4px; color: #94a3b8; background: rgba(15, 23, 42, 0.35); letter-spacing: 0.5px;">
                     PRECIOS DEL PRESUPUESTO, SUJETOS A MODIFICACIONES SIN PREVIO AVISO
                 </div>
 
                 <!-- Aclaraciones & Condiciones Oficiales de Presupuesto Mecánico -->
-                <div id="auth-mecanico-aclaraciones" style="display: none; margin-top: 10px; margin-bottom: 10px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; padding: 10px; font-size: 11px; color: #f8fafc; text-align: left; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px);">
+                <div id="auth-mecanico-aclaraciones" style="display: none; margin-top: 4px; margin-bottom: 4px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; padding: 6px 8px; font-size: 10px; color: #f8fafc; text-align: left; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px);">
                     <div style="color: #f87171; font-weight: bold; font-size: 12px; margin-bottom: 6px;">
                         ⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.
                     </div>
@@ -1762,14 +1762,18 @@
                 </div>
 
                 <!-- Footer de Equivalencia y Entrega -->
-                <div class="invoice-footer-info" style="display: flex; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; margin-top: 8px; margin-bottom: 8px; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px); overflow: hidden; color: #cbd5e1;">
-                    <div class="footer-info-left" style="flex: 1.5; border-right: 1px solid rgba(255, 255, 255, 0.14); display: flex; flex-direction: column; justify-content: space-between;">
-                        <div class="system-footer-line" style="font-size: 10px; color: #94a3b8; padding: 5px 8px; background: transparent;">
-                            Usuario:<span id="auth-sys-user" style="color: #ffffff; font-weight: 700;">1</span> &nbsp;&nbsp; Fecha:<span id="auth-sys-date" style="color: #ffffff; font-weight: 700;">-</span> &nbsp;&nbsp; Item: <span id="auth-sys-items-count" style="color: #ffffff; font-weight: 700;">0</span> &nbsp;&nbsp; Presupuesto Nro. <span id="auth-sys-report-name" style="color: #ffffff; font-weight: 700;">-</span> &nbsp;&nbsp; Página: 1
+                <div class="invoice-footer-info" style="display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; margin-top: 4px; margin-bottom: 2px; padding: 2px 8px; background: rgba(15, 23, 42, 0.35); backdrop-filter: blur(2px); overflow: hidden; color: #cbd5e1; font-size: 8.5px; white-space: nowrap; flex-wrap: nowrap;">
+                    <div class="footer-info-left" style="display: flex; align-items: center; gap: 8px; white-space: nowrap; flex-wrap: nowrap; flex: 1 1 auto; min-width: 0;">
+                        <div class="system-footer-line" style="font-size: 8.5px; color: #94a3b8; padding: 0; background: transparent; display: flex; align-items: center; gap: 8px; white-space: nowrap; flex-wrap: nowrap;">
+                            <span>Usuario: <strong id="auth-sys-user" style="color: #ffffff; font-weight: 700;">1</strong></span>
+                            <span>Fecha: <strong id="auth-sys-date" style="color: #ffffff; font-weight: 700;">-</strong></span>
+                            <span>Item: <strong id="auth-sys-items-count" style="color: #ffffff; font-weight: 700;">0</strong></span>
+                            <span style="white-space: nowrap;">Presupuesto Nro: <strong id="auth-sys-report-name" style="color: #ffffff; font-weight: 700;">-</strong></span>
+                            <span>Página: 1</span>
                         </div>
                     </div>
-                    <div class="footer-info-right" style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
-                        <div class="cai-details" style="padding: 5px 8px; font-size: 9px; text-align: right; font-weight: bold; background: transparent; color: #cbd5e1;">
+                    <div class="footer-info-right" style="white-space: nowrap; flex-wrap: nowrap; flex: 0 0 auto; margin-left: 8px;">
+                        <div class="cai-details" style="padding: 0; font-size: 8.5px; text-align: right; font-weight: bold; background: transparent; color: #cbd5e1; white-space: nowrap;">
                             Nro C.A.I.: <span id="auth-cai-val">0</span> &nbsp;&nbsp; Vto: <span id="auth-cai-vto">/ /</span>
                         </div>
                     </div>
@@ -3123,7 +3127,7 @@
             }
         } catch(e) {}
     </script>
-    <script src="app.js?v=506"></script>
+    <script src="app.js?v=514"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>
