@@ -14,7 +14,7 @@
     <script src="html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="logo_base64.js?v=2"></script>
-    <link rel="stylesheet" href="styles.css?v=480">
+    <link rel="stylesheet" href="styles.css?v=481">
 </head>
 <body>
     <div id="app">
@@ -1104,6 +1104,16 @@
                                 <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 2px;">EXCLUSIONES</span>
                                 <strong id="summary-meca-exclusiones" style="color: white;">-</strong>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de Detalle de Ítems / Conceptos en Paso 3 -->
+                    <div id="summary-items-list-container" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 15px; margin-top: 15px; margin-bottom: 15px;">
+                        <span style="color: var(--warning); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; display: block; margin-bottom: 10px;">
+                            <i class="fas fa-list-check" style="margin-right: 6px;"></i> 3. DETALLE DE ÍTEMS Y CONCEPTOS SELECCIONADOS
+                        </span>
+                        <div id="summary-items-table-wrapper" style="overflow-x: auto;">
+                            <!-- Generado dinámicamente con desglose claro en U$D y $ ARS -->
                         </div>
                     </div>
 
@@ -3113,7 +3123,7 @@
             }
         } catch(e) {}
     </script>
-    <script src="app.js?v=495"></script>
+    <script src="app.js?v=506"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

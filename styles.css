@@ -1361,6 +1361,8 @@ input:focus, select:focus, textarea:focus {
         margin: 0 !important;
         padding: 0 !important;
         height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
         overflow: visible !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
@@ -1372,26 +1374,43 @@ input:focus, select:focus, textarea:focus {
         width: 100% !important;
         max-width: 100% !important;
         height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
         background: #ffffff !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
+        transform: none !important;
+        filter: none !important;
         padding: 0 !important;
         margin: 0 !important;
         z-index: auto !important;
         visibility: visible !important;
+        overflow: visible !important;
         page-break-before: avoid !important;
         break-before: avoid !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
-    body.modal-open #modal-overlay .modal-content {
+    body.modal-open #modal-overlay .modal-content,
+    body.modal-open .modal-large,
+    body.modal-open #modal-auth-presupuesto {
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
         padding: 0 !important;
         max-width: 100% !important;
         width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        display: block !important;
+        transform: none !important;
+        filter: none !important;
+        -webkit-filter: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
         margin: 0 !important;
         animation: none !important;
     }
@@ -1412,8 +1431,14 @@ input:focus, select:focus, textarea:focus {
         padding: 0 !important;
         margin: 0 !important;
         overflow: visible !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        display: block !important;
         border: none !important;
         background: transparent !important;
+        transform: none !important;
+        filter: none !important;
     }
 
     /* Reset total de opacidades, desenfoques y sombras en impresión B/N */
@@ -1427,17 +1452,22 @@ input:focus, select:focus, textarea:focus {
     body.modal-open .palaversich-sheet {
         background: transparent !important;
         color: #000000 !important;
-        padding: 10px 12px;
+        padding: 4px 6px !important;
         font-family: inherit !important;
-        border: 1px solid rgba(0, 0, 0, 0.2) !important;
+        border: 1px solid rgba(0, 0, 0, 0.25) !important;
         border-radius: 6px;
         box-shadow: none !important;
-        position: relative !important;
+        position: static !important;
         overflow: visible !important;
         width: 100% !important;
         max-width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
         margin: 0 auto !important;
         box-sizing: border-box !important;
+        transform: none !important;
+        filter: none !important;
     }
 
     body.modal-open .palaversich-sheet,
@@ -1462,15 +1492,15 @@ input:focus, select:focus, textarea:focus {
         background-color: transparent !important;
     }
 
-    /* Logo de fondo (Marca de Agua Oficial SG MONTAJES que cubre Artículos y Propuesta Técnica) */
+    /* Logo de fondo (Marca de Agua Oficial SG MONTAJES que se repite en CADA hoja impresa) */
     body.modal-open .sheet-watermark {
-        position: absolute !important;
+        position: fixed !important;
         top: 50% !important;
         left: 50% !important;
         transform: translate(-50%, -50%) rotate(-25deg) !important;
         width: 480px !important;
         max-width: 80% !important;
-        opacity: 0.60 !important;
+        opacity: 0.55 !important;
         pointer-events: none !important;
         user-select: none !important;
         z-index: 0 !important;
@@ -1794,6 +1824,10 @@ input:focus, select:focus, textarea:focus {
         margin-bottom: 8px !important;
         width: 100% !important;
         box-sizing: border-box !important;
+        overflow: visible !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
     }
 
     body.modal-open #auth-mecanico-excel-container > div {
@@ -1806,14 +1840,20 @@ input:focus, select:focus, textarea:focus {
         margin-bottom: 8px !important;
         width: 100% !important;
         box-sizing: border-box !important;
-        overflow: hidden !important;
+        overflow: visible !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
-    body.modal-open #auth-mecanico-excel-container div[style*="overflow-x: auto"] {
+    body.modal-open #auth-mecanico-excel-container div {
         padding: 0 !important;
         overflow: visible !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
         background: transparent !important;
         background-color: transparent !important;
         width: 100% !important;
@@ -1822,9 +1862,30 @@ input:focus, select:focus, textarea:focus {
     body.modal-open #auth-mecanico-excel-container table {
         width: 100% !important;
         border-collapse: collapse !important;
-        font-size: 11.5px !important;
+        font-size: 11px !important;
         color: #000000 !important;
         background: transparent !important;
+        table-layout: auto !important;
+        page-break-inside: auto !important;
+        break-inside: auto !important;
+    }
+
+    body.modal-open #auth-mecanico-excel-container thead {
+        display: table-header-group !important;
+    }
+
+    body.modal-open #auth-mecanico-excel-container tfoot {
+        display: table-footer-group !important;
+    }
+
+    body.modal-open #auth-mecanico-excel-container tbody {
+        display: table-row-group !important;
+    }
+
+    body.modal-open #auth-mecanico-excel-container tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        break-inside: avoid-page !important;
     }
 
     body.modal-open #auth-mecanico-excel-container tbody,
@@ -1843,7 +1904,7 @@ input:focus, select:focus, textarea:focus {
         color: #000000 !important;
         border: 1px solid #000000 !important;
         padding: 5px 6px !important;
-        font-size: 11px !important;
+        font-size: 10.5px !important;
         font-weight: 900 !important;
         text-transform: uppercase !important;
         white-space: nowrap !important;
@@ -1867,20 +1928,60 @@ input:focus, select:focus, textarea:focus {
         background-color: transparent !important;
         color: #000000 !important;
         border: 1px solid #000000 !important;
-        padding: 5px 6px !important;
-        font-size: 11.5px !important;
+        padding: 4px 6px !important;
+        font-size: 11px !important;
         font-weight: 700 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
-    /* Columna Código en una sola línea */
+    /* Columna 1: Código */
     body.modal-open #auth-mecanico-excel-container td:first-child,
     body.modal-open #auth-mecanico-excel-container th:first-child {
         white-space: nowrap !important;
-        width: 155px !important;
-        min-width: 140px !important;
+        width: 130px !important;
+        min-width: 110px !important;
         word-break: keep-all !important;
+        text-align: left !important;
+    }
+
+    /* Columna 2: Detalle (permite salto de línea para no cortar precios) */
+    body.modal-open #auth-mecanico-excel-container td:nth-child(2),
+    body.modal-open #auth-mecanico-excel-container th:nth-child(2) {
+        white-space: normal !important;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+        text-align: left !important;
+    }
+
+    /* Columna 3: Precio Unitario (NUNCA cortar el importe ni partir números) */
+    body.modal-open #auth-mecanico-excel-container td:nth-child(3),
+    body.modal-open #auth-mecanico-excel-container th:nth-child(3) {
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        text-align: right !important;
+        width: 115px !important;
+        min-width: 100px !important;
+    }
+
+    /* Columna 4: Cantidad */
+    body.modal-open #auth-mecanico-excel-container td:nth-child(4),
+    body.modal-open #auth-mecanico-excel-container th:nth-child(4) {
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        text-align: center !important;
+        width: 70px !important;
+        min-width: 60px !important;
+    }
+
+    /* Columna 5: Precio Total (NUNCA cortar el importe ni partir números) */
+    body.modal-open #auth-mecanico-excel-container td:nth-child(5),
+    body.modal-open #auth-mecanico-excel-container th:nth-child(5) {
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        text-align: right !important;
+        width: 130px !important;
+        min-width: 115px !important;
     }
 
     body.modal-open #auth-mecanico-excel-container td span {
@@ -1901,7 +2002,9 @@ input:focus, select:focus, textarea:focus {
     body.modal-open #auth-mecanico-excel-container tfoot tr {
         background: transparent !important;
         background-color: transparent !important;
-        font-size: 12px !important;
+        font-size: 11.5px !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
@@ -1910,7 +2013,7 @@ input:focus, select:focus, textarea:focus {
         background: transparent !important;
         background-color: transparent !important;
         border: 1.5px solid #000000 !important;
-        padding: 6px 8px !important;
+        padding: 5px 8px !important;
         color: #000000 !important;
         font-weight: 900 !important;
         -webkit-print-color-adjust: exact !important;
@@ -1924,6 +2027,8 @@ input:focus, select:focus, textarea:focus {
 
     body.modal-open #auth-mecanico-excel-container tfoot td:last-child {
         text-align: right !important;
+        white-space: nowrap !important;
+        word-break: keep-all !important;
     }
 
     body.modal-open #auth-mecanico-excel-container tfoot tr:last-child {
@@ -1939,6 +2044,8 @@ input:focus, select:focus, textarea:focus {
         color: #000000 !important;
         font-size: 12px !important;
         font-weight: 900 !important;
+        white-space: nowrap !important;
+        word-break: keep-all !important;
         background: transparent !important;
         background-color: transparent !important;
         -webkit-print-color-adjust: exact !important;
@@ -3882,8 +3989,10 @@ input[type=number] {
         color: #000000 !important;
         margin-top: 6px !important;
         margin-bottom: 6px !important;
-        overflow: hidden !important;
+        overflow: visible !important;
         box-shadow: none !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
