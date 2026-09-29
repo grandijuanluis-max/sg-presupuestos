@@ -2209,51 +2209,51 @@ const PRESUPUESTO_ELECTRICO_STOCK = [
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-028",
-    "detalle": "Tecnico en seguridad",
+    "codigo": "ELE-038",
+    "detalle": "Técnico en Seguridad",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 10023.0,
+    "precio": 5695.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-029",
+    "codigo": "ELE-039",
     "detalle": "Oficial Esp",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 20616.0,
+    "precio": 11712.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-030",
+    "codigo": "ELE-040",
     "detalle": "Ayudante",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 17577.0,
+    "precio": 9992.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-031",
+    "codigo": "ELE-041",
     "detalle": "Supervisor",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 16363.0,
+    "precio": 12072.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-032",
-    "detalle": "Hidro elevador",
+    "codigo": "ELE-042",
+    "detalle": "Camion Hidro elevador",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
-    "udm": "u",
+    "udm": "horas",
     "precio": 24028.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
@@ -2309,51 +2309,51 @@ const PRESUPUESTO_ELECTRICO_STOCK = [
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-038",
-    "detalle": "Técnico en Seguridad",
+    "codigo": "ELE-028",
+    "detalle": "Tecnico en seguridad",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 5695.0,
+    "precio": 10023.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-039",
+    "codigo": "ELE-029",
     "detalle": "Oficial Esp",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 11712.0,
+    "precio": 20616.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-040",
+    "codigo": "ELE-030",
     "detalle": "Ayudante",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 9992.0,
+    "precio": 17577.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-041",
+    "codigo": "ELE-031",
     "detalle": "Supervisor",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 12072.0,
+    "precio": 16363.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-042",
-    "detalle": "Camion Hidro elevador",
+    "codigo": "ELE-032",
+    "detalle": "Hidro elevador",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
-    "udm": "horas",
+    "udm": "u",
     "precio": 24028.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
@@ -2389,51 +2389,51 @@ const PRESUPUESTO_ELECTRICO_STOCK = [
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-046",
-    "detalle": "Tecnico en seguridad",
+    "codigo": "ELE-056",
+    "detalle": "Técnico en Seguridad",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 7720.0,
+    "precio": 4386.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-047",
+    "codigo": "ELE-057",
     "detalle": "Oficial Esp",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 20889.0,
+    "precio": 11871.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-048",
+    "codigo": "ELE-058",
     "detalle": "Ayudante",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 17830.0,
+    "precio": 10128.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-049",
+    "codigo": "ELE-059",
     "detalle": "Supervisor",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 21521.0,
+    "precio": 12233.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-050",
-    "detalle": "Hidro elevador",
+    "codigo": "ELE-060",
+    "detalle": "Camion Hidro elevador",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
-    "udm": "u",
+    "udm": "horas",
     "precio": 24028.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
@@ -2489,51 +2489,51 @@ const PRESUPUESTO_ELECTRICO_STOCK = [
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-056",
-    "detalle": "Técnico en Seguridad",
+    "codigo": "ELE-046",
+    "detalle": "Tecnico en seguridad",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 4386.0,
+    "precio": 7720.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-057",
+    "codigo": "ELE-047",
     "detalle": "Oficial Esp",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 11871.0,
+    "precio": 20889.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-058",
+    "codigo": "ELE-048",
     "detalle": "Ayudante",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 10128.0,
+    "precio": 17830.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-059",
+    "codigo": "ELE-049",
     "detalle": "Supervisor",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 12233.0,
+    "precio": 21521.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
   {
-    "codigo": "ELE-060",
-    "detalle": "Camion Hidro elevador",
+    "codigo": "ELE-050",
+    "detalle": "Hidro elevador",
     "rubro": "Eléctrico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
-    "udm": "horas",
+    "udm": "u",
     "precio": 24028.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
@@ -2677,7 +2677,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra EN TALLER",
     "udm": "horas",
-    "precio": 29601.0,
+    "precio": 28652.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2687,7 +2687,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra EN TALLER",
     "udm": "horas",
-    "precio": 28652.0,
+    "precio": 29601.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2737,7 +2737,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 34672.0,
+    "precio": 33654.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2747,7 +2747,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 33654.0,
+    "precio": 34672.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2807,7 +2807,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 47146.0,
+    "precio": 45753.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2817,7 +2817,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 45753.0,
+    "precio": 47146.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2877,7 +2877,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 61016.0,
+    "precio": 59216.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2887,7 +2887,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra MANTENIMIENTO",
     "udm": "horas",
-    "precio": 59216.0,
+    "precio": 61016.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2947,7 +2947,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 35214.0,
+    "precio": 34186.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -2957,7 +2957,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 34186.0,
+    "precio": 35214.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -3017,7 +3017,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 47883.0,
+    "precio": 46504.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -3027,7 +3027,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 46504.0,
+    "precio": 47883.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -3087,7 +3087,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 61969.0,
+    "precio": 60180.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -3097,7 +3097,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra PARADA DE PLANTA",
     "udm": "horas",
-    "precio": 60180.0,
+    "precio": 61969.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -3157,7 +3157,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
     "udm": "horas",
-    "precio": 176052.0,
+    "precio": 170957.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -3167,7 +3167,7 @@ const PRESUPUESTO_MECANICO_STOCK = [
     "rubro": "Mecánico",
     "subrubro": "Mano de Obra EMERGENCIA MANTENIMIENTO",
     "udm": "horas",
-    "precio": 170957.0,
+    "precio": 176052.0,
     "stock": 999.0,
     "estado": "ACTIVOS"
   },
@@ -12609,7 +12609,7 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
                             </tr>
                             <tr style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-weight: 800;">
                                 <td style="text-align: center; color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px;"></td>
-                                <td colspan="5" style="border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px; color: #fde047 !important; font-size: 12px;"><strong>Mano de obra por Hs al 76%</strong></td>
+                                <td colspan="5" style="border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px; color: #fde047 !important; font-size: 12px;"><strong>Mano de Obra por hs Normales</strong></td>
                             </tr>
                         `;
                     } else if (index === 5) {
@@ -12623,7 +12623,7 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
                         html += `
                             <tr style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-weight: 800;">
                                 <td style="text-align: center; color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px;"></td>
-                                <td colspan="5" style="border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px; color: #fde047 !important; font-size: 12px;"><strong>Mano de Obra por hs Normales</strong></td>
+                                <td colspan="5" style="border: 1px solid rgba(234, 179, 8, 0.3); padding: 8px; color: #fde047 !important; font-size: 12px;"><strong>Mano de obra por Hs al 76%</strong></td>
                             </tr>
                         `;
                     }
@@ -12636,7 +12636,7 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
                             </tr>
                             <tr style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-weight: 800;">
                                 <td style="text-align: center; color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px;"></td>
-                                <td colspan="5" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; color: #6ee7b7 !important;"><strong>Mano de obra por Hs al 76% en parada de planta</strong></td>
+                                <td colspan="5" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; color: #6ee7b7 !important;"><strong>Mano de Obra por hs Normales en parada de planta</strong></td>
                             </tr>
                         `;
                     } else if (index === 5) {
@@ -12650,7 +12650,7 @@ window.renderMecanicoExcelGridInContainer = function(container, isEditable = tru
                         html += `
                             <tr style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; font-weight: 800;">
                                 <td style="text-align: center; color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px;"></td>
-                                <td colspan="5" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; color: #6ee7b7 !important;"><strong>Mano de Obra por hs Normales en parada de planta</strong></td>
+                                <td colspan="5" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px; color: #6ee7b7 !important;"><strong>Mano de obra por Hs al 76% en parada de planta</strong></td>
                             </tr>
                         `;
                     }

@@ -114,6 +114,10 @@ ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS cuit TEXT DEFAULT '';
 ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS vendedor_nombre TEXT DEFAULT '';
 ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS avances JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'ARS';
+ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS moneda_id INT DEFAULT 1;
+ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS cotizacion NUMERIC(15, 2) DEFAULT 1450.00;
+ALTER TABLE public.presupuestos ADD COLUMN IF NOT EXISTS cotizacion_materiales NUMERIC(15, 2) DEFAULT 1450.00;
 
 ALTER TABLE public.presupuestos ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir acceso presupuestos" ON public.presupuestos;
@@ -132,9 +136,11 @@ CREATE TABLE IF NOT EXISTS public.tarifario (
     estado TEXT DEFAULT 'ACTIVOS',
     is_custom BOOLEAN DEFAULT false,
     planta TEXT DEFAULT '',
+    moneda TEXT DEFAULT 'ARS',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
+ALTER TABLE public.tarifario ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'ARS';
 ALTER TABLE public.tarifario ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir acceso tarifario" ON public.tarifario;
 CREATE POLICY "Permitir acceso tarifario" ON public.tarifario FOR ALL USING (true) WITH CHECK (true);
@@ -166,9 +172,11 @@ CREATE TABLE IF NOT EXISTS public.presupuesto_items (
     unidad TEXT DEFAULT 'UN',
     precio_unitario NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
     subtotal NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
-    orden INT DEFAULT 0
+    orden INT DEFAULT 0,
+    moneda TEXT DEFAULT 'ARS'
 );
 
+ALTER TABLE public.presupuesto_items ADD COLUMN IF NOT EXISTS moneda TEXT DEFAULT 'ARS';
 ALTER TABLE public.presupuesto_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir presupuesto_items" ON public.presupuesto_items;
 CREATE POLICY "Permitir presupuesto_items" ON public.presupuesto_items FOR ALL USING (true) WITH CHECK (true);
