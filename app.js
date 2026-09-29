@@ -504,7 +504,7 @@ function normalizePresupuestosRubro(pedidos) {
             } else if (pidStr.includes('0025')) {
                 p.items = [{
                     codigo: 'ELE-057',
-                    detalle: descVal || 'Reposicionar parada de emergencia ECRANE',
+                    detalle: 'Oficial Esp',
                     rubro: 'Eléctrico',
                     subrubro: 'MANO DE OBRA MANTENIMIENTO',
                     cantidad: 1,
@@ -521,7 +521,7 @@ function normalizePresupuestosRubro(pedidos) {
             } else if (amtVal > 0) {
                 p.items = [{
                     codigo: isMec ? 'MEC-075' : 'ELE-057',
-                    detalle: descVal,
+                    detalle: isMec ? 'Ingeniería de Reforma' : 'Oficial Esp',
                     rubro: isMec ? 'Mecánico' : 'Eléctrico',
                     subrubro: isMec ? 'MANO DE OBRA EN TALLER' : 'MANO DE OBRA MANTENIMIENTO',
                     cantidad: 1,
@@ -1302,7 +1302,7 @@ function initSupabaseSync(callback) {
                 if (!itemsMap['102-ELEC-0025'] || itemsMap['102-ELEC-0025'].length === 0) {
                     const item025 = {
                         codigo: 'ELE-057',
-                        detalle: 'Reposicionar parada de emergencia ECRANE',
+                        detalle: 'Oficial Esp',
                         rubro: 'Eléctrico',
                         subrubro: 'MANO DE OBRA MANTENIMIENTO',
                         cantidad: 1,
@@ -1321,7 +1321,7 @@ function initSupabaseSync(callback) {
                         id: '102-ELEC-0025-ITM-01',
                         presupuesto_id: '102-ELEC-0025',
                         codigo: 'ELE-057',
-                        detalle: 'Reposicionar parada de emergencia ECRANE',
+                        detalle: 'Oficial Esp',
                         rubro: 'Eléctrico',
                         subrubro: 'MANO DE OBRA MANTENIMIENTO',
                         cantidad: 1,
@@ -1363,10 +1363,11 @@ function initSupabaseSync(callback) {
                         const desc = (p.denominacion || p.meca_denominacion || p.motivo || 'SERVICIOS Y MONTAJES').trim();
                         const cod = (pid.includes('0009')) ? 'MEC-075' : ((pid.includes('0025')) ? 'ELE-057' : (isMec ? 'MEC-075' : 'ELE-057'));
                         const subSec = isMec ? 'MANO DE OBRA EN TALLER' : 'MANO DE OBRA MANTENIMIENTO';
+                        const catDet = (pid.includes('0009')) ? 'ingeniería de reforma' : (isMec ? 'Mano de Obra en Taller' : 'Oficial Esp');
                         
                         p.items = [{
                             codigo: cod,
-                            detalle: (pid.includes('0009') && !desc.toLowerCase().includes('ingeniería')) ? 'ingeniería de reforma' : desc,
+                            detalle: catDet,
                             rubro: isMec ? 'Mecánico' : 'Eléctrico',
                             subrubro: subSec,
                             cantidad: 1,
@@ -5424,6 +5425,8 @@ function updateTipoPresupuestoBadge() {
     }
 
     if (valProveedor && !valProveedor.value) valProveedor.value = 'SG MONTAJES SRL';
+    const valFecha = document.getElementById('req-meca-fecha-oferta');
+    if (valFecha && !valFecha.value) valFecha.value = todayStr;
     if (typeof window.setValidezOfertaValue === 'function') {
         if (!valValidez || !valValidez.value || valValidez.value === '5 dias') window.setValidezOfertaValue('5 días');
     } else if (valValidez && (!valValidez.value || valValidez.value === '5 dias')) {
@@ -10694,60 +10697,48 @@ window.guardarModificacionesPedido = function() {
 
     saveTempEdits();
 
-    // Validaciones de campos obligatorios para Presupuestos Mecánicos/Eléctricos
+    // Validaciones y fallbacks de campos para Presupuestos Mecánicos/Eléctricos
     const tipoStr = (pedidoActivo.tipo_presupuesto || '').toLowerCase();
-    const isExcel = tipoStr.includes('mecánico') || tipoStr.includes('mecanico') || tipoStr.includes('eléctrico') || tipoStr.includes('electrico');
+    const isElec = tipoStr.includes('eléctrico') || tipoStr.includes('electrico');
+    const isMec = tipoStr.includes('mecánico') || tipoStr.includes('mecanico');
+    const isExcel = isElec || isMec;
+
+    const defaultDate = (pedidoActivo.fecha ? String(pedidoActivo.fecha).split('T')[0] : (typeof getLocalCurrentDateTimeStr === 'function' ? getLocalCurrentDateTimeStr().split('T')[0] : new Date().toISOString().split('T')[0]));
+    if (!pedidoActivo.meca_proveedor) pedidoActivo.meca_proveedor = pedidoActivo.proveedor || 'SG MONTAJES SRL';
+    if (!pedidoActivo.meca_fecha_oferta) pedidoActivo.meca_fecha_oferta = pedidoActivo.fecha_oferta || defaultDate;
+    if (!pedidoActivo.meca_validez) pedidoActivo.meca_validez = pedidoActivo.validez || '5 días';
+    if (!pedidoActivo.meca_fecha_inicio) pedidoActivo.meca_fecha_inicio = pedidoActivo.fecha_inicio || defaultDate;
+    if (!pedidoActivo.meca_duracion) pedidoActivo.meca_duracion = pedidoActivo.duracion || '1 días';
+    if (!pedidoActivo.meca_fecha_fin) pedidoActivo.meca_fecha_fin = pedidoActivo.fecha_fin || pedidoActivo.fecha_entrega || defaultDate;
+
     if (isExcel) {
-        const denominacion = (pedidoActivo.meca_denominacion || '').trim();
+        const denominacion = (pedidoActivo.meca_denominacion || pedidoActivo.denominacion || pedidoActivo.motivo || '').trim();
         const cliente = (pedidoActivo.cliente_nombre || '').trim();
-        const proveedor = (pedidoActivo.meca_proveedor || '').trim();
-        const fechaOferta = (pedidoActivo.meca_fecha_oferta || '').trim();
-        const validez = (pedidoActivo.meca_validez || '').trim();
-        const fechaInicio = (pedidoActivo.meca_fecha_inicio || '').trim();
-        const duracion = (pedidoActivo.meca_duracion || '').trim();
-        const fechaFin = (pedidoActivo.meca_fecha_fin || '').trim();
 
         if (!denominacion) {
-            showToast('El campo "i. Denominación del Servicio" es obligatorio.', 'error');
+            showToast('El campo de denominación o título es obligatorio.', 'error');
             return;
         }
         if (!cliente) {
-            showToast('El campo "ii. Cliente" es obligatorio.', 'error');
-            return;
-        }
-        if (!proveedor) {
-            showToast('El campo "iii. Nombre del Proveedor" es obligatorio.', 'error');
-            return;
-        }
-        if (!fechaOferta) {
-            showToast('El campo "iv. Fecha de Oferta" es obligatorio.', 'error');
-            return;
-        }
-        if (!validez) {
-            showToast('El campo "v. Validez de la Oferta" es obligatorio.', 'error');
-            return;
-        }
-        if (!fechaInicio) {
-            showToast('El campo "vii. Fecha estimada de Inicio" es obligatorio.', 'error');
-            return;
-        }
-        if (!duracion) {
-            showToast('El campo "viii. Duración estimada" es obligatorio.', 'error');
-            return;
-        }
-        if (!fechaFin) {
-            showToast('El campo "ix. Plazo Máximo de Finalización" es obligatorio.', 'error');
+            showToast('El campo cliente es obligatorio.', 'error');
             return;
         }
 
-        if (fechaInicio < fechaOferta) {
-            showToast('La "Fecha estimada de Inicio" no puede ser anterior a la "Fecha de Oferta".', 'error');
-            return;
-        }
+        // Validaciones estrictas de fechas solo para Presupuesto Mecánico si fueron especificadas
+        if (isMec) {
+            const fechaOferta = (pedidoActivo.meca_fecha_oferta || '').trim();
+            const fechaInicio = (pedidoActivo.meca_fecha_inicio || '').trim();
+            const fechaFin = (pedidoActivo.meca_fecha_fin || '').trim();
 
-        if (fechaFin <= fechaInicio) {
-            showToast('El "ix. Plazo Máximo de Finalización" debe ser obligatoriamente mayor a la "Fecha estimada de Inicio".', 'error');
-            return;
+            if (fechaInicio && fechaOferta && fechaInicio < fechaOferta) {
+                showToast('La "Fecha estimada de Inicio" no puede ser anterior a la "Fecha de Oferta".', 'error');
+                return;
+            }
+
+            if (fechaInicio && fechaFin && fechaFin <= fechaInicio) {
+                showToast('El "Plazo Máximo de Finalización" debe ser obligatoriamente mayor a la "Fecha estimada de Inicio".', 'error');
+                return;
+            }
         }
     }
 
@@ -10842,6 +10833,11 @@ window.guardarModificacionesPedido = function() {
     if (typeof renderAssignmentsTable === 'function') {
         renderAssignmentsTable();
     }
+    setTimeout(() => {
+        if (typeof verDetallePedido === 'function') {
+            verDetallePedido(realOrder.id);
+        }
+    }, 120);
 };
 
 let productoSeleccionadoEdicion = null;
@@ -19507,9 +19503,10 @@ window.getPresupuestoFormattedItems = function(p, format) {
         const defaultCod = (pidStr.includes('0009')) ? 'MEC-075' : ((pidStr.includes('0025')) ? 'ELE-057' : (isMec ? 'MEC-075' : 'ELE-057'));
         const subSec = isMec ? 'MANO DE OBRA EN TALLER' : 'MANO DE OBRA MANTENIMIENTO';
         
+        const catDet = (pidStr.includes('0009')) ? 'ingeniería de reforma' : (isMec ? 'Mano de Obra en Taller' : 'Oficial Esp');
         validItems.push({
             codigo: defaultCod,
-            detalle: (pidStr.includes('0009') && !desc.toLowerCase().includes('ingeniería')) ? 'ingeniería de reforma' : desc,
+            detalle: catDet,
             cantidad: 1,
             precio: amt,
             precio_unitario: amt,
@@ -19761,7 +19758,20 @@ window.getPresupuestoFormattedItems = function(p, format) {
         }
 
         let itemDetalle = String(it.detalle || it.descripcion || it.denominacion || it.nombre || '').trim();
-        if ((!itemDetalle || itemDetalle === '-') && foundCatItem && (foundCatItem.detalle || foundCatItem.descripcion)) {
+        const pDenom = String(p.denominacion || p.meca_denominacion || p.motivo || '').trim().toUpperCase();
+        const pProp = String(p.propuesta || p.meca_propuesta || '').trim().toUpperCase();
+        const detUpper = itemDetalle.toUpperCase();
+        const isOverallDesc = (
+            detUpper === pDenom || 
+            detUpper === pProp || 
+            (pDenom.length > 5 && (detUpper === pDenom || detUpper.includes(pDenom))) || 
+            (pProp.length > 5 && (detUpper === pProp || detUpper.includes(pProp))) ||
+            detUpper === 'REPOSICIONAR PARADA DE EMERGENCIA ECRANE' ||
+            detUpper === 'RETIRAR SOPORTERIA EN CCM DE BARCAZAS' ||
+            (foundCatItem && String(it.codigo).toUpperCase().startsWith('ELE-') && (detUpper === pDenom || detUpper.length > 30))
+        );
+
+        if ((!itemDetalle || itemDetalle === '-' || isOverallDesc) && foundCatItem && (foundCatItem.detalle || foundCatItem.descripcion)) {
             itemDetalle = String(foundCatItem.detalle || foundCatItem.descripcion).trim();
         }
         if (!itemDetalle || itemDetalle === '-') {
@@ -19843,10 +19853,11 @@ window.getPresupuestoFormattedItems = function(p, format) {
         const isMec = (p.tipo_presupuesto === 'Mecánico' || pidStr.startsWith('101'));
         const subSec = isMec ? 'MANO DE OBRA EN TALLER' : 'MANO DE OBRA MANTENIMIENTO';
         const defaultCod = (pidStr.includes('0009')) ? 'MEC-075' : ((pidStr.includes('0025')) ? 'ELE-057' : (isMec ? 'MEC-075' : 'ELE-057'));
+        const catDet = (pidStr.includes('0009')) ? 'ingeniería de reforma' : (isMec ? devText : 'Oficial Esp');
         formatted.push({ codigo: '-', detalle: subSec, precio: '-', cantidad: '-', subtotal: '-', is_material: false });
         formatted.push({
             codigo: (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(p) : p.id) || defaultCod,
-            detalle: devText,
+            detalle: catDet,
             precio: totalVal,
             cantidad: 1,
             subtotal: totalVal,
@@ -21000,7 +21011,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '487';
+window.CURRENT_APP_VERSION = '492';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
