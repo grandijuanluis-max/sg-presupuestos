@@ -9383,7 +9383,7 @@ window.editarOrdenesDeCompra = async function(id) {
     }
     showToast(`✅ Órdenes de Compra guardadas: MO: ${cleanMo || '-'} | MAT: ${cleanMat || '-'}`, 'success');
 
-    if (!previousWasApprovedConOc && typeof window.notificarAprobacionEquipo === 'function') {
+    if (typeof window.notificarAprobacionEquipo === 'function') {
         window.notificarAprobacionEquipo(p, 'Aprobado con OC');
     }
 
@@ -9462,16 +9462,257 @@ Ingrese el % acumulado facturado (Máx: ${String(maxPermitido).replace('.', ',')
     }
 };
 
-window.notificarAprobacionEquipo = async function(p, nuevoEstado) {
+window.notificarAprobacionEquipo = async function(p, nuevoEstado, operadorOpt) {
     if (!p) return;
-    const nroPresupuesto = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
-    const cliente = p.meca_denominacion || p.cliente_nombre || 'Cliente';
-    const importeStr = p.importe ? `$${p.importe.toLocaleString('es-AR', {minimumFractionDigits: 2})}` : '$0,00';
-    const nroOcStr = (p.meca_nro_oc || p.nro_oc) ? ` | OC: ${p.meca_nro_oc || p.nro_oc}` : '';
 
-    const notifMsg = `🔔 ALERTA DE ESTADO: El Presupuesto ${nroPresupuesto} (${cliente}) cambió a "${nuevoEstado}" (${importeStr}${nroOcStr}).`;
+    const escapeHtml = (str) => {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    };
 
-    // Lista de usuarios para notificaciones internas
+    // 1. Identificación y número oficial del Presupuesto
+    const nroPresupuesto = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : (p.id || 'S/N');
+    const rubro = p.rubro || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico');
+
+    // 2. ¿Quién cambió de estado? (Operador / Usuario actual)
+    let operador = operadorOpt;
+    if (!operador) {
+        const curUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+        if (curUser) {
+            const nom = curUser.name || curUser.username || 'Usuario';
+            const rol = curUser.role ? ` (${curUser.role})` : '';
+            operador = `${nom}${rol}`;
+        } else {
+            const storedUser = localStorage.getItem('pedidos_current_username') || localStorage.getItem('sg_current_username');
+            operador = storedUser ? storedUser : 'Usuario del Sistema';
+        }
+    }
+    p.ultimo_cambio_estado_por = operador;
+    p.ultimo_cambio_estado_fecha = new Date().toISOString();
+
+    const fechaHora = new Date().toLocaleString('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+    });
+
+    // 3. Cliente (Resuelto de forma completa y dinámica según clientesDB)
+    const clienteInfo = (typeof window.resolveClienteCompleto === 'function') ? window.resolveClienteCompleto(p) : null;
+    const clienteNombre = clienteInfo?.nombre || p.cliente_nombre || p.cliente || 'Cliente no especificado';
+    const clienteCuit = (clienteInfo?.cuit || p.cuit || p.cliente_cuit || '').trim();
+    const clienteDom = (clienteInfo?.domicilio || p.domicilio || '').trim();
+    const clienteLoc = (clienteInfo?.localidad || p.localidad || '').trim();
+    const clientePlanta = (p.planta || '').trim();
+
+    // 4. Detalle y Propuesta del Trabajo
+    const denominacion = (p.meca_denominacion || p.denominacion || p.tarea || '').trim();
+    const propuesta = (p.meca_propuesta || p.descripcion || p.propuesta || '').trim();
+
+    // Cargar artículos cotizados (revisando en memoria, caché local y Supabase)
+    let itemsList = Array.isArray(p.items) && p.items.length > 0 ? p.items : [];
+    if (itemsList.length === 0 || (itemsList.length === 1 && (itemsList[0].codigo === 'ELE-057' || itemsList[0].codigo === 'MEC-075'))) {
+        const cached = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(p.id) : null;
+        if (Array.isArray(cached) && cached.length > 0) {
+            itemsList = cached;
+        } else if (window._presupuestoItemsByPid && Array.isArray(window._presupuestoItemsByPid[p.id])) {
+            itemsList = window._presupuestoItemsByPid[p.id];
+        } else if (typeof window.fetchPresupuestoItemsDirect === 'function') {
+            try {
+                const direct = await window.fetchPresupuestoItemsDirect(p.id);
+                if (Array.isArray(direct) && direct.length > 0) itemsList = direct;
+            } catch(e) {}
+        }
+    }
+
+    // 5. Precio e Importe Total
+    const moneda = ((p.moneda || '').toUpperCase() === 'USD' || (p.moneda || '').toUpperCase() === 'U$D') ? 'USD' : 'ARS';
+    const simboloMoneda = moneda === 'USD' ? 'US$ ' : '$ ';
+    const importeNum = parseFloat(p.importe !== undefined && p.importe !== null ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
+    const precioFormateado = `${simboloMoneda}${importeNum.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    // 6. Orden de Compra (OC)
+    const nroOcUnificada = (p.meca_nro_oc || p.nro_oc || '').trim();
+    const ocMo = (p.oc_mano_obra || '').trim();
+    const ocMat = (p.oc_materiales || '').trim();
+    const isAprobadoConOc = (nuevoEstado === 'Aprobado con OC');
+    const tieneOc = Boolean(nroOcUnificada || ocMo || ocMat);
+    const ocPrincipal = nroOcUnificada || ((ocMo && ocMat) ? `${ocMo} / ${ocMat}` : (ocMo || ocMat));
+
+    // Estilos visuales del Estado
+    let colorPrimario = '#0284c7';
+    let bgEstado = '#f0f9ff';
+    let borderEstado = '#bae6fd';
+    let badgeBg = '#0284c7';
+
+    if (isAprobadoConOc) {
+        colorPrimario = '#059669';
+        bgEstado = '#ecfdf5';
+        borderEstado = '#6ee7b7';
+        badgeBg = '#10b981';
+    } else if (nuevoEstado === 'Aprobado sin OC') {
+        colorPrimario = '#0d9488';
+        bgEstado = '#f0fdfa';
+        borderEstado = '#99f6e4';
+        badgeBg = '#14b8a6';
+    } else if (nuevoEstado === 'Rechazado') {
+        colorPrimario = '#e11d48';
+        bgEstado = '#fff1f2';
+        borderEstado = '#fecdd3';
+        badgeBg = '#f43f5e';
+    } else if (nuevoEstado === 'Facturado Total' || nuevoEstado === 'Facturado Parcial') {
+        colorPrimario = '#7c3aed';
+        bgEstado = '#faf5ff';
+        borderEstado = '#ddd6fe';
+        badgeBg = '#8b5cf6';
+    } else if (nuevoEstado === 'Pendiente de Autorización' || nuevoEstado === 'Pendiente') {
+        colorPrimario = '#d97706';
+        bgEstado = '#fffbeb';
+        borderEstado = '#fde68a';
+        badgeBg = '#f59e0b';
+    }
+
+    // 7. Bloque destacado de Orden de Compra (OC cargada)
+    let ocSectionHtml = '';
+    if (isAprobadoConOc || tieneOc) {
+        let ocSubDetalle = '';
+        if (ocMo || ocMat) {
+            ocSubDetalle = `
+                <table style="width: 100%; margin-top: 10px; border-top: 1px dashed #a7f3d0; padding-top: 8px; font-size: 13px;">
+                    <tr>
+                        <td style="padding: 4px 8px 4px 0; color: #065f46;"><strong>🔨 OC Mano de Obra:</strong></td>
+                        <td style="padding: 4px 12px 4px 0; font-family: monospace; font-weight: 700; color: #047857; font-size: 14px;">${escapeHtml(ocMo || '-')}</td>
+                        <td style="padding: 4px 8px 4px 0; color: #065f46;"><strong>📦 OC Materiales:</strong></td>
+                        <td style="padding: 4px 0; font-family: monospace; font-weight: 700; color: #047857; font-size: 14px;">${escapeHtml(ocMat || '-')}</td>
+                    </tr>
+                </table>
+            `;
+        }
+        ocSectionHtml = `
+            <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 10px; padding: 16px 20px; margin: 18px 0; box-shadow: 0 3px 8px rgba(16, 185, 129, 0.12);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="color: #065f46; font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">
+                        🏷️ ORDEN DE COMPRA (OC) CARGADA
+                    </span>
+                    <span style="background: #10b981; color: #ffffff; font-size: 11px; font-weight: 800; padding: 3px 10px; border-radius: 12px;">
+                        ${escapeHtml(nuevoEstado)}
+                    </span>
+                </div>
+                <div style="font-size: 22px; font-weight: 900; color: #065f46; font-family: 'Courier New', Courier, monospace; letter-spacing: 1px;">
+                    ${escapeHtml(ocPrincipal || 'CARGADA EN SISTEMA')}
+                </div>
+                ${ocSubDetalle}
+                ${p.oc_limite_fecha ? `<div style="margin-top: 8px; font-size: 12px; color: #047857;"><strong>📅 Fecha Límite de Facturación OC:</strong> ${escapeHtml(p.oc_limite_fecha)}</div>` : ''}
+            </div>
+        `;
+    }
+
+    // 8. Bloque destacado de Motivo de Rechazo (si aplica)
+    let rechazoSectionHtml = '';
+    if (nuevoEstado === 'Rechazado') {
+        rechazoSectionHtml = `
+            <div style="background: #fff1f2; border: 2px solid #f43f5e; border-radius: 10px; padding: 14px 18px; margin: 18px 0;">
+                <div style="color: #9f1239; font-size: 12.5px; font-weight: 800; text-transform: uppercase; margin-bottom: 4px;">
+                    ❌ MOTIVO DEL RECHAZO REGISTRADO
+                </div>
+                <div style="font-size: 14px; color: #881337; line-height: 1.5; font-weight: 600;">
+                    ${escapeHtml(p.motivo_rechazo || 'No se especificó motivo.')}
+                </div>
+            </div>
+        `;
+    }
+
+    // 9. Bloque de Detalle / Denominación y Propuesta
+    let detalleTrabajoHtml = '';
+    if (denominacion || propuesta) {
+        detalleTrabajoHtml = `
+            <div style="background: #ffffff; border: 1.5px solid #e2e8f0; border-left: 5px solid #0284c7; border-radius: 8px; padding: 14px 18px; margin: 16px 0;">
+                ${denominacion ? `
+                    <div style="margin-bottom: 8px;">
+                        <span style="color: #0284c7; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Denominación de la Tarea / Obra:</span>
+                        <div style="color: #0f172a; font-size: 15px; font-weight: 800; margin-top: 2px;">${escapeHtml(denominacion)}</div>
+                    </div>
+                ` : ''}
+                ${propuesta ? `
+                    <div>
+                        <span style="color: #64748b; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Alcance / Propuesta:</span>
+                        <div style="color: #334155; font-size: 13px; line-height: 1.5; margin-top: 2px;">${escapeHtml(propuesta)}</div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+
+    // 10. Tabla de Artículos / Tareas Cotizadas
+    let itemsTableHtml = '';
+    if (itemsList.length > 0) {
+        const maxItems = 25;
+        const displayedItems = itemsList.slice(0, maxItems);
+        const rows = displayedItems.map((item, idx) => {
+            const cod = escapeHtml(item.codigo || '-');
+            const desc = escapeHtml(item.descripcion || item.detalle || item.articulo || '-');
+            const cant = item.cantidad != null ? item.cantidad : 1;
+            const unid = escapeHtml(item.unidad || item.medida || 'UN');
+            const pUnit = parseFloat(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)) || 0;
+            const sub = parseFloat(item.subtotal !== undefined ? item.subtotal : (cant * pUnit)) || 0;
+            const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
+            return `
+                <tr style="background: ${bg}; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 7px 8px; font-size: 11.5px; color: #64748b; text-align: center;">${idx + 1}</td>
+                    <td style="padding: 7px 8px; font-size: 11.5px; font-weight: 700; color: #0284c7; font-family: monospace;">${cod}</td>
+                    <td style="padding: 7px 8px; font-size: 12px; color: #1e293b; font-weight: 600;">${desc}</td>
+                    <td style="padding: 7px 8px; font-size: 12px; color: #334155; text-align: center; font-weight: 700;">${cant}</td>
+                    <td style="padding: 7px 8px; font-size: 11px; color: #64748b; text-align: center;">${unid}</td>
+                    <td style="padding: 7px 8px; font-size: 11.5px; color: #334155; text-align: right; font-family: monospace;">${simboloMoneda}${pUnit.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td style="padding: 7px 8px; font-size: 12px; font-weight: 700; color: #0f172a; text-align: right; font-family: monospace;">${simboloMoneda}${sub.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>
+            `;
+        }).join('');
+
+        let extraNote = '';
+        if (itemsList.length > maxItems) {
+            extraNote = `
+                <tr>
+                    <td colspan="7" style="padding: 8px 12px; font-size: 11.5px; color: #64748b; text-align: center; background: #f1f5f9; font-style: italic;">
+                        ... y ${itemsList.length - maxItems} artículos más registrados en el sistema.
+                    </td>
+                </tr>
+            `;
+        }
+
+        itemsTableHtml = `
+            <div style="margin: 18px 0; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+                <div style="background: #0f172a; color: #ffffff; padding: 9px 14px; font-size: 12.5px; font-weight: 700; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📋 Detalle de Artículos Cotizados (${itemsList.length} ítems)</span>
+                    <span style="color: #38bdf8; font-family: monospace; font-size: 13px; font-weight: 800;">${precioFormateado}</span>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-family: Arial, sans-serif;">
+                    <thead>
+                        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1; color: #475569; font-size: 11px; text-transform: uppercase;">
+                            <th style="padding: 7px 8px; text-align: center; width: 28px;">#</th>
+                            <th style="padding: 7px 8px; width: 85px;">Código</th>
+                            <th style="padding: 7px 8px;">Descripción / Tarea</th>
+                            <th style="padding: 7px 8px; text-align: center; width: 45px;">Cant.</th>
+                            <th style="padding: 7px 8px; text-align: center; width: 40px;">Unid.</th>
+                            <th style="padding: 7px 8px; text-align: right; width: 95px;">Unitario</th>
+                            <th style="padding: 7px 8px; text-align: right; width: 105px;">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                        ${extraNote}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    // 11. Mensaje para notificaciones internas de pantalla
+    const ocMsgPart = ocPrincipal ? ` | OC: ${ocPrincipal}` : '';
+    const notifMsg = `🔔 ALERTA DE ESTADO: El Presupuesto ${nroPresupuesto} (${clienteNombre}) cambió a "${nuevoEstado}" por ${operador} - Total: ${precioFormateado}${ocMsgPart}.`;
+
+    // Notificaciones internas de usuario
     const targetUsers = (appData.users && appData.users.length > 0) ? appData.users : [
         { id: '1', username: 'mel', email: 'melanidaiana28@gmail.com' }
     ];
@@ -9486,11 +9727,12 @@ window.notificarAprobacionEquipo = async function(p, nuevoEstado) {
         renderNotifications();
     }
 
-    // Lista consolidada de destinatarios por email
+    // 12. Consolidación de destinatarios de correo
     const emailsEnviados = [
         'melanidaiana28@gmail.com',
         'cotizaciones@sgmontajes.com.ar',
-        'grandijuanluis@gmail.com'
+        'grandijuanluis@gmail.com',
+        'facturacion@sgmontajes.com.ar'
     ];
 
     targetUsers.forEach(u => {
@@ -9499,33 +9741,99 @@ window.notificarAprobacionEquipo = async function(p, nuevoEstado) {
         }
     });
 
+    const curUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
+    if (curUser && curUser.email && curUser.email.includes('@') && !curUser.email.endsWith('@empresa.com')) {
+        emailsEnviados.push(curUser.email);
+    }
+
     if (p.email && p.email.includes('@')) emailsEnviados.push(p.email);
     const cleanEmails = Array.from(new Set(emailsEnviados.map(e => e.trim().toLowerCase())));
 
+    // 13. Asunto del Correo
+    const ocSubjectTag = (isAprobadoConOc && ocPrincipal) ? ` [OC: ${ocPrincipal}]` : (ocPrincipal ? ` [OC: ${ocPrincipal}]` : '');
+    const emailSubject = `🔔 SG MONTAJES — Alerta Presupuesto ${nroPresupuesto} (${clienteNombre}): ${nuevoEstado}${ocSubjectTag}`;
+
+    // 14. Plantilla HTML completa y enriquecida
+    const emailHtml = `
+        <div style="font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif; max-width: 680px; margin: auto; padding: 24px; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; color: #0f172a; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+            <!-- Encabezado de Marca -->
+            <div style="text-align: center; border-bottom: 2px solid ${colorPrimario}; padding-bottom: 14px; margin-bottom: 18px;">
+                <h2 style="color: #0f172a; margin: 0; font-size: 22px; letter-spacing: 0.5px;">SG MONTAJES S.R.L.</h2>
+                <p style="color: #64748b; font-size: 12.5px; margin: 4px 0 0 0; font-weight: 600;">Notificación Automática de Cambio de Estado en Presupuesto</p>
+            </div>
+
+            <!-- Banner Principal de Estado -->
+            <div style="background: ${bgEstado}; border: 1.5px solid ${borderEstado}; border-left: 6px solid ${colorPrimario}; padding: 14px 18px; margin-bottom: 18px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 11.5px; font-weight: 800; text-transform: uppercase; color: ${colorPrimario}; letter-spacing: 0.5px;">Nuevo Estado del Comprobante</span>
+                    <span style="background: ${badgeBg}; color: #ffffff; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 12px;">${escapeHtml(nuevoEstado)}</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 900; color: #0f172a; margin-top: 4px;">
+                    Presupuesto Nro. ${escapeHtml(nroPresupuesto)} ➔ <span style="color: ${colorPrimario};">${escapeHtml(nuevoEstado)}</span>
+                </div>
+            </div>
+
+            <!-- Sección de Orden de Compra si es Aprobado con OC o tiene OC -->
+            ${ocSectionHtml}
+
+            <!-- Sección de Motivo si es Rechazado -->
+            ${rechazoSectionHtml}
+
+            <!-- Tabla de Datos Clave (Quién modificó, Cliente, Rubro y Precio) -->
+            <table style="width: 100%; border-collapse: separate; border-spacing: 0; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin: 16px 0; overflow: hidden; font-size: 13px;">
+                <tr>
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; width: 50%; vertical-align: top;">
+                        <strong style="color: #64748b; display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">👤 Quién cambió de estado</strong>
+                        <div style="color: #0f172a; font-weight: 800; font-size: 14px;">${escapeHtml(operador)}</div>
+                        <div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">📅 ${escapeHtml(fechaHora)}</div>
+                    </td>
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; width: 50%; vertical-align: top;">
+                        <strong style="color: #64748b; display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">💰 Precio Total Cotizado</strong>
+                        <div style="color: #0f172a; font-weight: 900; font-size: 19px; font-family: 'Courier New', Courier, monospace;">${escapeHtml(precioFormateado)}</div>
+                        <div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">Moneda: ${escapeHtml(moneda)}</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px 14px; border-right: 1px solid #e2e8f0; vertical-align: top;">
+                        <strong style="color: #64748b; display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">🏢 Cliente</strong>
+                        <div style="color: #0f172a; font-weight: 800; font-size: 14px;">${escapeHtml(clienteNombre)}</div>
+                        ${clienteCuit ? `<div style="color: #475569; font-size: 12px; margin-top: 2px;"><strong>CUIT:</strong> ${escapeHtml(clienteCuit)}</div>` : ''}
+                        ${(clienteDom || clienteLoc) ? `<div style="color: #64748b; font-size: 11.5px; margin-top: 2px;">📍 ${escapeHtml([clienteDom, clienteLoc].filter(Boolean).join(' - '))}</div>` : ''}
+                    </td>
+                    <td style="padding: 12px 14px; vertical-align: top;">
+                        <strong style="color: #64748b; display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">⚙️ Rubro y Planta</strong>
+                        <div style="color: #0f172a; font-weight: 800; font-size: 13.5px;">Rubro ${escapeHtml(rubro)}</div>
+                        ${clientePlanta ? `<div style="color: #0284c7; font-weight: 700; font-size: 12px; margin-top: 3px;">🏭 Planta: ${escapeHtml(clientePlanta)}</div>` : ''}
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Detalle / Denominación y Propuesta -->
+            ${detalleTrabajoHtml}
+
+            <!-- Tabla de Ítems Cotizados -->
+            ${itemsTableHtml}
+
+            <!-- Pie de Correo -->
+            <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid #e2e8f0; text-align: center;">
+                <p style="font-size: 11.5px; color: #94a3b8; margin: 0;">
+                    Este correo fue generado y enviado automáticamente por el sistema de <strong>SG Montajes S.R.L.</strong> ante el cambio de estado comercial del comprobante.
+                </p>
+            </div>
+        </div>
+    `;
+
+    // 15. Envío mediante el backend de correo
     if (cleanEmails.length > 0 && typeof window.enviarEmailBackend === 'function') {
         try {
             const resp = await window.enviarEmailBackend({
                 to: cleanEmails,
-                subject: `📋 SG MONTAJES — Alerta Presupuesto ${nroPresupuesto}: ${nuevoEstado}`,
-                html: `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff; color: #0f172a;">
-                        <div style="text-align: center; border-bottom: 2px solid #0891b2; padding-bottom: 12px; margin-bottom: 16px;">
-                            <h2 style="color: #0891b2; margin: 0;">SG MONTAJES S.R.L.</h2>
-                            <p style="color: #64748b; font-size: 12px; margin: 4px 0 0 0;">Notificación Automática de Cambio de Estado</p>
-                        </div>
-                        <p>Estimados,</p>
-                        <p>Le informamos que el presupuesto <strong>${nroPresupuesto}</strong> (${cliente}) ha modificado su estado a:</p>
-                        <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-left: 5px solid #10b981; padding: 14px; margin: 18px 0; border-radius: 6px;">
-                            <strong style="color: #166534; font-size: 16px;">${nuevoEstado}</strong><br>
-                            <span style="font-size: 13px; color: #334155;"><strong>Importe Total:</strong> ${importeStr}</span>${nroOcStr ? `<br><span style="font-size: 13px; color: #334155;"><strong>${nroOcStr}</strong></span>` : ''}
-                        </div>
-                        <p style="font-size: 12px; color: #64748b;">Este correo fue generado y despachado de forma 100% automática por el servidor de SG Montajes S.R.L.</p>
-                    </div>
-                `
+                subject: emailSubject,
+                html: emailHtml
             });
 
             if (resp && resp.success) {
-                showToast(`📧 Alerta por email enviada exitosamente a ${cleanEmails.join(', ')}.`, 'info');
+                showToast(`📧 Alerta con detalle completo enviada a: ${cleanEmails.join(', ')}.`, 'info');
             } else {
                 console.warn("Fallo al enviar alerta por email:", resp ? resp.error : 'Sin respuesta');
                 showToast(`⚠️ Aviso: No se pudo enviar el correo de alerta (${resp ? resp.error : 'Revisar servidor'}).`, 'warning');
@@ -22332,7 +22640,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '519';
+window.CURRENT_APP_VERSION = '520';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
