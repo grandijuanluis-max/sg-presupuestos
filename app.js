@@ -406,6 +406,76 @@ window.isItemUSD = function(it, parentPresupuesto) {
 };
 
 // Función de normalización estricta de rubros
+// ====================================================================
+// RESOLUTOR UNIVERSAL DINÁMICO DE CLIENTES (PRESEA)
+// Garantiza que Domicilio, Localidad, CUIT y Código SIEMPRE correspondan
+// fielmente al cliente seleccionado (Cargill APS/APG, Julio Alvarez, Acosta, T6, etc.)
+// ====================================================================
+window.resolveClienteCompleto = function(pOrNameOrCode, optionalPlanta) {
+    const db = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) ? window.clientesDB : [];
+    if (!db || db.length === 0) return null;
+
+    let p = {};
+    if (typeof pOrNameOrCode === 'string') {
+        p = { cliente_nombre: pOrNameOrCode, cliente_id: pOrNameOrCode, planta: optionalPlanta };
+    } else if (pOrNameOrCode && typeof pOrNameOrCode === 'object') {
+        p = pOrNameOrCode;
+    }
+
+    const rawName = String(p.cliente_nombre || p.nombre || p.cliente || '').trim();
+    const rawCode = String(p.cliente_id || p.codigo || p.id || '').trim();
+    const rawPlanta = String(p.planta || p.meca_planta || optionalPlanta || '').trim().toUpperCase();
+    const rawLoc = String(p.localidad || '').trim().toUpperCase();
+    const nameUp = rawName.toUpperCase();
+
+    // 1. Caso especial: CARGILL SACI
+    const isCargill = nameUp.includes('CARGILL') ||
+                      (!rawName && (rawCode === '2' || rawCode === '3' || rawCode === '4'));
+
+    if (isCargill) {
+        // Código 2: YRIGOYEN Y PUNTA QUBRACHO - PUERTO GENERAL SAN MARTIN (APS, PGSM, PPA)
+        // Código 3: SOLIS 822 - VILLA GOBERNADOR GALVEZ (APG, VGG)
+        // Código 4: LUIS RAUL MAZA 35 - BERNARDO LARROUDE
+        let targetCode = '2';
+        if (rawCode === '3' || rawPlanta === 'APG' || rawPlanta === 'VGG' || rawLoc.includes('GALVEZ') || rawLoc.includes('GOBERNADOR')) {
+            targetCode = '3';
+        } else if (rawCode === '4' || rawLoc.includes('LARROUDE') || rawLoc.includes('BERNARDO')) {
+            targetCode = '4';
+        } else if (rawCode === '2' || rawPlanta === 'APS' || rawPlanta === 'PGSM' || rawPlanta === 'PPA' || rawLoc.includes('SAN MARTIN')) {
+            targetCode = '2';
+        } else if (rawPlanta === 'APG') {
+            targetCode = '3';
+        }
+
+        const foundCargill = db.find(c => String(c.codigo) === targetCode);
+        if (foundCargill) return foundCargill;
+    }
+
+    // 2. Si hay nombre de cliente explícito y NO es Cargill:
+    if (rawName && !isCargill) {
+        // Coincidencia exacta de nombre
+        let found = db.find(c => c.nombre && c.nombre.trim().toUpperCase() === nameUp);
+        if (found) return found;
+
+        // Coincidencia parcial de nombre
+        found = db.find(c => c.nombre && (c.nombre.trim().toUpperCase().includes(nameUp) || nameUp.includes(c.nombre.trim().toUpperCase())));
+        if (found) return found;
+    }
+
+    // 3. Búsqueda por código de cliente exacto (si no es Cargill o si rawName estaba vacío)
+    if (rawCode) {
+        const found = db.find(c => String(c.codigo).trim() === rawCode);
+        if (found) return found;
+    }
+
+    // 4. Si p ya tiene propiedades de cliente completas
+    if (p.nombre && (p.domicilio || p.cuit)) {
+        return p;
+    }
+
+    return null;
+};
+
 function normalizePresupuestosRubro(pedidos) {
     if (!Array.isArray(pedidos)) return [];
     // Descartar de raíz cualquier presupuesto fantasma eliminado del 21 de septiembre
@@ -453,22 +523,26 @@ function normalizePresupuestosRubro(pedidos) {
         }
 
         // Normalizar y enriquecer Domicilio, Localidad, CUIT y Planta desde clientesDB
-        const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
-            ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && p.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
+        const clientInfo = (typeof window.resolveClienteCompleto === 'function')
+            ? window.resolveClienteCompleto(p)
             : null;
 
-        if (rawClient) {
-            if (!p.domicilio || p.domicilio === '-' || p.domicilio.trim() === '') {
-                p.domicilio = rawClient.domicilio || '';
+        if (clientInfo) {
+            p.cliente_id = clientInfo.codigo || p.cliente_id || '';
+            p.cliente_nombre = clientInfo.nombre || p.cliente_nombre || '';
+
+            const cargillDoms = ['YRIGOYEN Y PUNTA QUBRACHO', 'SOLIS 822', 'LUIS RAUL MAZA 35'];
+            const curDomUp = String(p.domicilio || '').trim().toUpperCase();
+            const clientIsCargill = String(clientInfo.nombre || '').toUpperCase().includes('CARGILL');
+
+            if (!p.domicilio || p.domicilio === '-' || p.domicilio.trim() === '' || (!clientIsCargill && cargillDoms.includes(curDomUp)) || (clientIsCargill && clientInfo.domicilio && curDomUp !== clientInfo.domicilio.toUpperCase())) {
+                p.domicilio = clientInfo.domicilio || '';
             }
-            if (!p.localidad || p.localidad === '-' || p.localidad.trim() === '') {
-                p.localidad = rawClient.localidad || '';
+            if (!p.localidad || p.localidad === '-' || p.localidad.trim() === '' || (!clientIsCargill && (curDomUp === '' || cargillDoms.includes(curDomUp))) || (clientIsCargill && clientInfo.localidad)) {
+                p.localidad = clientInfo.localidad || '';
             }
-            if (!p.cuit || p.cuit === '-' || p.cuit.trim() === '') {
-                p.cuit = rawClient.cuit || '';
-            }
-            if (!p.cliente_id || p.cliente_id === '-' || p.cliente_id === '') {
-                p.cliente_id = rawClient.codigo || '';
+            if (!p.cuit || p.cuit === '-' || p.cuit.trim() === '' || clientInfo.cuit) {
+                p.cuit = clientInfo.cuit || p.cuit || '';
             }
         }
 
@@ -480,7 +554,7 @@ function normalizePresupuestosRubro(pedidos) {
             let defaultPlanta = 'VGG';
             if (p.localidad && p.localidad.toUpperCase().includes('SAN MARTIN')) {
                 defaultPlanta = 'PGSM';
-            } else if (rawClient && rawClient.localidad && rawClient.localidad.toUpperCase().includes('SAN MARTIN')) {
+            } else if (clientInfo && clientInfo.localidad && clientInfo.localidad.toUpperCase().includes('SAN MARTIN')) {
                 defaultPlanta = 'PGSM';
             }
             p.planta = defaultPlanta;
@@ -946,12 +1020,18 @@ function initSupabaseSync(callback) {
             let deletedStock = [];
             try {
                 deletedStock = JSON.parse(localStorage.getItem('PRESUPUESTO_DELETED_STOCK') || '[]');
+                if (deletedStock.some(c => String(c).toUpperCase().startsWith('MEC-'))) {
+                    deletedStock = deletedStock.filter(c => !String(c).toUpperCase().startsWith('MEC-'));
+                    localStorage.setItem('PRESUPUESTO_DELETED_STOCK', JSON.stringify(deletedStock));
+                }
             } catch(e) {}
 
             tarRes.data.forEach(function(row) {
                 if (!row || !row.codigo) return;
                 if (row.estado === 'ELIMINADOS') {
-                    if (!deletedStock.includes(row.codigo)) deletedStock.push(row.codigo);
+                    if (!String(row.codigo).toUpperCase().startsWith('MEC-') && !deletedStock.includes(row.codigo)) {
+                        deletedStock.push(row.codigo);
+                    }
                     return;
                 }
                 const cPrice = parseFloat(row.precio) || 0;
@@ -1018,9 +1098,8 @@ function initSupabaseSync(callback) {
                 const seenKeys = new Set(); // clave: `${codigo}_${planta}`
                 const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
 
-                // 1. Procesar items del stock base
+                // 1. Procesar items del stock base (Mecánicos protegidos de eliminación)
                 PRESUPUESTO_MECANICO_STOCK
-                    .filter(baseItem => !deletedStock.includes(baseItem.codigo))
                     .forEach(baseItem => {
                         const rows = dbByCode[baseItem.codigo];
                         const isLabor = (
@@ -1148,7 +1227,8 @@ function initSupabaseSync(callback) {
                             precio_ars: pArs,
                             precio_usd: explicitUsd ? pUsd : null,
                             stock: 999,
-                            estado: 'ACTIVOS'
+                            estado: 'ACTIVOS',
+                            is_custom: true
                         });
                     });
                 });
@@ -1178,7 +1258,8 @@ function initSupabaseSync(callback) {
                             precio_unitario: parseFloat(row.precio) || 0,
                             stock: parseFloat(row.stock) || 999,
                             estado: row.estado || 'ACTIVOS',
-                            planta: row.planta ? row.planta.trim().toUpperCase() : null
+                            planta: row.planta ? row.planta.trim().toUpperCase() : null,
+                            is_custom: true
                         };
 
                         if (row.rubro === 'Eléctrico') {
@@ -2393,13 +2474,18 @@ function generateId() {
 window.buildPresupuestoSupabaseRow = function(p) {
     if (!p) return null;
     const amt = parseFloat(p.importe !== undefined && p.importe !== null ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
+    const clientResolved = (typeof window.resolveClienteCompleto === 'function')
+        ? window.resolveClienteCompleto(p)
+        : null;
+    const finalCliId = clientResolved ? clientResolved.codigo : (p.cliente_id || '2');
+    const finalCliNom = clientResolved ? clientResolved.nombre : (p.cliente_nombre || 'CARGILL SACI');
 
     return {
         id: String(p.id).trim(),
         fecha: p.fecha || (typeof getLocalCurrentDateTimeStr === 'function' ? getLocalCurrentDateTimeStr() : new Date().toISOString()),
         tipo_presupuesto: p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'),
-        cliente_id: String(p.cliente_id || '3').trim(),
-        cliente_nombre: String(p.cliente_nombre || 'CARGILL SACI').trim(),
+        cliente_id: String(finalCliId).trim(),
+        cliente_nombre: String(finalCliNom).trim(),
         importe_neto: amt,
         estado: p.estado || 'Enviado sin OC',
         nro_oc: String(p.nro_oc || p.meca_nro_oc || '').trim(),
@@ -5679,6 +5765,29 @@ window.PRESUPUESTO_MECANICO_STOCK = PRESUPUESTO_MECANICO_STOCK;
 window.presupuestosCatalogDB = PRESUPUESTO_ELECTRICO_STOCK;
 window.presupuestoMecanicoDB = PRESUPUESTO_MECANICO_STOCK;
 
+window.OFFICIAL_BASE_MECANICO_CODES = new Set(
+    Array.from({ length: 64 }, (_, i) => `MEC-${String(i + 1).padStart(3, '0')}`)
+);
+window.BASE_MECANICO_CODES = window.OFFICIAL_BASE_MECANICO_CODES;
+
+window.isMecanicoItemBase = function(itemOrCode) {
+    if (!itemOrCode) return false;
+    if (typeof itemOrCode === 'object') {
+        if (itemOrCode.is_custom === true || itemOrCode.isCustom === true) return false;
+        itemOrCode = itemOrCode.codigo;
+    }
+    const cleanCode = String(itemOrCode).trim().toUpperCase();
+    return window.OFFICIAL_BASE_MECANICO_CODES.has(cleanCode);
+};
+
+window.isMecanicoItemCustom = function(itemOrCode) {
+    if (!itemOrCode) return false;
+    if (typeof itemOrCode === 'object' && (itemOrCode.is_custom === true || itemOrCode.isCustom === true)) return true;
+    const code = typeof itemOrCode === 'object' ? itemOrCode.codigo : itemOrCode;
+    if (!code) return false;
+    return !window.isMecanicoItemBase(code);
+};
+
 function applyCustomPricesToCatalog(catalog) {
     if (!catalog || !Array.isArray(catalog)) return catalog;
     const customPrices = getCustomItemPrices();
@@ -7493,6 +7602,9 @@ window.agregarArticuloDetalle = function() {
 window.eliminarArticuloDetalle = function(codigo) {
     pedidoItems = pedidoItems.filter(item => item.codigo !== codigo);
     actualizarTablaItemsRequerimiento();
+    if (typeof window.renderMecanicoExcelGrid === 'function') {
+        window.renderMecanicoExcelGrid();
+    }
     showToast('Artículo eliminado del pedido.', 'info');
 };
 
@@ -7588,7 +7700,7 @@ window.actualizarTablaItemsRequerimiento = function() {
                 </td>
                 <td style="text-align: right; font-family: monospace; font-weight: bold; vertical-align: middle;">$${itemSubtotal.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                 <td style="text-align: center; vertical-align: middle;">
-                    <button type="button" class="btn btn-sm btn-danger" onclick="eliminarArticuloDetalle(\'${item.codigo}\')" style="padding: 2px 6px; font-size: 11px;"><i class="fas fa-times"></i></button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="eliminarArticuloDetalle(\'${item.codigo}\')" style="padding: 2px 6px; font-size: 11px;" title="Quitar artículo del pedido"><i class="fas fa-times"></i></button>
                 </td>
             </tr>
         `;
@@ -7733,6 +7845,7 @@ function seleccionarCliente(cliente) {
     const reqMecaClient = document.getElementById('req-meca-cliente');
     if (reqMecaClient) {
         reqMecaClient.value = cliente.nombre;
+        reqMecaClient.dataset.codigo = cliente.codigo;
     }
 
     // Asignar en Formulario Estándar
@@ -7741,14 +7854,22 @@ function seleccionarCliente(cliente) {
         reqClientInput.value = cliente.id || cliente.codigo;
     }
 
+    // Si es Cargill, sugerir planta según el código elegido
+    if (cliente.nombre && cliente.nombre.toUpperCase().includes('CARGILL')) {
+        const reqPlantaEl = document.getElementById('req-meca-planta');
+        if (reqPlantaEl) {
+            if (String(cliente.codigo) === '3') {
+                reqPlantaEl.value = 'APG';
+            } else if (String(cliente.codigo) === '2') {
+                reqPlantaEl.value = 'APS';
+            }
+        }
+    }
+
     // Asignar en Modal de Modificación / Detalle
     const authEditClient = document.getElementById('auth-edit-meca-cliente');
     if (authEditClient) {
         authEditClient.value = cliente.nombre;
-    }
-    const authMecaClientVal = document.getElementById('auth-meca-cliente-val');
-    if (authMecaClientVal && viewMode !== 'Modificacion') {
-        authMecaClientVal.innerText = cliente.nombre;
     }
     const authClientDisplay = document.getElementById('auth-client-display');
     if (authClientDisplay) {
@@ -7757,24 +7878,37 @@ function seleccionarCliente(cliente) {
     if (pedidoActivo) {
         pedidoActivo.cliente_id = cliente.codigo;
         pedidoActivo.cliente_nombre = cliente.nombre;
-        if (cliente.domicilio) pedidoActivo.domicilio = cliente.domicilio;
-        if (cliente.localidad) pedidoActivo.localidad = cliente.localidad;
-        if (cliente.cuit) pedidoActivo.cuit = cliente.cuit;
+        pedidoActivo.domicilio = cliente.domicilio || '';
+        pedidoActivo.localidad = cliente.localidad || '';
+        pedidoActivo.cuit = cliente.cuit || '';
 
-        // Actualizar inputs en el DOM si el modal está abierto
+        // Actualizar inputs en el DOM si el modal está abierto en modo edición
         const authEditDom = document.getElementById('auth-edit-meca-domicilio');
-        if (authEditDom && cliente.domicilio) authEditDom.value = cliente.domicilio.toUpperCase();
+        if (authEditDom) authEditDom.value = (cliente.domicilio || '').toUpperCase();
         const authEditLoc = document.getElementById('auth-edit-meca-localidad');
-        if (authEditLoc && cliente.localidad) authEditLoc.value = cliente.localidad.toUpperCase();
+        if (authEditLoc) authEditLoc.value = (cliente.localidad || '').toUpperCase();
         const authEditCuit = document.getElementById('auth-edit-meca-cuit');
-        if (authEditCuit && cliente.cuit) authEditCuit.value = cliente.cuit;
+        if (authEditCuit) authEditCuit.value = cliente.cuit || '';
+        const authEditCode = document.getElementById('auth-meca-cliente-codigo-val');
+        if (authEditCode) authEditCode.innerText = cliente.codigo || '-';
 
+        // Actualizar textos en modo consulta (solo si no contienen inputs para no destruirlos)
+        const authMecaClientVal = document.getElementById('auth-meca-cliente-val');
+        if (authMecaClientVal && !authMecaClientVal.querySelector('input')) {
+            authMecaClientVal.innerText = cliente.nombre.toUpperCase();
+        }
         const authMecaDom = document.getElementById('auth-meca-domicilio-val');
-        if (authMecaDom && cliente.domicilio) authMecaDom.innerText = cliente.domicilio.toUpperCase();
+        if (authMecaDom && !authMecaDom.querySelector('input')) {
+            authMecaDom.innerText = (cliente.domicilio || '').toUpperCase();
+        }
         const authMecaLoc = document.getElementById('auth-meca-localidad-val');
-        if (authMecaLoc && cliente.localidad) authMecaLoc.innerText = cliente.localidad.toUpperCase();
+        if (authMecaLoc && !authMecaLoc.querySelector('input')) {
+            authMecaLoc.innerText = (cliente.localidad || '').toUpperCase();
+        }
         const authMecaCuit = document.getElementById('auth-meca-cuit-val');
-        if (authMecaCuit && cliente.cuit) authMecaCuit.innerText = cliente.cuit;
+        if (authMecaCuit && !authMecaCuit.querySelector('input')) {
+            authMecaCuit.innerText = cliente.cuit || '';
+        }
 
         if (typeof saveTempEdits === 'function') saveTempEdits();
     }
@@ -8154,7 +8288,20 @@ window.cargarPresupuestoParaModificacion = function(id) {
     };
 
     setVal('req-meca-denominacion', p.meca_denominacion || p.motivo || '');
-    setVal('req-meca-cliente', p.cliente_nombre || 'CARGILL SACI');
+    const matchedClientModif = (typeof window.resolveClienteCompleto === 'function')
+        ? window.resolveClienteCompleto(p)
+        : null;
+    clienteSeleccionado = matchedClientModif || {
+        codigo: p.cliente_id || '2',
+        nombre: p.cliente_nombre || 'CARGILL SACI',
+        cuit: p.cuit || '',
+        domicilio: p.domicilio || '',
+        localidad: p.localidad || ''
+    };
+    setVal('req-meca-cliente', clienteSeleccionado.nombre);
+    if (document.getElementById('req-meca-cliente')) {
+        document.getElementById('req-meca-cliente').dataset.codigo = clienteSeleccionado.codigo;
+    }
     setVal('req-meca-proveedor', p.meca_proveedor || 'SG MONTAJES SRL');
     const parseDateInput2 = (dStr, fallback) => {
         if (!dStr) return fallback;
@@ -8236,15 +8383,19 @@ function confirmarPedido() {
         const clientVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) ||
                           (document.getElementById('req-client') && document.getElementById('req-client').value) ||
                           'CARGILL SACI';
-        clienteSeleccionado = {
-            codigo: '3',
-            nombre: clientVal,
-            cuit: '30-50679316-5',
-            telefono: '',
-            email: '',
-            vendedor_id: '',
-            vendedor_nombre: ''
-        };
+        const curPlanta = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value) || 'APS';
+        clienteSeleccionado = (typeof window.resolveClienteCompleto === 'function')
+            ? window.resolveClienteCompleto(clientVal, curPlanta)
+            : null;
+        if (!clienteSeleccionado) {
+            clienteSeleccionado = {
+                codigo: '2',
+                nombre: clientVal,
+                cuit: '30-50679216-5',
+                domicilio: 'YRIGOYEN Y PUNTA QUBRACHO',
+                localidad: 'PUERTO GENERAL SAN MARTIN'
+            };
+        }
     }
     if (!Array.isArray(pedidoItems) || pedidoItems.length === 0) {
         showToast('El presupuesto debe contener al menos un artículo o concepto del tarifario', 'error');
@@ -8345,24 +8496,27 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
         const depositoObj = depositoSeleccionado;
         const transporteObj = transporteSeleccionado;
 
+        const curInputPlanta = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value) || 'APS';
         if (!clienteSeleccionado) {
             const clientVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) ||
                               (document.getElementById('req-client') && document.getElementById('req-client').value) ||
                               'CARGILL SACI';
-            const matchedCli = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
-                ? window.clientesDB.find(c => c.nombre.toUpperCase().includes(clientVal.trim().toUpperCase()) || clientVal.trim().toUpperCase().includes(c.nombre.toUpperCase()) || c.codigo === clientVal.trim())
+            clienteSeleccionado = (typeof window.resolveClienteCompleto === 'function')
+                ? window.resolveClienteCompleto(clientVal, curInputPlanta)
                 : null;
-            clienteSeleccionado = matchedCli || {
-                codigo: '3',
-                nombre: clientVal,
-                cuit: '30-50679216-5',
-                domicilio: 'SOLIS 822',
-                localidad: 'VILLA GOBERNADOR GALVEZ',
-                telefono: '',
-                email: '',
-                vendedor_id: '',
-                vendedor_nombre: ''
-            };
+            if (!clienteSeleccionado) {
+                clienteSeleccionado = {
+                    codigo: '2',
+                    nombre: clientVal,
+                    cuit: '30-50679216-5',
+                    domicilio: 'YRIGOYEN Y PUNTA QUBRACHO',
+                    localidad: 'PUERTO GENERAL SAN MARTIN',
+                    telefono: '',
+                    email: '',
+                    vendedor_id: '',
+                    vendedor_nombre: ''
+                };
+            }
         }
 
         const user = getCurrentUser();
@@ -8399,20 +8553,27 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
             targetPedido.tipo_presupuesto = reqTipoPresupuesto || 'Eléctrico';
             targetPedido.meca_denominacion = document.getElementById('req-meca-denominacion') ? document.getElementById('req-meca-denominacion').value : '';
             if (document.getElementById('req-meca-cliente')) targetPedido.cliente_nombre = document.getElementById('req-meca-cliente').value;
-            if (clienteSeleccionado) {
-                targetPedido.cliente_id = clienteSeleccionado.codigo || targetPedido.cliente_id;
-                targetPedido.cuit = clienteSeleccionado.cuit || targetPedido.cuit;
-                if (clienteSeleccionado.domicilio) targetPedido.domicilio = clienteSeleccionado.domicilio;
-                if (clienteSeleccionado.localidad) targetPedido.localidad = clienteSeleccionado.localidad;
-            }
-            targetPedido.meca_proveedor = document.getElementById('req-meca-proveedor') ? document.getElementById('req-meca-proveedor').value : '';
-            targetPedido.meca_fecha_oferta = document.getElementById('req-meca-fecha-oferta') ? document.getElementById('req-meca-fecha-oferta').value : '';
-            targetPedido.meca_validez = document.getElementById('req-meca-validez') ? document.getElementById('req-meca-validez').value : '';
+            
             const editPlantaVal = document.getElementById('req-meca-planta') ? document.getElementById('req-meca-planta').value : '';
             if (editPlantaVal) {
                 targetPedido.meca_planta = editPlantaVal;
                 targetPedido.planta = editPlantaVal;
             }
+
+            const targetClientResolved = (typeof window.resolveClienteCompleto === 'function')
+                ? window.resolveClienteCompleto(clienteSeleccionado || targetPedido.cliente_nombre || targetPedido, targetPedido.meca_planta || targetPedido.planta)
+                : clienteSeleccionado;
+
+            if (targetClientResolved) {
+                targetPedido.cliente_id = targetClientResolved.codigo || targetPedido.cliente_id;
+                targetPedido.cliente_nombre = targetClientResolved.nombre || targetPedido.cliente_nombre;
+                targetPedido.cuit = targetClientResolved.cuit || targetPedido.cuit;
+                targetPedido.domicilio = targetClientResolved.domicilio || targetPedido.domicilio;
+                targetPedido.localidad = targetClientResolved.localidad || targetPedido.localidad;
+            }
+            targetPedido.meca_proveedor = document.getElementById('req-meca-proveedor') ? document.getElementById('req-meca-proveedor').value : '';
+            targetPedido.meca_fecha_oferta = document.getElementById('req-meca-fecha-oferta') ? document.getElementById('req-meca-fecha-oferta').value : '';
+            targetPedido.meca_validez = document.getElementById('req-meca-validez') ? document.getElementById('req-meca-validez').value : '';
             targetPedido.meca_nro_oc = finalNroOc;
             targetPedido.nro_oc = finalNroOc;
             targetPedido.meca_nro_ot = document.getElementById('req-meca-nro-ot') ? document.getElementById('req-meca-nro-ot').value : '';
@@ -8474,22 +8635,28 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
                 finalItemState = 'Autorizado';
             }
 
-            const plantaSeleccionada = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value)
-                ? document.getElementById('req-meca-planta').value
-                : ((clienteSeleccionado && clienteSeleccionado.localidad && clienteSeleccionado.localidad.toUpperCase().includes('SAN MARTIN')) ? 'PGSM' : 'VGG');
+            const rawClientInputVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) ? document.getElementById('req-meca-cliente').value : '';
+            const plantaInputVal = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value) ? document.getElementById('req-meca-planta').value : '';
+            
+            const newClientResolved = (typeof window.resolveClienteCompleto === 'function')
+                ? window.resolveClienteCompleto(clienteSeleccionado || rawClientInputVal || 'CARGILL SACI', plantaInputVal)
+                : clienteSeleccionado;
+
+            const plantaSeleccionada = plantaInputVal ||
+                ((newClientResolved && newClientResolved.localidad && newClientResolved.localidad.toUpperCase().includes('SAN MARTIN')) ? 'PGSM' : 'VGG');
 
             const newPedido = {
                 id: targetId,
                 fecha: getLocalCurrentDateTimeStr(),
-                cliente_id: clienteSeleccionado ? clienteSeleccionado.codigo : '3',
-                cliente_nombre: (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) ? document.getElementById('req-meca-cliente').value : (clienteSeleccionado ? clienteSeleccionado.nombre : 'CARGILL SACI'),
-                cuit: clienteSeleccionado ? clienteSeleccionado.cuit : '30-50679216-5',
-                domicilio: clienteSeleccionado ? (clienteSeleccionado.domicilio || '') : '',
-                localidad: clienteSeleccionado ? (clienteSeleccionado.localidad || '') : '',
+                cliente_id: newClientResolved ? newClientResolved.codigo : '2',
+                cliente_nombre: newClientResolved ? newClientResolved.nombre : (rawClientInputVal || 'CARGILL SACI'),
+                cuit: newClientResolved ? (newClientResolved.cuit || '') : '',
+                domicilio: newClientResolved ? (newClientResolved.domicilio || '') : '',
+                localidad: newClientResolved ? (newClientResolved.localidad || '') : '',
                 planta: plantaSeleccionada,
                 meca_planta: plantaSeleccionada,
-                telefono: clienteSeleccionado ? clienteSeleccionado.telefono : '',
-                email: clienteSeleccionado ? clienteSeleccionado.email : '',
+                telefono: newClientResolved ? newClientResolved.telefono : '',
+                email: newClientResolved ? newClientResolved.email : '',
                 vendedor_id: userVendedorId,
                 vendedor_nombre: userVendedorNombre,
                 operador_vendedor_id: userVendedorId,
@@ -9848,14 +10015,21 @@ window.abrirComprobanteAvance = function(pedidoId, avanceId) {
 
     const setT = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
 
+    const clientInfoAvance = (typeof window.resolveClienteCompleto === 'function')
+        ? window.resolveClienteCompleto(p)
+        : null;
+
     let rawDom = p.domicilio || '';
     let rawLoc = p.localidad || '';
-    if ((!rawDom || !rawLoc) && window.clientesDB) {
-        const rawCli = window.clientesDB.find(c => (c.nombre && cliente && c.nombre.trim().toUpperCase() === cliente.trim().toUpperCase()) || (c.codigo && p.cliente_id && String(c.codigo) === String(p.cliente_id)));
-        if (rawCli) {
-            if (!rawDom) rawDom = rawCli.domicilio || '';
-            if (!rawLoc) rawLoc = rawCli.localidad || '';
-        }
+    const cargillDomsAvance = ['YRIGOYEN Y PUNTA QUBRACHO', 'SOLIS 822', 'LUIS RAUL MAZA 35'];
+    const pDomUpAvance = String(rawDom).trim().toUpperCase();
+    const isCliCargillAvance = String(cliente || '').toUpperCase().includes('CARGILL');
+
+    if (!rawDom || rawDom === '-' || (!isCliCargillAvance && cargillDomsAvance.includes(pDomUpAvance))) {
+        rawDom = clientInfoAvance ? clientInfoAvance.domicilio : '-';
+    }
+    if (!rawLoc || rawLoc === '-' || (!isCliCargillAvance && cargillDomsAvance.includes(pDomUpAvance))) {
+        rawLoc = clientInfoAvance ? clientInfoAvance.localidad : '-';
     }
 
     setT('comp-avance-empresa', proveedor);
@@ -11161,7 +11335,30 @@ window.saveTempEdits = function() {
     };
     if (getEditVal('auth-edit-meca-denominacion') !== null) pedidoActivo.meca_denominacion = getEditVal('auth-edit-meca-denominacion');
     if (getEditVal('auth-edit-meca-propuesta') !== null) pedidoActivo.meca_propuesta = getEditVal('auth-edit-meca-propuesta');
-    if (getEditVal('auth-edit-meca-cliente') !== null) pedidoActivo.cliente_nombre = getEditVal('auth-edit-meca-cliente');
+    if (getEditVal('auth-edit-meca-cliente') !== null) {
+        const newCliName = getEditVal('auth-edit-meca-cliente');
+        const oldCliName = pedidoActivo.cliente_nombre;
+        pedidoActivo.cliente_nombre = newCliName;
+        if (newCliName && (!oldCliName || newCliName.trim().toUpperCase() !== oldCliName.trim().toUpperCase())) {
+            const matchedCli = (typeof window.resolveClienteCompleto === 'function')
+                ? window.resolveClienteCompleto(newCliName, pedidoActivo.meca_planta || pedidoActivo.planta)
+                : null;
+            if (matchedCli) {
+                pedidoActivo.cliente_id = matchedCli.codigo;
+                pedidoActivo.domicilio = matchedCli.domicilio || '';
+                pedidoActivo.localidad = matchedCli.localidad || '';
+                pedidoActivo.cuit = matchedCli.cuit || '';
+                const authEditDom = document.getElementById('auth-edit-meca-domicilio');
+                if (authEditDom) authEditDom.value = (matchedCli.domicilio || '').toUpperCase();
+                const authEditLoc = document.getElementById('auth-edit-meca-localidad');
+                if (authEditLoc) authEditLoc.value = (matchedCli.localidad || '').toUpperCase();
+                const authEditCuit = document.getElementById('auth-edit-meca-cuit');
+                if (authEditCuit) authEditCuit.value = matchedCli.cuit || '';
+                const authEditCode = document.getElementById('auth-meca-cliente-codigo-val');
+                if (authEditCode) authEditCode.innerText = matchedCli.codigo || '-';
+            }
+        }
+    }
     if (getEditVal('auth-edit-meca-domicilio') !== null) pedidoActivo.domicilio = getEditVal('auth-edit-meca-domicilio');
     if (getEditVal('auth-edit-meca-localidad') !== null) pedidoActivo.localidad = getEditVal('auth-edit-meca-localidad');
     if (getEditVal('auth-edit-meca-cuit') !== null) pedidoActivo.cuit = getEditVal('auth-edit-meca-cuit');
@@ -11183,8 +11380,26 @@ window.saveTempEdits = function() {
     if (getEditVal('auth-edit-meca-validez') !== null) pedidoActivo.meca_validez = getEditVal('auth-edit-meca-validez');
     const editedPlanta = getEditVal('auth-edit-meca-planta') || getEditVal('auth-edit-meca-planta-orig');
     if (editedPlanta !== null) {
+        const oldPlanta = pedidoActivo.meca_planta || pedidoActivo.planta;
         pedidoActivo.meca_planta = editedPlanta;
         pedidoActivo.planta = editedPlanta;
+        // Si el cliente es Cargill y cambió la planta (ej: APS <-> APG), sincronizar automáticamente domicilio y localidad
+        if (String(pedidoActivo.cliente_nombre || '').toUpperCase().includes('CARGILL') && editedPlanta !== oldPlanta) {
+            const matchedCargill = (typeof window.resolveClienteCompleto === 'function')
+                ? window.resolveClienteCompleto('CARGILL SACI', editedPlanta)
+                : null;
+            if (matchedCargill) {
+                pedidoActivo.cliente_id = matchedCargill.codigo;
+                pedidoActivo.domicilio = matchedCargill.domicilio || '';
+                pedidoActivo.localidad = matchedCargill.localidad || '';
+                const authEditDom = document.getElementById('auth-edit-meca-domicilio');
+                if (authEditDom) authEditDom.value = (matchedCargill.domicilio || '').toUpperCase();
+                const authEditLoc = document.getElementById('auth-edit-meca-localidad');
+                if (authEditLoc) authEditLoc.value = (matchedCargill.localidad || '').toUpperCase();
+                const authEditCode = document.getElementById('auth-meca-cliente-codigo-val');
+                if (authEditCode) authEditCode.innerText = matchedCargill.codigo || '-';
+            }
+        }
     }
     if (getEditVal('auth-edit-meca-nro-oc') !== null) {
         const valOc = getEditVal('auth-edit-meca-nro-oc').trim();
@@ -11481,6 +11696,7 @@ window.guardarModificacionesPedido = function() {
         return sum + sub;
     }, 0);
     realOrder.meca_denominacion = pedidoActivo.meca_denominacion || pedidoActivo.motivo || '';
+    realOrder.cliente_id = pedidoActivo.cliente_id || realOrder.cliente_id || '';
     realOrder.cliente_nombre = pedidoActivo.cliente_nombre || '';
     realOrder.domicilio = pedidoActivo.domicilio || '';
     realOrder.localidad = pedidoActivo.localidad || '';
@@ -12080,9 +12296,11 @@ window.verDetallePedido = function(id, explicitMode) {
         return s;
     };
 
-    const rawClient = (typeof clientesDB !== 'undefined' && Array.isArray(clientesDB))
-        ? clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (p.cliente_nombre && c.nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
-        : null;
+    const clientInfo = (typeof window.resolveClienteCompleto === 'function')
+        ? window.resolveClienteCompleto(p)
+        : ((typeof clientesDB !== 'undefined' && Array.isArray(clientesDB))
+            ? clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (p.cliente_nombre && c.nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
+            : null);
 
     const formatDisplayDate = (val) => {
         if (!val || val === '-') return '-';
@@ -12103,13 +12321,27 @@ window.verDetallePedido = function(id, explicitMode) {
         return String(val);
     };
 
-    const rawCliCode = cleanVal(p.cliente_id, rawClient ? rawClient.codigo : '-');
-    const rawCliName = cleanVal(p.cliente_nombre, rawClient ? rawClient.nombre : '-').toUpperCase();
-    const rawCliDom = cleanVal(p.domicilio, rawClient ? rawClient.domicilio : '-').toUpperCase();
-    const rawCliLoc = cleanVal(p.localidad, rawClient ? rawClient.localidad : '-').toUpperCase();
-    const rawCliIva = cleanVal(p.condicion_iva, rawClient ? rawClient.condicion_iva : 'RESPONSABLE INSCRIPTO').toUpperCase();
-    const rawCliCuit = formatCuitDisplay(cleanVal(p.cuit, rawClient ? rawClient.cuit : '-'));
-    const rawCliCond = cleanConditionName(cleanVal(p.condicion_nombre, rawClient ? rawClient.condicion_nombre : (p.forma_pago || 'CONTADO'))).toUpperCase();
+    const rawCliCode = cleanVal(p.cliente_id, clientInfo ? clientInfo.codigo : '-');
+    const rawCliName = cleanVal(p.cliente_nombre, clientInfo ? clientInfo.nombre : '-').toUpperCase();
+
+    const cargillDoms = ['YRIGOYEN Y PUNTA QUBRACHO', 'SOLIS 822', 'LUIS RAUL MAZA 35'];
+    const pDomUp = String(p.domicilio || '').trim().toUpperCase();
+    const isCliCargill = rawCliName.includes('CARGILL');
+    let effectiveDom = p.domicilio;
+    let effectiveLoc = p.localidad;
+
+    if (!effectiveDom || effectiveDom === '-' || (!isCliCargill && cargillDoms.includes(pDomUp))) {
+        effectiveDom = clientInfo ? clientInfo.domicilio : '-';
+    }
+    if (!effectiveLoc || effectiveLoc === '-' || (!isCliCargill && cargillDoms.includes(pDomUp))) {
+        effectiveLoc = clientInfo ? clientInfo.localidad : '-';
+    }
+
+    const rawCliDom = cleanVal(effectiveDom, clientInfo ? clientInfo.domicilio : '-').toUpperCase();
+    const rawCliLoc = cleanVal(effectiveLoc, clientInfo ? clientInfo.localidad : '-').toUpperCase();
+    const rawCliIva = cleanVal(p.condicion_iva, clientInfo ? clientInfo.condicion_iva : 'RESPONSABLE INSCRIPTO').toUpperCase();
+    const rawCliCuit = formatCuitDisplay(cleanVal(p.cuit, clientInfo ? clientInfo.cuit : '-'));
+    const rawCliCond = cleanConditionName(cleanVal(p.condicion_nombre, clientInfo ? clientInfo.condicion_nombre : (p.forma_pago || 'CONTADO'))).toUpperCase();
     let parsedMo = p.oc_mano_obra || '';
     let parsedMat = p.oc_materiales || '';
     if (!parsedMo && !parsedMat && (p.meca_nro_oc || p.nro_oc)) {
@@ -12181,7 +12413,16 @@ window.verDetallePedido = function(id, explicitMode) {
         const optsPlanta = plantasList.map(pl => `<option value="${pl}" ${pl === rawPlanta ? 'selected' : ''}>${pl}</option>`).join('');
 
         if (canEditControls) {
-            setElemHtml('auth-meca-cliente-val', `<input type="text" id="auth-edit-meca-cliente" value="${rawCliName !== '-' ? rawCliName : ''}" oninput="saveTempEdits()" style="width: 100%; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold;">`);
+            setElemHtml('auth-meca-cliente-val', `
+                <div style="position: relative; display: flex; align-items: center; width: 100%;">
+                    <input type="text" id="auth-edit-meca-cliente" value="${rawCliName !== '-' ? rawCliName : ''}" 
+                           readonly 
+                           onclick="abrirRobotF6()" 
+                           title="Haga clic aquí o presione F6 para seleccionar cliente" 
+                           style="width: 100%; font-size: 11px; padding: 3px 26px 3px 6px; color: #0f172a; background: #fef08a; border: 1.5px solid #eab308; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                    <i class="fas fa-search" onclick="abrirRobotF6()" style="position: absolute; right: 7px; color: #b45309; cursor: pointer; font-size: 11px;" title="Buscar Cliente (F6)"></i>
+                </div>
+            `);
             setElemText('auth-meca-cliente-codigo-val', rawCliCode);
             setElemHtml('auth-meca-denominacion-val', `<input type="text" id="auth-edit-meca-denominacion" value="${rawDenom !== 'SERVICIOS Y MONTAJES' ? rawDenom : (p.meca_denominacion || p.denominacion || p.motivo || '')}" oninput="saveTempEdits()" style="width: 100%; font-size: 11px; padding: 3px 6px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; text-transform: uppercase;">`);
             setElemHtml('auth-meca-detalle-prop-val', `<textarea id="auth-edit-meca-propuesta" oninput="saveTempEdits()" style="width: 100%; font-size: 13px; padding: 4px 8px; color: #0f172a; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: bold; resize: vertical; line-height: 1.35;" rows="2">${p.meca_propuesta || p.propuesta || ''}</textarea>`);
@@ -13203,19 +13444,35 @@ window.imprimirPresupuestoModal = async function() {
                 if (el) el.innerText = (val !== null && val !== undefined && String(val).trim() !== '') ? String(val) : '-';
             };
 
-            const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
-                ? window.clientesDB.find(c => (c.codigo && pedidoActivo.cliente_id && String(c.codigo).trim() === String(pedidoActivo.cliente_id).trim()) || (c.nombre && pedidoActivo.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(pedidoActivo.cliente_nombre).trim().toUpperCase()))
-                : null;
+            const clientInfo = (typeof window.resolveClienteCompleto === 'function')
+                ? window.resolveClienteCompleto(pedidoActivo)
+                : ((typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
+                    ? window.clientesDB.find(c => (c.codigo && pedidoActivo.cliente_id && String(c.codigo).trim() === String(pedidoActivo.cliente_id).trim()) || (c.nombre && pedidoActivo.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(pedidoActivo.cliente_nombre).trim().toUpperCase()))
+                    : null);
 
-            const rawCliName = (pedidoActivo.cliente_nombre || (rawClient ? rawClient.nombre : '-') || '-').toUpperCase();
-            const rawCliCode = (pedidoActivo.cliente_id || (rawClient ? rawClient.codigo : '-') || '-');
-            const rawCliDom = ((pedidoActivo.domicilio && pedidoActivo.domicilio !== '-') ? pedidoActivo.domicilio : (rawClient && rawClient.domicilio ? rawClient.domicilio : '-')).toUpperCase();
-            const rawCliLoc = ((pedidoActivo.localidad && pedidoActivo.localidad !== '-') ? pedidoActivo.localidad : (rawClient && rawClient.localidad ? rawClient.localidad : '-')).toUpperCase();
-            const rawCliCuit = formatCuitDisplay(pedidoActivo.cuit || (rawClient ? rawClient.cuit : '-'));
+            const rawCliName = (pedidoActivo.cliente_nombre || (clientInfo ? clientInfo.nombre : '-') || '-').toUpperCase();
+            const rawCliCode = (pedidoActivo.cliente_id || (clientInfo ? clientInfo.codigo : '-') || '-');
+
+            const cargillDoms = ['YRIGOYEN Y PUNTA QUBRACHO', 'SOLIS 822', 'LUIS RAUL MAZA 35'];
+            const pDomUp = String(pedidoActivo.domicilio || '').trim().toUpperCase();
+            const isCliCargill = rawCliName.includes('CARGILL');
+
+            let effDom = pedidoActivo.domicilio;
+            let effLoc = pedidoActivo.localidad;
+            if (!effDom || effDom === '-' || (!isCliCargill && cargillDoms.includes(pDomUp))) {
+                effDom = clientInfo ? clientInfo.domicilio : '-';
+            }
+            if (!effLoc || effLoc === '-' || (!isCliCargill && cargillDoms.includes(pDomUp))) {
+                effLoc = clientInfo ? clientInfo.localidad : '-';
+            }
+
+            const rawCliDom = (effDom || (clientInfo ? clientInfo.domicilio : '-') || '-').toUpperCase();
+            const rawCliLoc = (effLoc || (clientInfo ? clientInfo.localidad : '-') || '-').toUpperCase();
+            const rawCliCuit = formatCuitDisplay(pedidoActivo.cuit || (clientInfo ? clientInfo.cuit : '-'));
             const rawCliEnt = (pedidoActivo.fecha_entrega || pedidoActivo.meca_fecha_fin || pedidoActivo.fecha || '-');
             const rawCliCond = cleanConditionName(pedidoActivo.condicion_nombre || pedidoActivo.forma_pago || 'CONTADO').toUpperCase();
             const rawNroPres = (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(pedidoActivo) : (pedidoActivo.id || '-'));
-            const rawPlanta = (pedidoActivo.meca_planta || pedidoActivo.planta || (rawClient && rawClient.localidad && rawClient.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
+            const rawPlanta = (pedidoActivo.meca_planta || pedidoActivo.planta || (clientInfo && clientInfo.localidad && clientInfo.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
 
             setCleanText('auth-meca-cliente-val', rawCliName);
             setCleanText('auth-meca-cliente-codigo-val', rawCliCode);
@@ -17238,6 +17495,13 @@ if (curPlanta === 'APA') curPlanta = 'APS';
             const formattedQty = (initialQty !== undefined && initialQty !== null && initialQty !== '' && initialQty > 0) ? Math.round(initialQty).toString() : '';
             const formattedPrice = (numItemPrice !== undefined && numItemPrice !== null) ? numItemPrice.toString().replace(/\./g, ',') : '0';
 
+            const isCustomItem = (typeof window.isMecanicoItemCustom === 'function')
+                ? window.isMecanicoItemCustom(item)
+                : Boolean(item.is_custom || item.isCustom);
+            const removeBtnHtml = (isCustomItem && isEditable)
+                ? `<button type="button" onclick="event.stopPropagation(); window.eliminarItemDelTarifario('${item.codigo}')" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 4px; color: #ef4444; font-size: 11px; font-weight: 900; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.15s ease;" title="Eliminar ítem nuevo cargado del tarifario">✕</button>`
+                : '';
+
             html += `
                 <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06); background: rgba(255, 255, 255, 0.02); cursor: pointer;"
                     onclick="const inp=this.querySelector('.meca-excel-input'); if(inp && document.activeElement!==inp && !event.target.closest('button') && !event.target.closest('input')){ inp.focus(); inp.select(); }">
@@ -17245,7 +17509,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px; font-weight: 600; color: #ffffff !important; font-size: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                             <span>${item.detalle}</span>
-                            <button type="button" onclick="event.stopPropagation(); window.eliminarItemDelTarifario('${item.codigo}')" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 4px; color: #ef4444; font-size: 11px; font-weight: 900; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.15s ease;" title="Eliminar ítem del tarifario">✕</button>
+                            ${removeBtnHtml}
                         </div>
                     </td>
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 6px; text-align: center;">
@@ -19323,15 +19587,31 @@ window.generarPDFAvanceProyectoHistorico = function(id, certIndex) {
 
 
 window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliName, logoSrc, nowStr) {
-    const rawClient = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
-        ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && (c.nombre === p.cliente_nombre || c.nombre === cliName || String(c.nombre).trim().toUpperCase() === String(cliName || '').trim().toUpperCase() || String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre || '').trim().toUpperCase())))
-        : null;
+    const clientInfo = (typeof window.resolveClienteCompleto === 'function')
+        ? window.resolveClienteCompleto(p, p.meca_planta || p.planta)
+        : ((typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
+            ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && (c.nombre === p.cliente_nombre || c.nombre === cliName || String(c.nombre).trim().toUpperCase() === String(cliName || '').trim().toUpperCase() || String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre || '').trim().toUpperCase())))
+            : null);
+
+    const cliResolvedName = (p.cliente_nombre || cliName || (clientInfo ? clientInfo.nombre : '') || 'CARGILL SACI').toUpperCase();
+    const isCliCargill = cliResolvedName.includes('CARGILL');
+    const cargillDoms = ['YRIGOYEN Y PUNTA QUBRACHO', 'SOLIS 822', 'LUIS RAUL MAZA 35'];
+    const pDomUp = String(p.domicilio || '').trim().toUpperCase();
+
+    let effDom = p.domicilio;
+    let effLoc = p.localidad;
+    if (!effDom || effDom === '-' || (!isCliCargill && cargillDoms.includes(pDomUp))) {
+        effDom = clientInfo ? clientInfo.domicilio : '-';
+    }
+    if (!effLoc || effLoc === '-' || (!isCliCargill && cargillDoms.includes(pDomUp))) {
+        effLoc = clientInfo ? clientInfo.localidad : '-';
+    }
 
     const fechaEmision = p.fecha || nowStr;
     const hora = "10:36:51";
-    const cuitCli = (p.cuit && p.cuit !== '-' && p.cuit.trim() !== '')
+    const cuitCli = (p.cuit && p.cuit !== '-' && p.cuit.trim() !== '' && (!isCliCargill ? !p.cuit.includes('50679216') : true))
         ? p.cuit
-        : (rawClient && rawClient.cuit ? rawClient.cuit : "30-50679216-5");
+        : (clientInfo && clientInfo.cuit ? clientInfo.cuit : "30-50679216-5");
     const oc = p.nro_oc || p.meca_nro_oc || "-";
     let entrega = p.fecha_entrega || p.meca_fecha_fin || "2026-10-14";
     if (entrega && typeof entrega === 'string') {
@@ -19341,17 +19621,17 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
             entrega = `${parts[2]}/${parts[1]}/${parts[0]}`;
         }
     }
-    const domicilio = (p.domicilio && p.domicilio !== '-' && p.domicilio.trim() !== '')
-        ? p.domicilio.trim().toUpperCase()
-        : (rawClient && rawClient.domicilio ? rawClient.domicilio.trim().toUpperCase() : "-");
+    const domicilio = (effDom && effDom !== '-' && effDom.trim() !== '')
+        ? effDom.trim().toUpperCase()
+        : (clientInfo && clientInfo.domicilio ? clientInfo.domicilio.trim().toUpperCase() : "-");
     const condicion = cleanConditionName(p.condicion_nombre || p.condicion_venta || p.forma_pago || "CONTADO").toUpperCase();
-    const planta = (p.meca_planta || p.planta || (rawClient && rawClient.localidad && rawClient.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
+    const planta = (p.meca_planta || p.planta || (clientInfo && clientInfo.localidad && clientInfo.localidad.toUpperCase().includes('SAN MARTIN') ? 'PGSM' : 'VGG')).toUpperCase();
     const numOt = p.meca_nro_ot || p.nro_ot || "-";
-    const localidad = (p.localidad && p.localidad !== '-' && p.localidad.trim() !== '')
-        ? p.localidad.trim().toUpperCase()
-        : (rawClient && rawClient.localidad ? rawClient.localidad.trim().toUpperCase() : "-");
+    const localidad = (effLoc && effLoc !== '-' && effLoc.trim() !== '')
+        ? effLoc.trim().toUpperCase()
+        : (clientInfo && clientInfo.localidad ? clientInfo.localidad.trim().toUpperCase() : "-");
     const detalle = p.meca_denominacion || p.motivo || p.denominacion || "-";
-    const codCliente = p.cliente_id || (rawClient ? rawClient.codigo : "2");
+    const codCliente = p.cliente_id || (clientInfo ? clientInfo.codigo : (isCliCargill ? "2" : "1"));
 
     // Propuesta tecnica
     const propTecnica = p.meca_propuesta || p.propuesta || detalle || "-";
@@ -19504,6 +19784,27 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
         grandTotalPdfDisplay = `$${(laborTotalARS > 0 ? laborTotalARS : computedGrandTotal).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     }
 
+    const estItemCount = (items && Array.isArray(items)) ? items.length : 0;
+    const numPages = (estItemCount > 15) ? (1 + Math.ceil((estItemCount - 15) / 24)) : 1;
+
+    let watermarksHtml = '';
+    if (numPages <= 1) {
+        watermarksHtml = `
+            <div class="watermark-bg-print" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 440px; max-width: 82%; opacity: ${_isAcosta ? '0.34' : '0.60'}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                <img src="${_activeWatermark}" alt="Marca de agua" style="width: 100%; height: auto; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; ${_isAcosta ? 'filter: contrast(1.1);' : 'filter: contrast(1.15) saturate(1.15);'}">
+            </div>
+        `;
+    } else {
+        for (let pIdx = 0; pIdx < numPages; pIdx++) {
+            const topPx = (pIdx === 0) ? 655 : (1020 * pIdx + 510);
+            watermarksHtml += `
+                <div class="watermark-bg-print watermark-page-${pIdx}" style="position: absolute; top: ${topPx}px; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 440px; max-width: 82%; opacity: ${_isAcosta ? '0.34' : '0.60'}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                    <img src="${_activeWatermark}" alt="Marca de agua" style="width: 100%; height: auto; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; ${_isAcosta ? 'filter: contrast(1.1);' : 'filter: contrast(1.15) saturate(1.15);'}">
+                </div>
+            `;
+        }
+    }
+
     const htmlContent = `
         <div id="pdf-wrapper-download" style="box-sizing: border-box; width: 715px; min-width: 715px; max-width: 715px; padding: 4px 8px; font-family: Arial, Helvetica, sans-serif; background: #ffffff; color: #000000; margin: 0 auto; position: relative;">
             <style>
@@ -19555,16 +19856,21 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     .items-table-container {
                         position: relative !important;
                     }
-                    .watermark-bg-print {
-                        position: absolute !important;
-                        top: 50% !important;
+                    #pdf-wrapper-download .watermark-bg-print {
+                        display: none !important;
+                    }
+                    #pdf-wrapper-download .watermark-bg-print:first-of-type {
+                        display: flex !important;
+                        position: fixed !important;
+                        top: 52% !important;
                         left: 50% !important;
                         transform: translate(-50%, -50%) rotate(-25deg) !important;
                         z-index: 0 !important;
-                        display: flex !important;
                     }
                 }
             </style>
+
+            ${numPages > 1 ? watermarksHtml : ''}
 
             <div style="position: relative; z-index: 1;">
 
@@ -19667,9 +19973,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 
                 <!-- Items Table (con fondo transparente sobre Marca de Agua Centrada en Productos) -->
                 <div class="items-table-container" style="position: relative; margin-bottom: 4px;">
-                    <div class="watermark-bg-print" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 440px; max-width: 82%; opacity: ${_isAcosta ? '0.34' : '0.60'}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                        <img src="${_activeWatermark}" alt="Marca de agua" style="width: 100%; height: auto; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; ${_isAcosta ? 'filter: contrast(1.1);' : 'filter: contrast(1.15) saturate(1.15);'}">
-                    </div>
+                    ${numPages <= 1 ? watermarksHtml : ''}
                     <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000; position: relative; z-index: 1; background: transparent; table-layout: fixed;">
                         <thead style="font-size: 9.5px; background: transparent;">
                             <tr style="border-bottom: 1.5px solid #000; background: transparent; page-break-inside: avoid !important; break-inside: avoid !important;">
@@ -21576,7 +21880,8 @@ window.confirmarNuevoItemTarifario = function() {
             subtotal_usd: isUSD ? (cantidad * precio) : null,
             subrubro: subrubro,
             stock: 999,
-            planta: curPlanta || ''
+            planta: curPlanta || '',
+            is_custom: true
         };
 
         // Agregar al catálogo activo en memoria sin duplicar referencias ni variantes redundantes
@@ -21643,7 +21948,8 @@ window.confirmarNuevoItemTarifario = function() {
                     cantidad: cantidad,
                     subtotal: subtotalPesos,
                     subtotal_usd: isUSD ? (cantidad * precio) : null,
-                    subrubro: newItem.subrubro
+                    subrubro: newItem.subrubro,
+                    is_custom: true
                 });
             }
         }
@@ -21860,7 +22166,13 @@ window.deleteStockItem = function(codigo) {
 
 
 window.eliminarItemDelTarifario = function(code) {
-    if (!confirm('¿Seguro que desea eliminar el ítem ' + code + ' del tarifario?')) return;
+    if (typeof window.isMecanicoItemBase === 'function' && window.isMecanicoItemBase(code)) {
+        if (typeof showToast === 'function') {
+            showToast('Los ítems base del tarifario mecánico están protegidos y no pueden ser eliminados.', 'warning');
+        }
+        return;
+    }
+    if (!confirm('¿Seguro que desea eliminar el ítem nuevo ' + code + ' del tarifario?')) return;
 
     // 1. Eliminar visualmente del DOM en el acto (feedback instantáneo en pantalla)
     document.querySelectorAll(`.meca-excel-input[data-code="${code}"]`).forEach(el => {
@@ -22001,6 +22313,17 @@ window.recalcularPreciosPorPlanta = function() {
     if (typeof window.calcularTotalesPresupuesto === 'function') {
         window.calcularTotalesPresupuesto();
     }
+
+    // Si el cliente actual es Cargill, sincronizar su código según la planta cambiada (APS->2, APG->3)
+    const reqMecaCli = document.getElementById('req-meca-cliente');
+    if (reqMecaCli && String(reqMecaCli.value || '').toUpperCase().includes('CARGILL')) {
+        const info = (typeof window.resolveClienteCompleto === 'function')
+            ? window.resolveClienteCompleto(reqMecaCli.value, curPlanta)
+            : null;
+        if (info && info.codigo) {
+            reqMecaCli.dataset.codigo = info.codigo;
+        }
+    }
 };
 
 // ====================================================================
@@ -22009,7 +22332,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '514';
+window.CURRENT_APP_VERSION = '519';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
