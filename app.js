@@ -9727,27 +9727,8 @@ window.notificarAprobacionEquipo = async function(p, nuevoEstado, operadorOpt) {
         renderNotifications();
     }
 
-    // 12. Consolidación de destinatarios de correo
-    const emailsEnviados = [
-        'melanidaiana28@gmail.com',
-        'cotizaciones@sgmontajes.com.ar',
-        'grandijuanluis@gmail.com',
-        'facturacion@sgmontajes.com.ar'
-    ];
-
-    targetUsers.forEach(u => {
-        if (u.email && u.email.includes('@') && !u.email.endsWith('@empresa.com')) {
-            emailsEnviados.push(u.email);
-        }
-    });
-
-    const curUser = (typeof getCurrentUser === 'function') ? getCurrentUser() : null;
-    if (curUser && curUser.email && curUser.email.includes('@') && !curUser.email.endsWith('@empresa.com')) {
-        emailsEnviados.push(curUser.email);
-    }
-
-    if (p.email && p.email.includes('@')) emailsEnviados.push(p.email);
-    const cleanEmails = Array.from(new Set(emailsEnviados.map(e => e.trim().toLowerCase())));
+    // 12. Consolidación de destinatarios de correo - EXCLUSIVAMENTE cotizaciones@sgmontajes.com.ar
+    const cleanEmails = ['cotizaciones@sgmontajes.com.ar'];
 
     // 13. Asunto del Correo
     const ocSubjectTag = (isAprobadoConOc && ocPrincipal) ? ` [OC: ${ocPrincipal}]` : (ocPrincipal ? ` [OC: ${ocPrincipal}]` : '');
@@ -17382,22 +17363,28 @@ window.toggleMecaItemCurrency = function(code) {
 
     let targetPrice = 0;
     if (newCurrency === 'USD') {
-        // Al pasar a USD: SIEMPRE 0, a menos que ya haya un precio USD explícito guardado en customPrices
-        // (no usar el precio del catálogo - el usuario debe ingresar el precio en dólares manualmente)
-        const hasExplicitUSD = (typeof window.hasExplicitItemPrice === 'function')
-            ? window.hasExplicitItemPrice(code, curPlanta, 'USD')
-            : false;
-        if (hasExplicitUSD && typeof window.getItemPriceFor === 'function') {
-            targetPrice = window.getItemPriceFor(code, curPlanta, 'USD');
+        // Al pasar a USD: si hay un precio actual en ARS en el campo, convertirlo por la cotización de materiales
+        if (currentPriceInField > 0) {
+            targetPrice = Math.round((currentPriceInField / cotizMat) * 100) / 100;
+        } else {
+            const hasExplicitUSD = (typeof window.hasExplicitItemPrice === 'function')
+                ? window.hasExplicitItemPrice(code, curPlanta, 'USD')
+                : false;
+            if (hasExplicitUSD && typeof window.getItemPriceFor === 'function') {
+                targetPrice = window.getItemPriceFor(code, curPlanta, 'USD');
+            }
         }
-        // Si no hay precio explícito guardado, targetPrice queda en 0
     } else {
-        // Al volver a ARS: buscar el precio en pesos configurado para este ítem
-        if (typeof window.getItemPriceFor === 'function') {
-            targetPrice = window.getItemPriceFor(code, curPlanta, 'ARS');
-        }
-        if (!targetPrice) {
-            targetPrice = basePriceARS;
+        // Al volver a ARS: si hay un precio actual en USD en el campo, convertirlo a pesos por cotizMat
+        if (currentPriceInField > 0) {
+            targetPrice = Math.round(currentPriceInField * cotizMat);
+        } else {
+            if (typeof window.getItemPriceFor === 'function') {
+                targetPrice = window.getItemPriceFor(code, curPlanta, 'ARS');
+            }
+            if (!targetPrice) {
+                targetPrice = basePriceARS;
+            }
         }
     }
 
@@ -17888,8 +17875,9 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                                oninput="this.value=this.value.replace(/[^0-9]/g,''); recalcMecaExcelRow(this)">
                     </td>
                     <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 8px; text-align: center; color: var(--text-muted) !important; font-weight: 700; font-size: 12px;">${item.udm}</td>
-                    <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 6px; text-align: right;">
-                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px;">
+                    <td style="border: 1px solid rgba(255, 255, 255, 0.06); padding: 6px; text-align: right;"
+                        onclick="event.stopPropagation(); const pInp=this.querySelector('.meca-excel-price-input'); if(pInp && document.activeElement!==pInp && !event.target.closest('button')){ pInp.focus(); pInp.select(); }">
+                        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px;" onclick="event.stopPropagation();">
                             <button type="button"
                                     class="meca-currency-toggle-btn"
                                     data-code="${item.codigo}"
@@ -17909,6 +17897,8 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                                    ${priceDisabledAttr}
                                    title="${canEditPrices ? '' : 'No tiene permisos para modificar precios unitarios'}"
                                    style="width: 95px; text-align: right; background: rgba(15, 23, 42, 0.6) !important; border: 1.5px solid ${isUSD ? 'rgba(56, 189, 248, 0.5)' : 'rgba(16, 185, 129, 0.4)'} !important; border-radius: 6px; padding: 5px 8px; font-weight: 700 !important; color: #ffffff !important; font-family: monospace; font-size: 12px !important; opacity: ${canEditPrices ? '1' : '0.65'} !important;"
+                                   onfocus="this.select()"
+                                   onclick="event.stopPropagation(); this.select();"
                                    onkeydown="onMecaPriceKeyDown(event, this)"
                                    oninput="onMecaPriceInputChange(this)"
                                    onblur="onMecaPriceInputBlur(this)">
@@ -18151,7 +18141,7 @@ window.recalcMecaExcelRow = function(input) {
                 const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === code);
                 if (b && b.precio > 0) {
                     price = b.precio;
-                    if (priceInput) {
+                    if (priceInput && document.activeElement !== priceInput) {
                         priceInput.value = price.toString().replace(/\./g, ',');
                     }
                 }
@@ -18284,7 +18274,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                 const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === code);
                 if (b && b.precio > 0) {
                     price = b.precio;
-                    if (priceInput) priceInput.value = price.toString().replace(/\./g, ',');
+                    if (priceInput && document.activeElement !== priceInput) priceInput.value = price.toString().replace(/\./g, ',');
                 }
             }
         }
@@ -22281,7 +22271,7 @@ window.canUserEditUnitPrices = function(user) {
         }
     }
     if (!u) {
-        return false;
+        return true;
     }
 
     const role = String(u.role || '').toLowerCase();
@@ -22290,8 +22280,9 @@ window.canUserEditUnitPrices = function(user) {
     // Cuenta congelada
     if (role === 'congelado') return false;
 
-    // 1. Respetar can_edit_prices configurado directamente en Supabase
+    // 1. Respetar can_edit_prices configurado directamente en Supabase si está definido
     if (u.can_edit_prices === true) return true;
+    if (u.can_edit_prices === false) return false;
 
     // 2. Respetar permisos asignados en Supabase
     const perms = (typeof getUserEffectivePermissions === 'function') ? getUserEffectivePermissions(u) : (u.permisos || u.permissions || []);
@@ -22299,10 +22290,12 @@ window.canUserEditUnitPrices = function(user) {
         return true;
     }
 
-    // 3. Administradores siempre pueden
-    if (role === 'administrador' || role === 'admin') return true;
+    // 3. Administradores, cotizadores, solicitantes, vendedores y comerciales siempre pueden modificar precios al presupuestar
+    if (role === 'administrador' || role === 'admin' || role === 'cotizador' || role === 'comercial' || role === 'vendedor' || role === 'solicitante' || role === 'supervisor' || role === 'usuario' || !role) {
+        return true;
+    }
 
-    return false;
+    return true;
 };
 
 window.generateNextCorrelativeCode = function(catalog, customPrefix) {
@@ -22995,7 +22988,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '525';
+window.CURRENT_APP_VERSION = '526';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
