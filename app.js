@@ -747,12 +747,35 @@ function normalizePresupuestosRubro(pedidos) {
     return pedidos;
 }
 
-// Inicialización persistente de selector de moneda por ítem
+// Inicialización persistente de selector de moneda por ítem (con saneamiento de claves contaminadas)
 try {
-    window._itemExplicitCurrency = JSON.parse(localStorage.getItem('PRESUPUESTO_ITEM_EXPLICIT_CURRENCY') || '{}');
+    const rawExplicit = localStorage.getItem('PRESUPUESTO_ITEM_EXPLICIT_CURRENCY');
+    const parsedExplicit = rawExplicit ? JSON.parse(rawExplicit) : {};
+    if (parsedExplicit['MEC-001'] === 'USD') delete parsedExplicit['MEC-001'];
+    if (parsedExplicit['MEC-002'] === 'USD') delete parsedExplicit['MEC-002'];
+    window._itemExplicitCurrency = parsedExplicit;
+    localStorage.setItem('PRESUPUESTO_ITEM_EXPLICIT_CURRENCY', JSON.stringify(parsedExplicit));
 } catch(e) {
     window._itemExplicitCurrency = {};
 }
+
+// Saneamiento de precios corruptos por conversión dividida en ARS (ej: 57.92 en lugar de 83.983)
+try {
+    const rawCustom = localStorage.getItem('PRESUPUESTO_CUSTOM_PRICES');
+    if (rawCustom) {
+        const parsedCustom = JSON.parse(rawCustom);
+        let modCustom = false;
+        ['MEC-001', 'MEC-001_APS', 'MEC-001_APS_ARS', 'MEC-001_ARS'].forEach(k => {
+            if (parsedCustom[k] && parseFloat(parsedCustom[k]) > 0 && parseFloat(parsedCustom[k]) < 500) {
+                delete parsedCustom[k];
+                modCustom = true;
+            }
+        });
+        if (modCustom) {
+            localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(parsedCustom));
+        }
+    }
+} catch(e) {}
 
 // Persistencia local robusta de ítems con sus monedas (U$D / $) para evitar que se pasen a pesos al refrescar
 window.savePresupuestoItemsCache = function(pid, items) {
@@ -2362,10 +2385,13 @@ function initSupabaseSync(callback) {
                              }
                              console.log("⚡ Tarifario actualizado en vivo desde Supabase:", item.codigo, "$" + nPrice);
 
-                             // Si el usuario está en la grilla de presupuesto mecánico y no está tipeando activamente, actualizar la grilla
+                             // Si el usuario está en la grilla de presupuesto y no está interactuando/editando
                              const mecaGrid = document.getElementById('req-mecanico-step2-container');
-                             const isTypingNow = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
-                             if (mecaGrid && mecaGrid.children.length > 0 && !isTypingNow && typeof window.renderMecanicoExcelGrid === 'function') {
+                             const authMeca = document.getElementById('auth-mecanico-excel-container');
+                             const isModalOpen = authMeca && authMeca.offsetParent !== null;
+                             const isTypingNow = document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'SELECT');
+                             const hasActiveDraft = Array.isArray(window.pedidoItems) && window.pedidoItems.some(it => it && it.cantidad > 0);
+                             if (mecaGrid && mecaGrid.children.length > 0 && !isTypingNow && !isModalOpen && !hasActiveDraft && typeof window.renderMecanicoExcelGrid === 'function') {
                                  window.renderMecanicoExcelGrid();
                              }
                         }
@@ -3554,8 +3580,14 @@ window.parseArgNumber = function(val) {
             // Múltiples comas, ej: 1,500,000 -> separadores de miles
             str = str.replace(/,/g, '');
         } else {
-            // Una sola coma: separador decimal
-            str = str.replace(',', '.');
+            const parts = str.split(',');
+            // Si la parte tras la coma tiene EXACTAMENTE 3 dígitos (ej: 75,000 o 15,550): separador de miles
+            if (parts[1] && parts[1].length === 3 && parseInt(parts[0], 10) > 0) {
+                str = parts[0] + parts[1];
+            } else {
+                // Separador decimal (ej: 1250,50 o 15,5)
+                str = str.replace(',', '.');
+            }
         }
         const num = parseFloat(str);
         return isNaN(num) ? 0 : num;
@@ -4218,17 +4250,22 @@ window.getItemPriceFor = function(codigo, planta, moneda) {
         }
     }
 
-    // 1. Clave exacta: CODIGO_PLANTA_MONEDA (ej: MEC-001_APS_USD o MEC-001_APS_ARS)
-    if (p && customPrices[`${codigo}_${p}_${m}`] !== undefined) {
-        return parseFloat(customPrices[`${codigo}_${p}_${m}`]) || 0;
-    }
-    // 2. Clave por moneda genérica (sin planta): CODIGO_MONEDA (ej: MEC-001_USD o MEC-001_ARS)
-    if (customPrices[`${codigo}_${m}`] !== undefined) {
-        return parseFloat(customPrices[`${codigo}_${m}`]) || 0;
-    }
-
-    // Si la moneda solicitada es USD y no hay un precio explícito cargado en USD, DEBE SER 0
+    // Si la moneda solicitada es USD
     if (m === 'USD') {
+        let candidateUsd = undefined;
+        if (p && customPrices[`${codigo}_${p}_USD`] !== undefined) {
+            candidateUsd = parseFloat(customPrices[`${codigo}_${p}_USD`]);
+        } else if (customPrices[`${codigo}_USD`] !== undefined) {
+            candidateUsd = parseFloat(customPrices[`${codigo}_USD`]);
+        }
+        if (candidateUsd !== undefined && !isNaN(candidateUsd) && candidateUsd > 0) {
+            // Protección: si el precio guardado en USD es excesivamente alto (> 5000) para un ítem, probablemente fue guardado en pesos
+            if (candidateUsd > 5000) {
+                return Math.round((candidateUsd / cotizMat) * 100) / 100;
+            }
+            return candidateUsd;
+        }
+
         const cat = (typeof getActiveStockCatalog === 'function') ? getActiveStockCatalog() : [];
         if (p) {
             const plantItem = cat.find(x => x && x.codigo === codigo && (x.planta || '').trim().toUpperCase() === p && (x.moneda || '').toUpperCase() === 'USD');
@@ -4244,38 +4281,48 @@ window.getItemPriceFor = function(codigo, planta, moneda) {
     }
 
     // Para ARS:
-    // Clave por planta legacy: CODIGO_PLANTA (ej: MEC-001_APS)
-    if (p && customPrices[`${codigo}_${p}`] !== undefined) {
-        return parseFloat(customPrices[`${codigo}_${p}`]) || 0;
-    }
-    // Clave genérica legacy: CODIGO (ej: MEC-001)
-    if (customPrices[codigo] !== undefined) {
-        return parseFloat(customPrices[codigo]) || 0;
+    let candidateArs = undefined;
+    if (p && customPrices[`${codigo}_${p}_ARS`] !== undefined) {
+        candidateArs = parseFloat(customPrices[`${codigo}_${p}_ARS`]);
+    } else if (customPrices[`${codigo}_ARS`] !== undefined) {
+        candidateArs = parseFloat(customPrices[`${codigo}_ARS`]);
+    } else if (p && customPrices[`${codigo}_${p}`] !== undefined) {
+        candidateArs = parseFloat(customPrices[`${codigo}_${p}`]);
+    } else if (customPrices[codigo] !== undefined) {
+        candidateArs = parseFloat(customPrices[codigo]);
     }
 
-    // Buscar en catálogo en memoria para esta planta específica 'p'
+    // Obtener precio base de catálogo para contrastar
     const cat = (typeof getActiveStockCatalog === 'function') ? getActiveStockCatalog() : [];
+    let baseRefArs = 0;
     if (p) {
         const plantItem = cat.find(x => x && x.codigo === codigo && (x.planta || '').trim().toUpperCase() === p);
         if (plantItem) {
-            if (plantItem.precio_ars && parseFloat(plantItem.precio_ars) > 0) return parseFloat(plantItem.precio_ars);
-            const rawP = parseFloat(plantItem.precio !== undefined ? plantItem.precio : (plantItem.precio_unitario || 0)) || 0;
-            const itemMoneda = (plantItem.moneda || 'ARS').toUpperCase();
-            if (itemMoneda === 'ARS' || !itemMoneda) return rawP;
-            if (itemMoneda === 'USD') return Math.round(rawP * cotizMat);
-            return rawP;
+            baseRefArs = parseFloat(plantItem.precio_ars || plantItem.precio || plantItem.precio_unitario || 0) || 0;
         }
     }
+    if (!baseRefArs) {
+        const genItem = cat.find(x => x && x.codigo === codigo && !(x.planta || '').trim()) || cat.find(x => x && x.codigo === codigo);
+        if (genItem) {
+            baseRefArs = parseFloat(genItem.precio_ars || genItem.precio || genItem.precio_unitario || 0) || 0;
+        }
+    }
+    if (!baseRefArs && typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
+        const stockMec = PRESUPUESTO_MECANICO_STOCK.find(x => x && x.codigo === codigo);
+        if (stockMec) baseRefArs = parseFloat(stockMec.precio || 0) || 0;
+    }
 
-    // Buscar en catálogo en memoria genérico (sin planta)
-    const genItem = cat.find(x => x && x.codigo === codigo && !(x.planta || '').trim()) || cat.find(x => x && x.codigo === codigo);
-    if (genItem) {
-        if (genItem.precio_ars && parseFloat(genItem.precio_ars) > 0) return parseFloat(genItem.precio_ars);
-        const rawP = parseFloat(genItem.precio !== undefined ? genItem.precio : (genItem.precio_unitario || 0)) || 0;
-        const itemMoneda = (genItem.moneda || 'ARS').toUpperCase();
-        if (itemMoneda === 'ARS' || !itemMoneda) return rawP;
-        if (itemMoneda === 'USD') return Math.round(rawP * cotizMat);
-        return rawP;
+    if (candidateArs !== undefined && !isNaN(candidateArs) && candidateArs > 0) {
+        // Protección contra contaminación USD -> ARS: Si candidateArs < 500 y el precio oficial supera 5000 (ej: 57.92 vs 83.983)
+        if (candidateArs < 500 && baseRefArs > 5000) {
+            return baseRefArs;
+        }
+        return candidateArs;
+    }
+
+    // Si no hay precio en customPrices, devolver el precio base de catálogo
+    if (baseRefArs > 0) {
+        return baseRefArs;
     }
 
     return 0;
@@ -12398,6 +12445,14 @@ window.verDetallePedido = function(id, explicitMode) {
     reqTipoPresupuesto = (p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'));
     if (isEditingAllowed) {
         pedidoItems = JSON.parse(JSON.stringify(p.items || []));
+        window._itemExplicitCurrency = {};
+        if (Array.isArray(pedidoItems)) {
+            pedidoItems.forEach(it => {
+                if (it && it.codigo && it.moneda) {
+                    window._itemExplicitCurrency[it.codigo] = (String(it.moneda).toUpperCase() === 'USD' || String(it.moneda).toUpperCase() === 'U$D') ? 'USD' : 'ARS';
+                }
+            });
+        }
     }
 
     openModal('tpl-modal-auth');
@@ -12411,6 +12466,12 @@ window.verDetallePedido = function(id, explicitMode) {
                     window.pedidoActivo.items = directItems;
                     if (isEditingAllowed) {
                         window.pedidoItems = JSON.parse(JSON.stringify(directItems));
+                        window._itemExplicitCurrency = {};
+                        directItems.forEach(it => {
+                            if (it && it.codigo && it.moneda) {
+                                window._itemExplicitCurrency[it.codigo] = (String(it.moneda).toUpperCase() === 'USD' || String(it.moneda).toUpperCase() === 'U$D') ? 'USD' : 'ARS';
+                            }
+                        });
                     }
                     if (typeof window.renderModalReportTable === 'function') {
                         const curMode = (explicitMode === 'editar' || explicitMode === 'detallado_edit') ? 'detallado_edit' : (window.pedidoActivo.tipo_reporte || 'detallado');
@@ -17374,6 +17435,9 @@ window.toggleMecaItemCurrency = function(code) {
                 targetPrice = window.getItemPriceFor(code, curPlanta, 'USD');
             }
         }
+        if (targetPrice > 5000) {
+            targetPrice = Math.round((targetPrice / cotizMat) * 100) / 100;
+        }
     } else {
         // Al volver a ARS: si hay un precio actual en USD en el campo, convertirlo a pesos por cotizMat
         if (currentPriceInField > 0) {
@@ -17385,6 +17449,9 @@ window.toggleMecaItemCurrency = function(code) {
             if (!targetPrice) {
                 targetPrice = basePriceARS;
             }
+        }
+        if (targetPrice < 500 && basePriceARS > 5000) {
+            targetPrice = basePriceARS;
         }
     }
 
@@ -17568,16 +17635,35 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         });
     }
 
-    // Find first visible tab index
-    let firstVisibleTab = -1;
-    sections.forEach((sec, idx) => {
-        if (sec.items.length > 0 && firstVisibleTab === -1) {
-            firstVisibleTab = idx;
-        }
-    });
+    // Auto-detectar la pestaña que contiene los ítems cargados en el presupuesto (para abrir directamente allí al editar)
+    let tabWithItems = -1;
+    if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+        sections.forEach((sec, idx) => {
+            if (tabWithItems === -1 && sec.items && sec.items.length > 0) {
+                const hasExistingItem = sec.items.some(it => {
+                    const found = pedidoItems.find(pi => pi && pi.codigo === it.codigo);
+                    return found && (parseFloat(found.cantidad) || 0) > 0;
+                });
+                if (hasExistingItem) {
+                    tabWithItems = idx;
+                }
+            }
+        });
+    }
 
-    if (firstVisibleTab !== -1 && (window.activeMecaTab === -1 || !sections[window.activeMecaTab] || sections[window.activeMecaTab].items.length === 0)) {
-        window.activeMecaTab = firstVisibleTab;
+    if (tabWithItems !== -1) {
+        window.activeMecaTab = tabWithItems;
+    } else {
+        // Find first visible tab index
+        let firstVisibleTab = -1;
+        sections.forEach((sec, idx) => {
+            if (sec.items.length > 0 && firstVisibleTab === -1) {
+                firstVisibleTab = idx;
+            }
+        });
+        if (firstVisibleTab !== -1 && (window.activeMecaTab === -1 || !sections[window.activeMecaTab] || sections[window.activeMecaTab].items.length === 0)) {
+            window.activeMecaTab = firstVisibleTab;
+        }
     }
 
     let html = `
@@ -17593,14 +17679,14 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                             <i class="fas fa-dollar-sign"></i> Cotiz. U$D (Solo Mat):
                         </span>
                         <input type="text"
-                               id="grid-cotizacion-materiales"
-                               inputmode="decimal"
-                               value="${(window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450).toString().replace(/\./g, ',')}"
-                               ${isEditable ? '' : 'disabled'}
-                               onkeydown="onMecaPriceKeyDown(event, this)"
-                               oninput="window.onGridCotizacionMaterialesChange ? window.onGridCotizacionMaterialesChange(this) : null"
-                               style="width: 85px; text-align: right; background: rgba(0,0,0,0.45); border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 4px; color: #38bdf8; font-family: monospace; font-weight: 900; font-size: 12px; padding: 3px 6px;"
-                               title="Cotización oficial aplicada EXCLUSIVAMENTE a Materiales y Equipos">
+                                id="grid-cotizacion-materiales"
+                                inputmode="decimal"
+                                value="${(window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450).toString().replace(/\./g, ',')}"
+                                ${isEditable ? '' : 'disabled'}
+                                onkeydown="onMecaPriceKeyDown(event, this)"
+                                oninput="window.onGridCotizacionMaterialesChange ? window.onGridCotizacionMaterialesChange(this) : null"
+                                style="width: 85px; text-align: right; background: rgba(0,0,0,0.45); border: 1px solid rgba(56, 189, 248, 0.6); border-radius: 4px; color: #38bdf8; font-family: monospace; font-weight: 900; font-size: 12px; padding: 3px 6px;"
+                                title="Cotización oficial aplicada EXCLUSIVAMENTE a Materiales y Equipos">
                     </div>
                     <button type="button" class="btn btn-sm" onclick="abrirModalNuevoItemTarifario()" style="background: #10b981; color: white; border: 1px solid #059669; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" title="Agregar nuevo ítem al tarifario en orden correlativo">
                         <i class="fas fa-plus-circle"></i> Agregar Ítem al Tarifario
@@ -17681,11 +17767,15 @@ if (curPlanta === 'APA') curPlanta = 'APS';
 
             // Moneda individual de este ítem (USD o ARS)
             let isUSD = false;
-            if (window._itemExplicitCurrency && window._itemExplicitCurrency[item.codigo]) {
+            if (existing && existing.moneda) {
+                // 1. PRIORIDAD SUPREMA: Moneda del ítem ya registrado en este presupuesto
+                isUSD = (String(existing.moneda).toUpperCase() === 'USD' || String(existing.moneda).toUpperCase() === 'U$D');
+            } else if (existing && existing.precio_usd !== undefined && existing.precio_usd !== null && parseFloat(existing.precio_usd) > 0 && (!existing.precio_ars || existing.precio_ars === existing.precio_usd)) {
+                isUSD = true;
+            } else if (window._itemExplicitCurrency && window._itemExplicitCurrency[item.codigo]) {
+                // 2. Modificación explícita en esta sesión
                 isUSD = (window._itemExplicitCurrency[item.codigo] === 'USD');
-            } else if (existing && existing.moneda) {
-                isUSD = (String(existing.moneda).toUpperCase() === 'USD');
-            } else if (typeof window.isItemUSD === 'function' && (window.isItemUSD(item, null) || (existing && window.isItemUSD(existing, null)))) {
+            } else if (typeof window.isItemUSD === 'function' && window.isItemUSD(item, null)) {
                 isUSD = true;
             } else if (item.moneda && (item.moneda === 'USD' || item.moneda === 'U$D')) {
                 isUSD = true;
@@ -17701,23 +17791,38 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                 : false;
 
             if (isUSD) {
-                // Para ítems USD: Respetar precio_usd si existe, o precio si es un valor USD (< 5000), o customPrices
+                // Para ítems USD: Respetar precio guardado en el ítem existente (precio_usd o precio)
                 if (existing && existing.precio_usd !== undefined && existing.precio_usd !== null && parseFloat(existing.precio_usd) > 0) {
                     numItemPrice = parseFloat(existing.precio_usd) || 0;
-                } else if (existing && existing.precio !== undefined && existing.precio !== null && parseFloat(existing.precio) > 0 && parseFloat(existing.precio) < 5000) {
+                } else if (existing && existing.moneda === 'USD' && existing.precio !== undefined && existing.precio !== null && parseFloat(existing.precio) > 0) {
                     numItemPrice = parseFloat(existing.precio) || 0;
+                } else if (existing && existing.moneda === 'USD' && existing.precio_unitario !== undefined && existing.precio_unitario !== null && parseFloat(existing.precio_unitario) > 0) {
+                    numItemPrice = parseFloat(existing.precio_unitario) || 0;
                 } else if (hasCustom && typeof window.getItemPriceFor === 'function') {
                     numItemPrice = window.getItemPriceFor(item.codigo, curPlanta, 'USD');
                 } else if (item.precio_usd && parseFloat(item.precio_usd) > 0) {
                     numItemPrice = parseFloat(item.precio_usd);
-                } else if (item.precio && parseFloat(item.precio) > 0 && parseFloat(item.precio) < 5000) {
+                } else if (item.moneda === 'USD' && item.precio && parseFloat(item.precio) > 0) {
                     numItemPrice = parseFloat(item.precio);
+                } else if (item.precio && parseFloat(item.precio) > 0) {
+                    // Si el catálogo está en ARS pero el ítem se muestra en USD, convertir por cotizMat
+                    numItemPrice = Math.round((parseFloat(item.precio) / cotizMat) * 100) / 100;
                 } else {
                     numItemPrice = 0;
                 }
+                // Si por alguna razón numItemPrice quedó en pesos (ej: 84.088) en USD, convertirlo
+                if (numItemPrice > 5000 && (!item.precio_usd || item.precio_usd <= 0)) {
+                    numItemPrice = Math.round((numItemPrice / cotizMat) * 100) / 100;
+                }
             } else {
-                // Para ítems ARS: lógica normal
-                if (hasCustom && typeof window.getItemPriceFor === 'function') {
+                // Para ítems ARS: Respetar primero el precio guardado en el ítem si ya existe en el presupuesto
+                if (existing && existing.precio !== undefined && existing.precio !== null && parseFloat(existing.precio) > 0) {
+                    numItemPrice = parseFloat(existing.precio) || 0;
+                } else if (existing && existing.precio_unitario !== undefined && existing.precio_unitario !== null && parseFloat(existing.precio_unitario) > 0) {
+                    numItemPrice = parseFloat(existing.precio_unitario) || 0;
+                } else if (existing && existing.precio_ars !== undefined && existing.precio_ars !== null && parseFloat(existing.precio_ars) > 0) {
+                    numItemPrice = parseFloat(existing.precio_ars) || 0;
+                } else if (hasCustom && typeof window.getItemPriceFor === 'function') {
                     numItemPrice = window.getItemPriceFor(item.codigo, curPlanta, 'ARS');
                 } else {
                     if (typeof window.getItemPriceFor === 'function') {
@@ -17741,6 +17846,11 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                     if ((numItemPrice <= 0 || isNaN(numItemPrice)) && item.precio > 0) {
                         numItemPrice = item.precio;
                     }
+                }
+                // Sanear contaminación USD -> ARS: Si numItemPrice < 500 y el precio base del catálogo es > 5000 (ej: $ 57,92 para MEC-001 que cuesta $ 83.983)
+                const baseCatPrice = parseFloat(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)) || 0;
+                if (numItemPrice > 0 && numItemPrice < 500 && baseCatPrice > 5000) {
+                    numItemPrice = baseCatPrice;
                 }
             }
 
@@ -17841,7 +17951,11 @@ if (curPlanta === 'APA') curPlanta = 'APS';
             const inputBorder = initialQty ? '#eab308' : 'rgba(255, 255, 255, 0.15)';
             const inputColor = initialQty ? '#fde047' : '#ffffff';
             const formattedQty = (initialQty !== undefined && initialQty !== null && initialQty !== '' && initialQty > 0) ? Math.round(initialQty).toString() : '';
-            const formattedPrice = (numItemPrice !== undefined && numItemPrice !== null) ? numItemPrice.toString().replace(/\./g, ',') : '0';
+            const formattedPrice = (numItemPrice !== undefined && numItemPrice !== null && numItemPrice > 0)
+                ? (!isUSD && Number.isInteger(numItemPrice)
+                    ? numItemPrice.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                    : numItemPrice.toLocaleString('es-AR', { minimumFractionDigits: (isUSD ? 2 : 0), maximumFractionDigits: 2 }))
+                : '0';
 
             const isCustomItem = (typeof window.isMecanicoItemCustom === 'function')
                 ? window.isMecanicoItemCustom(item)
@@ -17898,7 +18012,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                                    title="${canEditPrices ? '' : 'No tiene permisos para modificar precios unitarios'}"
                                    style="width: 95px; text-align: right; background: rgba(15, 23, 42, 0.6) !important; border: 1.5px solid ${isUSD ? 'rgba(56, 189, 248, 0.5)' : 'rgba(16, 185, 129, 0.4)'} !important; border-radius: 6px; padding: 5px 8px; font-weight: 700 !important; color: #ffffff !important; font-family: monospace; font-size: 12px !important; opacity: ${canEditPrices ? '1' : '0.65'} !important;"
                                    onfocus="this.select()"
-                                   onclick="event.stopPropagation(); this.select();"
+                                   onclick="event.stopPropagation();"
                                    onkeydown="onMecaPriceKeyDown(event, this)"
                                    oninput="onMecaPriceInputChange(this)"
                                    onblur="onMecaPriceInputBlur(this)">
@@ -22988,7 +23102,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '526';
+window.CURRENT_APP_VERSION = '528';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
