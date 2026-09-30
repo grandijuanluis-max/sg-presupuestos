@@ -1500,7 +1500,45 @@ input:focus, select:focus, textarea:focus {
         margin-bottom: 4px !important;
     }
 
-    body.modal-open .sheet-watermark {
+    /* Marca de agua global fija para impresión multi-hoja del modal (se repite en todas las hojas: 1, 2, 3...) */
+    body.modal-open #modal-print-fixed-watermark {
+        display: flex !important;
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) rotate(-25deg) !important;
+        width: 440px !important;
+        max-width: 80% !important;
+        opacity: 0.55 !important;
+        pointer-events: none !important;
+        user-select: none !important;
+        z-index: 0 !important;
+        justify-content: center !important;
+        align-items: center !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    body.modal-open #modal-print-fixed-watermark img {
+        width: 100% !important;
+        height: auto !important;
+        object-fit: contain !important;
+        display: block !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Ocultar en impresión la marca de agua local del wrapper para presupuestos multi-hoja */
+    body.modal-open #auth-mecanico-products-wrapper .sheet-watermark {
+        display: none !important;
+    }
+
+    /* Para presupuestos con pocos items (1 hoja), asegurar que la gota de agua siempre quede centrada en los items */
+    body.modal-open.few-items #modal-print-fixed-watermark {
+        display: none !important;
+    }
+    body.modal-open.few-items #auth-mecanico-products-wrapper .sheet-watermark {
+        display: flex !important;
         position: absolute !important;
         top: 50% !important;
         left: 50% !important;
@@ -1511,18 +1549,8 @@ input:focus, select:focus, textarea:focus {
         pointer-events: none !important;
         user-select: none !important;
         z-index: 0 !important;
-        display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-    }
-
-    body.modal-open .sheet-watermark img {
-        width: 100% !important;
-        height: auto !important;
-        object-fit: contain !important;
-        display: block !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
@@ -2480,6 +2508,11 @@ body[data-theme="light"] .theme-btn.active {
     max-width: 860px !important;
     margin: 0 auto !important;
     box-sizing: border-box !important;
+}
+
+/* Marca de agua global fija para impresión multi-hoja (oculta en pantalla) */
+#modal-print-fixed-watermark {
+    display: none;
 }
 
 /* Marca de Agua Central SG MONTAJES (Centrada en los productos) */

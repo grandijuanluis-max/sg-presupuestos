@@ -12557,22 +12557,38 @@ window.verDetallePedido = function(id, explicitMode) {
         }
         if (_wmEl) {
             const wmContainer = _wmEl.closest('.sheet-watermark');
+            const fixedWmImg = document.getElementById('modal-fixed-watermark-img');
+            const fixedWmContainer = document.getElementById('modal-print-fixed-watermark');
             if (_isAcostaModal) {
-                _wmEl.src = (window.LOGO_ACOSTA_WATERMARK_BASE64) ? window.LOGO_ACOSTA_WATERMARK_BASE64 : 'logo_acosta_watermark.png';
+                const srcAcosta = (window.LOGO_ACOSTA_WATERMARK_BASE64) ? window.LOGO_ACOSTA_WATERMARK_BASE64 : 'logo_acosta_watermark.png';
+                _wmEl.src = srcAcosta;
                 _wmEl.alt = 'Marca de agua Acosta Servicios';
                 _wmEl.style.width = '380px';
                 _wmEl.style.maxWidth = '100%';
                 _wmEl.style.objectFit = 'contain';
                 _wmEl.style.opacity = '0.22';
                 if (wmContainer) wmContainer.style.opacity = '0.22';
+                if (fixedWmImg) {
+                    fixedWmImg.src = srcAcosta;
+                    fixedWmImg.alt = 'Marca de agua Acosta Servicios';
+                    fixedWmImg.style.filter = 'contrast(1.1)';
+                }
+                if (fixedWmContainer) fixedWmContainer.style.opacity = '0.34';
             } else {
-                _wmEl.src = (window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : 'logo_sg_watermark_gold.png';
+                const srcSg = (window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : 'logo_sg_watermark_gold.png';
+                _wmEl.src = srcSg;
                 _wmEl.alt = 'Marca de agua SG MONTAJES';
                 _wmEl.style.width = '380px';
                 _wmEl.style.maxWidth = '100%';
                 _wmEl.style.objectFit = 'contain';
                 _wmEl.style.opacity = '0.60';
                 if (wmContainer) wmContainer.style.opacity = '0.60';
+                if (fixedWmImg) {
+                    fixedWmImg.src = srcSg;
+                    fixedWmImg.alt = 'Marca de agua SG MONTAJES';
+                    fixedWmImg.style.filter = 'contrast(1.15) saturate(1.15)';
+                }
+                if (fixedWmContainer) fixedWmContainer.style.opacity = '0.55';
             }
         }
     })();
@@ -13814,6 +13830,40 @@ window.imprimirPresupuestoModal = async function() {
             // Asegurar que la clase modal-open esté en body para las reglas de @media print
             document.body.classList.add('modal-open');
 
+            // Sincronizar la marca de agua global para la impresión multi-hoja y la marca local para pocos ítems
+            const fixedWmImg = document.getElementById('modal-fixed-watermark-img');
+            const fixedWmContainer = document.getElementById('modal-print-fixed-watermark');
+            const localWmImg = document.getElementById('modal-header-watermark');
+            if (pedidoActivo) {
+                const _provStr = (pedidoActivo.proveedor || pedidoActivo.meca_proveedor || pedidoActivo.proveedor_nombre || '').trim().toUpperCase();
+                const _allProvStr = Object.values(pedidoActivo).filter(v => typeof v === 'string').join(' ').toUpperCase();
+                const _isAcosta = _provStr.includes('ACOSTA') || ((_allProvStr.includes('ACOSTA')) && !_allProvStr.includes('MECA_DENOMINACION=ACOSTA'));
+                const _watermarkAcostaB64 = (window.LOGO_ACOSTA_WATERMARK_BASE64) ? window.LOGO_ACOSTA_WATERMARK_BASE64 : 'logo_acosta_watermark.png';
+                const _watermarkSgB64 = (window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : 'logo_sg_watermark_gold.png';
+                const _activeWm = _isAcosta ? _watermarkAcostaB64 : _watermarkSgB64;
+                const _wmFilter = _isAcosta ? 'contrast(1.1)' : 'contrast(1.15) saturate(1.15)';
+                const _wmOpacity = _isAcosta ? '0.34' : '0.55';
+
+                if (fixedWmImg) {
+                    fixedWmImg.src = _activeWm;
+                    fixedWmImg.style.filter = _wmFilter;
+                }
+                if (fixedWmContainer) {
+                    fixedWmContainer.style.opacity = _wmOpacity;
+                }
+                if (localWmImg) {
+                    localWmImg.src = _activeWm;
+                    localWmImg.style.filter = _wmFilter;
+                    const localContainer = localWmImg.closest('.sheet-watermark');
+                    if (localContainer) localContainer.style.opacity = _wmOpacity;
+                }
+
+                // Determinar si son pocos ítems (hasta 8 ítems entra en 1 sola hoja y se centra exactamente en los ítems)
+                const itemsCount = (Array.isArray(pedidoActivo.items) && pedidoActivo.items.length > 0) ? pedidoActivo.items.length : 1;
+                const isFewItems = itemsCount <= 8;
+                document.body.classList.toggle('few-items', isFewItems);
+            }
+
             // Forzar que todos los elementos de la tabla y del contenedor sean 100% transparentes
             const allTableElements = document.querySelectorAll('#auth-mecanico-excel-container, #auth-mecanico-excel-container *, .palaversich-sheet table, .palaversich-sheet table *');
             allTableElements.forEach(el => {
@@ -13852,6 +13902,8 @@ window.addEventListener('beforeprint', () => {
             renderModalReportTable(pedidoActivo, pedidoActivo.tipo_reporte || 'detallado');
         }
         document.body.classList.add('modal-open');
+        const itemsCount = (Array.isArray(pedidoActivo.items) && pedidoActivo.items.length > 0) ? pedidoActivo.items.length : 1;
+        document.body.classList.toggle('few-items', itemsCount <= 8);
         const allTableElements = document.querySelectorAll('#auth-mecanico-excel-container, #auth-mecanico-excel-container *, .palaversich-sheet table, .palaversich-sheet table *');
         allTableElements.forEach(el => {
             el.style.backgroundColor = 'transparent';
@@ -13862,6 +13914,7 @@ window.addEventListener('beforeprint', () => {
 
 
 window.addEventListener('afterprint', () => {
+    document.body.classList.remove('few-items');
     if (pedidoActivo && document.body.classList.contains('modal-open') && typeof window.getBudgetDocTitle === 'function') {
         document.title = window.getBudgetDocTitle(pedidoActivo);
     } else {
@@ -18649,6 +18702,10 @@ window.enviarEmailBackend = async function({ to, subject, html, text, reply_to, 
 };
 
 window.enviarEmailPedido = function(id) {
+    if (typeof saveTempEdits === 'function') {
+        try { saveTempEdits(); } catch(e) {}
+    }
+
     let p = null;
     if (id && typeof id === 'object') {
         p = id;
@@ -18671,6 +18728,25 @@ window.enviarEmailPedido = function(id) {
         return;
     }
 
+    // Sincronizar datos y filas editadas desde el modal si está abierto actualmente
+    if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(p.id)) {
+        p = Object.assign({}, pedidoActivo, p);
+        if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+            p.items = JSON.parse(JSON.stringify(pedidoItems));
+            const newAmt = p.items.reduce((sum, item) => {
+                const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+                const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+                const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+                    ? parseFloat(String(item.subtotal).replace(',', '.'))
+                    : (q * pr);
+                return sum + sub;
+            }, 0);
+            p.importe = newAmt;
+            pedidoActivo.items = p.items;
+            pedidoActivo.importe = newAmt;
+        }
+    }
+
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliente = (p.cliente_nombre || p.meca_denominacion || p.cliente || 'CARGILL SACI').trim();
     const cuit = p.cuit || p.meca_cuit || '30-50679216-5';
@@ -18685,7 +18761,7 @@ window.enviarEmailPedido = function(id) {
     const clientEmail = (p.email || p.cliente_email || '').trim();
     const defaultTo = clientEmail || 'melanidaiana28@gmail.com';
     const defaultSubject = `Presupuesto Oficial ${empresaNombre} Nro. ${nro} — ${cliente}`;
-    const initialReportFormat = 'detallado';
+    const initialReportFormat = (p.tipo_reporte || (typeof pedidoActivo !== 'undefined' && pedidoActivo && pedidoActivo.tipo_reporte) || 'detallado').toLowerCase().trim();
 
     const rawClientData = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB))
         ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && p.cliente_nombre && String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre).trim().toUpperCase()))
@@ -19025,15 +19101,29 @@ window.enviarEmailPedido = function(id) {
         return (bodyEl && bodyEl.value.trim()) ? bodyEl.value.trim() : buildEmailPlainBody();
     };
 
-    // Ver / Imprimir Comprobante
+    // Sincronizar cambios en el selector de formato del comprobante PDF
+    const fmtSelectEl = document.getElementById('dispatch-report-format');
+    if (fmtSelectEl) {
+        fmtSelectEl.onchange = () => {
+            const chosenFmt = fmtSelectEl.value.toLowerCase().trim();
+            p.tipo_reporte = chosenFmt;
+            if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(p.id)) {
+                pedidoActivo.tipo_reporte = chosenFmt;
+            }
+        };
+    }
+
+    // Ver / Imprimir Comprobante (Usa el formato oficial actualmente seleccionado)
     const previewBtn = document.getElementById('btn-dispatch-preview-pdf');
     if (previewBtn) {
         previewBtn.onclick = () => {
             const fmtSel = document.getElementById('dispatch-report-format');
-            const chosenFmt = fmtSel ? fmtSel.value : (p.tipo_reporte || 'detallado');
-            if (typeof window.abrirPDFPresupuesto === 'function') {
-                window.abrirPDFPresupuesto(p.id, chosenFmt);
-            } else if (typeof window.imprimirPresupuestoModal === 'function') {
+            const chosenFmt = (fmtSel ? fmtSel.value : 'detallado').toLowerCase().trim();
+            p.tipo_reporte = chosenFmt;
+            if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
+                pedidoActivo.tipo_reporte = chosenFmt;
+            }
+            if (typeof window.imprimirPresupuestoModal === 'function') {
                 window.imprimirPresupuestoModal();
             }
         };
@@ -19145,7 +19235,11 @@ window.enviarEmailPedido = function(id) {
             btnSendNow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
 
             const fmtSel = document.getElementById('dispatch-report-format');
-            const chosenFmt = (fmtSel ? fmtSel.value : 'detallado').toLowerCase().trim();
+            const chosenFmt = (fmtSel ? fmtSel.value : (p.tipo_reporte || 'detallado')).toLowerCase().trim();
+            p.tipo_reporte = chosenFmt;
+            if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(p.id)) {
+                pedidoActivo.tipo_reporte = chosenFmt;
+            }
 
             // 1. Generar PDF oficial en Base64 con el formato oficial seleccionado (Detallado, Resumido o Proyecto)
             const attachments = [];
@@ -19153,8 +19247,10 @@ window.enviarEmailPedido = function(id) {
                 try {
                     const pdfB64 = await window.generarPDFPresupuestoBase64(p, chosenFmt);
                     if (pdfB64) {
+                        const docTitle = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(p) : `Presupuesto_${nro}`;
+                        const safeFilename = `${docTitle.replace(/[\/\\?%*:|"<>]/g, '_')}.pdf`;
                         attachments.push({
-                            filename: `Presupuesto_${nro}_${chosenFmt.toUpperCase()}.pdf`,
+                            filename: safeFilename,
                             content: pdfB64
                         });
                     }
@@ -19327,13 +19423,18 @@ window.enviarEmailPedido = function(id) {
             const toVal = (document.getElementById('dispatch-email-to')?.value || '').trim();
             const ccVal = (document.getElementById('dispatch-email-cc')?.value || '').trim();
             const subjVal = (document.getElementById('dispatch-email-subject')?.value || defaultSubject).trim();
-            const reportFormat = (document.getElementById('dispatch-report-format')?.value || 'detallado').toLowerCase().trim();
+            const reportFormat = (document.getElementById('dispatch-report-format')?.value || p.tipo_reporte || 'detallado').toLowerCase().trim();
+            p.tipo_reporte = reportFormat;
+            if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(p.id)) {
+                pedidoActivo.tipo_reporte = reportFormat;
+            }
 
             btnMailtoNow.disabled = true;
             btnMailtoNow.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparando PDF...';
 
             let pdfBlob = null;
-            const pdfFilename = `Presupuesto_SG_Montajes_${nro}.pdf`;
+            const docTitle = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(p) : `Presupuesto_${nro}`;
+            const pdfFilename = `${docTitle.replace(/[\/\\?%*:|"<>]/g, '_')}.pdf`;
             try {
                 const getPdfFn = window.generarPDFPresupuestoBase64 || window.generatePdfBase64ForQuote;
                 const pdfBase64 = getPdfFn ? await getPdfFn(p, reportFormat) : null;
@@ -19351,7 +19452,7 @@ window.enviarEmailPedido = function(id) {
                 console.warn("No se pudo compilar PDF para mailto, continuando...", e);
             }
 
-            const bodySummary = `Estimados,\n\nAdjuntamos la cotización correspondiente al Presupuesto Oficial Nro. ${nro}.\n\nCliente: ${cliente}\nImporte Total: ${totalStr}\n\nQuedamos a su entera disposición ante cualquier consulta.\n\nAtentamente,\nSG MONTAJES S.R.L.\nEmail: cotizaciones@sgmontajes.com.ar\nTel: (0341) 5890126`;
+            const bodySummary = `Estimados,\n\nAdjuntamos la cotización correspondiente al Presupuesto Oficial ${empresaNombre} Nro. ${nro}.\n\nCliente: ${cliente}\nImporte Total: ${totalStr}\n\nQuedamos a su entera disposición ante cualquier consulta.\n\nAtentamente,\n${empresaNombre}\nEmail: ${_isAcosta ? 'administracion@acostaservicios.com.ar' : 'cotizaciones@sgmontajes.com.ar'}\nTel: (0341) 5890126`;
 
             window.abrirClienteCorreoMailto({
                 to: toVal,
@@ -19901,7 +20002,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
             ? window.clientesDB.find(c => (c.codigo && p.cliente_id && String(c.codigo).trim() === String(p.cliente_id).trim()) || (c.nombre && (c.nombre === p.cliente_nombre || c.nombre === cliName || String(c.nombre).trim().toUpperCase() === String(cliName || '').trim().toUpperCase() || String(c.nombre).trim().toUpperCase() === String(p.cliente_nombre || '').trim().toUpperCase())))
             : null);
 
-    const cliResolvedName = (p.cliente_nombre || cliName || (clientInfo ? clientInfo.nombre : '') || 'CARGILL SACI').toUpperCase();
+    const cliResolvedName = (p.cliente_nombre || cliName || (clientInfo ? clientInfo.nombre : '') || '-').toUpperCase();
     const isCliCargill = cliResolvedName.includes('CARGILL');
     const cargillDoms = ['YRIGOYEN Y PUNTA QUBRACHO', 'SOLIS 822', 'LUIS RAUL MAZA 35'];
     const pDomUp = String(p.domicilio || '').trim().toUpperCase();
@@ -19915,15 +20016,26 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
         effLoc = clientInfo ? clientInfo.localidad : '-';
     }
 
-    const fechaEmision = p.fecha || nowStr;
-    const hora = "10:36:51";
-    const cuitCli = (p.cuit && p.cuit !== '-' && p.cuit.trim() !== '' && (!isCliCargill ? !p.cuit.includes('50679216') : true))
-        ? p.cuit
-        : (clientInfo && clientInfo.cuit ? clientInfo.cuit : "30-50679216-5");
+    const formatCuitDisplay = (val) => {
+        if (!val || val === '-') return '-';
+        const clean = String(val).replace(/\D/g, '');
+        return clean.length === 11 ? `${clean.substring(0,2)}-${clean.substring(2,10)}-${clean.substring(10)}` : String(val);
+    };
+
+    let fechaEmision = p.fecha || nowStr;
+    if (fechaEmision && typeof fechaEmision === 'string') {
+        const dClean = fechaEmision.split('T')[0].split(' ')[0];
+        const parts = dClean.split('-');
+        if (parts.length === 3 && parts[0].length === 4) {
+            fechaEmision = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+    }
+
+    const cuitCli = formatCuitDisplay(p.cuit || (clientInfo ? clientInfo.cuit : '-'));
     const oc = p.nro_oc || p.meca_nro_oc || "-";
-    let entrega = p.fecha_entrega || p.meca_fecha_fin || "2026-10-14";
-    if (entrega && typeof entrega === 'string') {
-        const cleanDate = entrega.split('T')[0];
+    let entrega = p.fecha_entrega || p.meca_fecha_fin || p.fecha || "-";
+    if (entrega && typeof entrega === 'string' && entrega !== '-') {
+        const cleanDate = entrega.split('T')[0].split(' ')[0];
         const parts = cleanDate.split('-');
         if (parts.length === 3 && parts[0].length === 4) {
             entrega = `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -19938,14 +20050,51 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     const localidad = (effLoc && effLoc !== '-' && effLoc.trim() !== '')
         ? effLoc.trim().toUpperCase()
         : (clientInfo && clientInfo.localidad ? clientInfo.localidad.trim().toUpperCase() : "-");
-    const detalle = p.meca_denominacion || p.motivo || p.denominacion || "-";
-    const codCliente = p.cliente_id || (clientInfo ? clientInfo.codigo : (isCliCargill ? "2" : "1"));
+    const detalle = (p.meca_denominacion || p.motivo || p.denominacion || "-").toUpperCase();
+    const codCliente = p.cliente_id || (clientInfo ? clientInfo.codigo : (isCliCargill ? "2" : "-"));
+    const hora = (p.hora || (p.fecha && p.fecha.includes('T') ? p.fecha.split('T')[1].substring(0, 5) : '') || '').trim();
+    const propTecnica = (p.meca_propuesta || p.propuesta || p.meca_denominacion || p.denominacion || p.motivo || '-').toUpperCase();
 
-    // Propuesta tecnica
-    const propTecnica = p.meca_propuesta || p.propuesta || detalle || "-";
-    const personal = p.meca_personal || p.personal || "-";
-    const exclus = p.meca_exclusiones || p.exclusiones || "-";
-    const obs = p.observaciones || p.meca_observaciones || "-";
+    // Propuesta tecnica dinamica (solo mostrar filas con contenido)
+    const personal = (p.meca_personal || p.personal || '').trim();
+    const exclus = (p.meca_exclusiones || p.exclusiones || '').trim();
+    const obsGeneral = (p.observaciones || p.meca_observaciones || '').trim();
+
+    const propRows = [];
+    if (personal) propRows.push({label: 'SOLICITUD DE SUPERVISOR', value: personal});
+    if (exclus) propRows.push({label: 'INDICAR EXCLUSIONES', value: exclus});
+    if (obsGeneral) propRows.push({label: 'OBSERVACIONES', value: obsGeneral});
+
+    let propHtml = '';
+    if (propRows.length > 0) {
+        let rowsContent = '';
+        propRows.forEach((row, rIdx) => {
+            const isLast = (rIdx === propRows.length - 1);
+            const borderBottom = isLast ? '' : 'border-bottom: 1px solid #000;';
+            const isSupervisor = row.label.includes('SUPERVISOR');
+            if (row.label === 'OBSERVACIONES') {
+                rowsContent += `
+                    <div style="display: flex; background: #f8fafc; padding: 5px 8px; align-items: center; ${borderBottom}">
+                        <div style="background: #0f2e5a; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 8px; font-weight: 800; font-size: 10px;">Observaciones:</div>
+                        <div style="background: transparent; color: #1e293b; font-size: 11.5px; font-weight: 600; white-space: pre-wrap;">${row.value}</div>
+                    </div>
+                `;
+            } else {
+                rowsContent += `
+                    <div style="display: flex; ${borderBottom} background: transparent; align-items: center;">
+                        <div style="width: 32%; padding: 6px 8px; border-right: 1px solid #000; font-weight: 800; font-size: 11px; background: transparent; color: #000;">${row.label}:</div>
+                        <div style="width: 68%; padding: 6px 10px; background: transparent; color: #000; font-size: ${isSupervisor ? '14px' : '12px'}; font-weight: ${isSupervisor ? '900' : '700'}; text-transform: uppercase; letter-spacing: 0.5px; white-space: pre-wrap; line-height: 1.35;">${row.value}</div>
+                    </div>
+                `;
+            }
+        });
+        propHtml = `
+            <div class="no-page-break" style="border: 1.5px solid #000; margin-bottom: 5px; background: transparent; page-break-inside: avoid; break-inside: avoid; color: #000;">
+                <div style="padding: 4px 8px; font-weight: 900; border-bottom: 1.5px solid #000; background: #f8fafc; color: #000; font-size: 11px; letter-spacing: 0.5px;">PROPUESTA TÉCNICA / COMERCIAL</div>
+                ${rowsContent}
+            </div>
+        `;
+    }
 
     // --- Detectar proveedor Acosta Servicios ---
     const _provStr = (p.proveedor || p.meca_proveedor || p.proveedor_nombre || '').trim().toUpperCase();
@@ -20093,25 +20242,47 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     }
 
     const estItemCount = (items && Array.isArray(items)) ? items.length : 0;
-    const numPages = (estItemCount > 15) ? (1 + Math.ceil((estItemCount - 15) / 24)) : 1;
+    let estContentHeight = 290 + 340; // cabecera ~290px, bloques inferiores ~340px
+    if (items && Array.isArray(items)) {
+        items.forEach(it => {
+            const detLen = String(it.detalle || it.descripcion || '').length;
+            const extraLines = Math.floor(detLen / 40);
+            estContentHeight += 34 + (extraLines * 16);
+        });
+    } else {
+        estContentHeight += estItemCount * 36;
+    }
+    const propLen = String(p.meca_propuesta || p.propuesta || '').length;
+    if (propLen > 60) estContentHeight += Math.floor(propLen / 60) * 16;
+    const obsLen = String(p.observaciones || p.meca_observaciones || '').length;
+    if (obsLen > 60) estContentHeight += Math.floor(obsLen / 60) * 16;
 
-    let watermarksHtml = '';
-    if (numPages <= 1) {
-        watermarksHtml = `
-            <div class="watermark-bg-print" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 440px; max-width: 82%; opacity: ${_isAcosta ? '0.34' : '0.60'}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+    // Altura utilizable de una página A4 a 715px de ancho con márgenes de 4mm: ~980px
+    let numPages = Math.max(1, Math.ceil(estContentHeight / 980));
+    // Regla de salvaguarda multi-hoja:
+    // Si hay 18 o más ítems, o si el contenido supera 1700px, son mínimo 3 páginas
+    if ((estItemCount >= 18 || estContentHeight >= 1700) && numPages < 3) {
+        numPages = 3;
+    } else if ((estItemCount >= 11 || estContentHeight >= 880) && numPages < 2) {
+        numPages = 2;
+    }
+
+    const PAGE_HEIGHT_A4 = 1023;
+    let watermarksHtml = `<div id="watermarks-pdf-container" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; overflow: hidden;">`;
+    for (let pIdx = 0; pIdx < numPages; pIdx++) {
+        const itemsCenterEstimate = 220 + Math.round((Math.max(1, estItemCount) * 32) / 2);
+        const topPx = (pIdx === 0 && numPages === 1)
+            ? Math.max(280, Math.min(itemsCenterEstimate, 440))
+            : (pIdx === 0)
+                ? 630
+                : Math.round(PAGE_HEIGHT_A4 * pIdx + 511);
+        watermarksHtml += `
+            <div class="watermark-bg-print watermark-page-${pIdx}" style="position: absolute; top: ${topPx}px; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 440px; max-width: 82%; opacity: ${_isAcosta ? '0.34' : '0.60'}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
                 <img src="${_activeWatermark}" alt="Marca de agua" style="width: 100%; height: auto; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; ${_isAcosta ? 'filter: contrast(1.1);' : 'filter: contrast(1.15) saturate(1.15);'}">
             </div>
         `;
-    } else {
-        for (let pIdx = 0; pIdx < numPages; pIdx++) {
-            const topPx = (pIdx === 0) ? 655 : (1020 * pIdx + 510);
-            watermarksHtml += `
-                <div class="watermark-bg-print watermark-page-${pIdx}" style="position: absolute; top: ${topPx}px; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 440px; max-width: 82%; opacity: ${_isAcosta ? '0.34' : '0.60'}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
-                    <img src="${_activeWatermark}" alt="Marca de agua" style="width: 100%; height: auto; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; ${_isAcosta ? 'filter: contrast(1.1);' : 'filter: contrast(1.15) saturate(1.15);'}">
-                </div>
-            `;
-        }
     }
+    watermarksHtml += `</div>`;
 
     const htmlContent = `
         <div id="pdf-wrapper-download" style="box-sizing: border-box; width: 715px; min-width: 715px; max-width: 715px; padding: 4px 8px; font-family: Arial, Helvetica, sans-serif; background: #ffffff; color: #000000; margin: 0 auto; position: relative;">
@@ -20165,20 +20336,14 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                         position: relative !important;
                     }
                     #pdf-wrapper-download .watermark-bg-print {
-                        display: none !important;
-                    }
-                    #pdf-wrapper-download .watermark-bg-print:first-of-type {
                         display: flex !important;
-                        position: fixed !important;
-                        top: 52% !important;
-                        left: 50% !important;
-                        transform: translate(-50%, -50%) rotate(-25deg) !important;
-                        z-index: 0 !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                     }
                 }
             </style>
 
-            ${numPages > 1 ? watermarksHtml : ''}
+            ${watermarksHtml}
 
             <div style="position: relative; z-index: 1;">
 
@@ -20225,7 +20390,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                         <div style="width: 55%; border-right: 1px solid #000; padding: 2px 8px 2px 0;">
                             <div style="margin-bottom: 3px; display: flex; gap: 5px; align-items: stretch;">
                                 <span style="border: 1px solid #000; border-radius: 3px; padding: 1px 5px; width: 68px; min-width: 68px; text-align: center; background: transparent; font-weight: 600; font-size: 9.5px; display: flex; align-items: center; justify-content: center;">Cliente:</span>
-                                <strong style="border: 1px solid #000; border-radius: 3px; padding: 1px 5px; flex: 1; background: transparent; font-size: 9.5px; font-weight: bold; text-transform: uppercase; display: flex; align-items: center;">${cliName}</strong>
+                                <strong style="border: 1px solid #000; border-radius: 3px; padding: 1px 5px; flex: 1; background: transparent; font-size: 9.5px; font-weight: bold; text-transform: uppercase; display: flex; align-items: center;">${cliResolvedName}</strong>
                             </div>
                             <div style="margin-bottom: 3px; display: flex; gap: 5px; align-items: stretch;">
                                 <span style="border: 1px solid #000; border-radius: 3px; padding: 1px 5px; width: 68px; min-width: 68px; text-align: center; background: transparent; font-weight: 600; font-size: 9.5px; display: flex; align-items: center; justify-content: center;">Título:</span>
@@ -20281,7 +20446,6 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 
                 <!-- Items Table (con fondo transparente sobre Marca de Agua Centrada en Productos) -->
                 <div class="items-table-container" style="position: relative; margin-bottom: 4px;">
-                    ${numPages <= 1 ? watermarksHtml : ''}
                     <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #000; position: relative; z-index: 1; background: transparent; table-layout: fixed;">
                         <thead style="font-size: 9.5px; background: transparent;">
                             <tr style="border-bottom: 1.5px solid #000; background: transparent; page-break-inside: avoid !important; break-inside: avoid !important;">
@@ -20310,22 +20474,8 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                     </table>
                 </div>
 
-                <!-- Propuesta Tecnica (Unificada) -->
-                <div class="no-page-break" style="border: 1.5px solid #000; margin-bottom: 5px; background: transparent; page-break-inside: avoid; break-inside: avoid; color: #000;">
-                    <div style="padding: 4px 8px; font-weight: 900; border-bottom: 1.5px solid #000; background: #f8fafc; color: #000; font-size: 11px; letter-spacing: 0.5px;">PROPUESTA TÉCNICA / COMERCIAL</div>
-                    <div style="display: flex; border-bottom: 1px solid #000; background: transparent; align-items: center;">
-                        <div style="width: 32%; padding: 6px 8px; border-right: 1px solid #000; font-weight: 800; font-size: 11px; background: transparent; color: #000;">SOLICITUD DE SUPERVISOR:</div>
-                        <div style="width: 68%; padding: 6px 10px; background: transparent; color: #000; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px;">${personal}</div>
-                    </div>
-                    <div style="display: flex; border-bottom: 1px solid #000; background: transparent; align-items: center;">
-                        <div style="width: 32%; padding: 6px 8px; border-right: 1px solid #000; font-weight: 800; font-size: 11px; background: transparent; color: #000;">INDICAR EXCLUSIONES:</div>
-                        <div style="width: 68%; padding: 6px 10px; background: transparent; color: #000; font-size: 12px; font-weight: 700; text-transform: uppercase; line-height: 1.35;">${exclus}</div>
-                    </div>
-                    <div style="display: flex; background: #f8fafc; padding: 5px 8px; align-items: center;">
-                        <div style="background: #0f2e5a; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 8px; font-weight: 800; font-size: 10px;">Observaciones:</div>
-                        <div style="background: transparent; color: #1e293b; font-size: 11.5px; font-weight: 600;">${obs}</div>
-                    </div>
-                </div>
+                <!-- Propuesta Tecnica (Unificada y dinamica) -->
+                ${propHtml}
 
                 <div class="no-page-break" style="background: #1e293b; color: white; text-align: center; padding: 4px 6px; font-size: 9px; font-weight: bold; margin-bottom: 5px; border-radius: 4px; page-break-inside: avoid; break-inside: avoid; letter-spacing: 0.5px;">
                     PRECIOS DEL PRESUPUESTO, SUJETOS A MODIFICACIONES SIN PREVIO AVISO
@@ -20353,8 +20503,112 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 };
 
 
+window.asegurarMarcasDeAguaEnTodasLasHojas = function(targetEl, p) {
+    if (!targetEl) return;
+    const totalHeight = targetEl.scrollHeight || targetEl.offsetHeight;
+    if (!totalHeight) return;
+
+    const PAGE_HEIGHT_PX = 1023; // Altura estándar de 1 página A4 a 715px de ancho en html2pdf con márgenes de 4mm
+    const actualPages = Math.max(1, Math.ceil(totalHeight / PAGE_HEIGHT_PX));
+
+    // Determinar la marca de agua y proveedor
+    let _provStr = '';
+    let _allProvStr = '';
+    let _isAcosta = false;
+    if (p) {
+        _provStr = (p.proveedor || p.meca_proveedor || p.proveedor_nombre || '').trim().toUpperCase();
+        _allProvStr = Object.values(p).filter(v => typeof v === 'string').join(' ').toUpperCase();
+        _isAcosta = _provStr.includes('ACOSTA') || ((_allProvStr.includes('ACOSTA')) && !_allProvStr.includes('MECA_DENOMINACION=ACOSTA'));
+    }
+
+    const _watermarkAcostaB64 = (typeof window !== 'undefined' && window.LOGO_ACOSTA_WATERMARK_BASE64) ? window.LOGO_ACOSTA_WATERMARK_BASE64 : 'logo_acosta_watermark.png';
+    const _watermarkSgB64 = (typeof window !== 'undefined' && window.LOGO_SG_WATERMARK_GOLD_BASE64) ? window.LOGO_SG_WATERMARK_GOLD_BASE64 : 'logo_sg_watermark_gold.png';
+
+    let sampleImg = targetEl.querySelector('.watermark-bg-print img');
+    let wmSrc = (sampleImg && sampleImg.src) ? sampleImg.src : (_isAcosta ? _watermarkAcostaB64 : _watermarkSgB64);
+    let opacityVal = _isAcosta ? '0.34' : '0.60';
+    let filterStyle = _isAcosta ? 'filter: contrast(1.1);' : 'filter: contrast(1.15) saturate(1.15);';
+
+    let wmContainer = targetEl.querySelector('#watermarks-pdf-container');
+    if (!wmContainer) {
+        wmContainer = document.createElement('div');
+        wmContainer.id = 'watermarks-pdf-container';
+        wmContainer.style.position = 'absolute';
+        wmContainer.style.top = '0';
+        wmContainer.style.left = '0';
+        wmContainer.style.width = '100%';
+        wmContainer.style.height = '100%';
+        wmContainer.style.zIndex = '0';
+        wmContainer.style.pointerEvents = 'none';
+        wmContainer.style.overflow = 'hidden';
+        targetEl.insertBefore(wmContainer, targetEl.firstChild);
+    }
+
+    // Limpiar marcas de agua sueltas previas para que no se dupliquen
+    const looseWms = targetEl.querySelectorAll('#pdf-wrapper-download > .watermark-bg-print, .items-table-container > .watermark-bg-print');
+    looseWms.forEach(el => el.remove());
+
+    const tableEl = targetEl.querySelector('.items-table-container') || targetEl.querySelector('table');
+    let tableCenterPx = 340;
+    if (tableEl) {
+        const tTop = tableEl.offsetTop || 220;
+        const tHeight = tableEl.offsetHeight || 120;
+        tableCenterPx = Math.round(tTop + (tHeight / 2));
+    }
+
+    wmContainer.innerHTML = '';
+    for (let pIdx = 0; pIdx < actualPages; pIdx++) {
+        const topPx = (pIdx === 0 && actualPages === 1)
+            ? Math.max(280, Math.min(tableCenterPx, 440))
+            : (pIdx === 0)
+                ? 630
+                : Math.round(PAGE_HEIGHT_PX * pIdx + 511);
+
+        const wmDiv = document.createElement('div');
+        wmDiv.className = `watermark-bg-print watermark-page-${pIdx}`;
+        wmDiv.setAttribute('style', `position: absolute; top: ${topPx}px; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 440px; max-width: 82%; opacity: ${opacityVal}; z-index: 0; pointer-events: none; user-select: none; display: flex; justify-content: center; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact;`);
+        wmDiv.innerHTML = `<img src="${wmSrc}" alt="Marca de agua" style="width: 100%; height: auto; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; ${filterStyle}">`;
+        wmContainer.appendChild(wmDiv);
+    }
+};
+
+window._waitForAllImagesInElement = async function(el) {
+    if (!el) return;
+    const imgs = Array.from(el.querySelectorAll('img'));
+    if (imgs.length === 0) return;
+    await Promise.all(imgs.map(img => {
+        if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
+        return new Promise(res => {
+            img.onload = res;
+            img.onerror = res;
+            setTimeout(res, 350);
+        });
+    }));
+    await new Promise(r => setTimeout(r, 80));
+};
+
 window.generarPDFPresupuestoBase64 = async function(p, format = null) {
     if (!p) return null;
+    if (typeof window.saveTempEdits === 'function') {
+        try { window.saveTempEdits(); } catch(e) {}
+    }
+    if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(p.id)) {
+        p = Object.assign({}, pedidoActivo, p);
+        if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+            p.items = JSON.parse(JSON.stringify(pedidoItems));
+            const newAmt = p.items.reduce((sum, item) => {
+                const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+                const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+                const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+                    ? parseFloat(String(item.subtotal).replace(',', '.'))
+                    : (q * pr);
+                return sum + sub;
+            }, 0);
+            p.importe = newAmt;
+            pedidoActivo.items = p.items;
+            pedidoActivo.importe = newAmt;
+        }
+    }
     if ((!p.items || p.items.length <= 1) && typeof window.fetchPresupuestoItemsDirect === 'function') {
         const directItems = await window.fetchPresupuestoItemsDirect(p.id);
         if (Array.isArray(directItems) && directItems.length > 0) {
@@ -20362,27 +20616,15 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
         }
     }
     const finalFormat = format || p.tipo_reporte || 'detallado';
-    const items = window.getPresupuestoFormattedItems(p, finalFormat);
+    const items = (typeof window.getPresupuestoFormattedItems === 'function')
+        ? window.getPresupuestoFormattedItems(p, finalFormat)
+        : (Array.isArray(p.items) ? p.items : []);
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
     const logoSrc = (window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png';
     const nowStr = new Date().toLocaleDateString('es-AR');
     const total = items.reduce((sum, r) => sum + (r.subtotal !== '-' ? parseFloat(r.subtotal) : 0), 0);
     const htmlContent = window.generarHTMLPresupuestoNuevo(p, finalFormat, items, total, nro, cliName, logoSrc, nowStr);
-    const _waitForAllImagesInElement = async (el) => {
-        if (!el) return;
-        const imgs = Array.from(el.querySelectorAll('img'));
-        if (imgs.length === 0) return;
-        await Promise.all(imgs.map(img => {
-            if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
-            return new Promise(res => {
-                img.onload = res;
-                img.onerror = res;
-                setTimeout(res, 350);
-            });
-        }));
-        await new Promise(r => setTimeout(r, 80));
-    };
 
     return new Promise(async (resolve) => {
         const container = document.createElement('div');
@@ -20398,13 +20640,21 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
         container.style.zIndex = '-99999';
         container.innerHTML = htmlContent;
         document.body.appendChild(container);
-        await _waitForAllImagesInElement(container);
+        if (typeof window._waitForAllImagesInElement === 'function') {
+            await window._waitForAllImagesInElement(container);
+        }
 
         const targetEl = container.querySelector('#pdf-wrapper-download') || container.firstElementChild || container;
+        if (typeof window.asegurarMarcasDeAguaEnTodasLasHojas === 'function') {
+            window.asegurarMarcasDeAguaEnTodasLasHojas(targetEl, p);
+        }
+
+        const docTitle = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(p) : `Presupuesto_${nro}`;
+        const safeFilename = (docTitle.replace(/[\/\\?%*:|"<>]/g, '_') + '.pdf');
 
         const opt = {
             margin: [4, 4, 4, 4],
-            filename: `Presupuesto_${nro}.pdf`,
+            filename: safeFilename,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
                 scale: 2,
@@ -20445,6 +20695,26 @@ window.generarPDFPresupuestoBase64 = async function(p, format = null) {
 
 window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
     if (!p) return false;
+    if (typeof window.saveTempEdits === 'function') {
+        try { window.saveTempEdits(); } catch(e) {}
+    }
+    if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(p.id)) {
+        p = Object.assign({}, pedidoActivo, p);
+        if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+            p.items = JSON.parse(JSON.stringify(pedidoItems));
+            const newAmt = p.items.reduce((sum, item) => {
+                const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+                const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+                const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+                    ? parseFloat(String(item.subtotal).replace(',', '.'))
+                    : (q * pr);
+                return sum + sub;
+            }, 0);
+            p.importe = newAmt;
+            pedidoActivo.items = p.items;
+            pedidoActivo.importe = newAmt;
+        }
+    }
     if ((!p.items || p.items.length <= 1) && typeof window.fetchPresupuestoItemsDirect === 'function') {
         const directItems = await window.fetchPresupuestoItemsDirect(p.id);
         if (Array.isArray(directItems) && directItems.length > 0) {
@@ -20452,7 +20722,7 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
         }
     }
     const finalFormat = format || p.tipo_reporte || 'detallado';
-    const items = (typeof window.getPresupuestoFormattedItems === 'function') ? window.getPresupuestoFormattedItems(p, finalFormat) : [];
+    const items = (typeof window.getPresupuestoFormattedItems === 'function') ? window.getPresupuestoFormattedItems(p, finalFormat) : (Array.isArray(p.items) ? p.items : []);
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
     const logoSrc = (window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png';
@@ -20473,13 +20743,19 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
         container.style.zIndex = '-99999';
         container.innerHTML = htmlContent;
         document.body.appendChild(container);
-        if (typeof _waitForAllImagesInElement === 'function') await _waitForAllImagesInElement(container);
+        if (typeof window._waitForAllImagesInElement === 'function') await window._waitForAllImagesInElement(container);
 
         const targetEl = container.querySelector('#pdf-wrapper-download') || container.firstElementChild || container;
+        if (typeof window.asegurarMarcasDeAguaEnTodasLasHojas === 'function') {
+            window.asegurarMarcasDeAguaEnTodasLasHojas(targetEl, p);
+        }
+
+        const docTitle = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(p) : `Presupuesto_${nro}`;
+        const safeFilename = (docTitle.replace(/[\/\\?%*:|"<>]/g, '_') + '.pdf');
 
         const opt = {
             margin: [4, 4, 4, 4],
-            filename: `Presupuesto_${nro}.pdf`,
+            filename: safeFilename,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: {
                 scale: 2,
@@ -20518,16 +20794,90 @@ window.descargarPDFPresupuestoDirecto = async function(p, format = null) {
     });
 };
 
-window.abrirPDFPresupuesto = async function(id, format = null) {
-    const p = (window.appData && Array.isArray(window.appData.pedidos)) ? window.appData.pedidos.find(x => x.id === id) : null;
-    if (!p) return;
+window.abrirPDFPresupuesto = async function(id = null, format = null) {
+    // 1. Abrir ventana de forma inmediata y sincrónica para evitar que el navegador la bloquee como pop-up
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+        try {
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Cargando Presupuesto...</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 85vh; margin: 0; background: #0f172a; color: #f8fafc; }
+                        .spinner { width: 42px; height: 42px; border: 3px solid rgba(56, 189, 248, 0.2); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 14px; }
+                        @keyframes spin { to { transform: rotate(360deg); } }
+                    </style>
+                </head>
+                <body>
+                    <div class="spinner"></div>
+                    <div style="font-size: 16px; font-weight: bold; letter-spacing: 0.5px;">Cargando PDF oficial...</div>
+                    <div style="font-size: 13px; color: #94a3b8; margin-top: 6px;">Generando documento con marca de agua</div>
+                </body>
+                </html>
+            `);
+        } catch(e) {}
+    }
+
+    if (typeof saveTempEdits === 'function') {
+        try { saveTempEdits(); } catch(e) {}
+    }
+
+    const activeP = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo;
+    let p = null;
+    if (activeP && (!id || String(activeP.id).trim() === String(id).trim())) {
+        p = activeP;
+    } else if (id && window.appData && Array.isArray(window.appData.pedidos)) {
+        p = window.appData.pedidos.find(x => String(x.id).trim() === String(id).trim());
+    } else if (activeP) {
+        p = activeP;
+    }
+    if (!p) {
+        if (printWindow && !printWindow.closed) printWindow.close();
+        return;
+    }
+
+    if (activeP && String(p.id).trim() === String(activeP.id).trim()) {
+        if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+            p.items = JSON.parse(JSON.stringify(pedidoItems));
+            const newAmt = p.items.reduce((sum, item) => {
+                const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
+                const pr = parseFloat(String(item.precio !== undefined ? item.precio : (item.precio_unitario !== undefined ? item.precio_unitario : 0)).replace(',', '.')) || 0;
+                const sub = (item.subtotal !== undefined && item.subtotal !== null && !isNaN(parseFloat(String(item.subtotal).replace(',', '.'))))
+                    ? parseFloat(String(item.subtotal).replace(',', '.'))
+                    : (q * pr);
+                return sum + sub;
+            }, 0);
+            p.importe = newAmt;
+        }
+    }
+
     if ((!p.items || p.items.length <= 1) && typeof window.fetchPresupuestoItemsDirect === 'function') {
         const directItems = await window.fetchPresupuestoItemsDirect(p.id);
         if (Array.isArray(directItems) && directItems.length > 0) {
             p.items = directItems;
         }
     }
-    const finalFormat = format || p.tipo_reporte || 'detallado';
+
+    let finalFormat = format;
+    if (!finalFormat) {
+        const btnRes = document.getElementById('btn-toggle-report-resumido') || document.getElementById('auth-btn-report-resumido');
+        const btnProy = document.getElementById('btn-toggle-report-proyecto') || document.getElementById('auth-btn-report-proyecto');
+        const btnDet = document.getElementById('btn-toggle-report-detallado') || document.getElementById('auth-btn-report-detallado');
+
+        if (btnRes && (btnRes.style.background === 'rgb(2, 132, 199)' || btnRes.style.background === '#0284c7' || btnRes.classList.contains('active'))) {
+            finalFormat = 'resumido';
+        } else if (btnProy && (btnProy.style.background === 'rgb(2, 132, 199)' || btnProy.style.background === '#0284c7' || btnProy.classList.contains('active'))) {
+            finalFormat = 'proyecto';
+        } else if (btnDet && (btnDet.style.background === 'rgb(2, 132, 199)' || btnDet.style.background === '#0284c7' || btnDet.classList.contains('active'))) {
+            finalFormat = 'detallado';
+        } else {
+            finalFormat = p.tipo_reporte || 'detallado';
+        }
+    }
+    finalFormat = String(finalFormat).toLowerCase().trim();
+
     const items = window.getPresupuestoFormattedItems(p, finalFormat);
     const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
     const cliName = (p.cliente_nombre || p.cliente || '').trim();
@@ -20536,27 +20886,13 @@ window.abrirPDFPresupuesto = async function(id, format = null) {
     const total = items.reduce((sum, r) => sum + (r.subtotal !== '-' ? parseFloat(r.subtotal) : 0), 0);
     const htmlContent = window.generarHTMLPresupuestoNuevo(p, finalFormat, items, total, nro, cliName, logoSrc, nowStr);
 
-    // Abrir ventana anticipada para evitar bloqueo de popups en el navegador
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Cargando Presupuesto - ${nro}</title>
-                <style>
-                    body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 80vh; margin: 0; background: #0f172a; color: #f8fafc; }
-                    .spinner { width: 38px; height: 38px; border: 3px solid rgba(56, 189, 248, 0.2); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 14px; }
-                    @keyframes spin { to { transform: rotate(360deg); } }
-                </style>
-            </head>
-            <body>
-                <div class="spinner"></div>
-                <div style="font-size: 15px; font-weight: bold;">Cargando PDF oficial...</div>
-                <div style="font-size: 12px; color: #94a3b8; margin-top: 5px;">Presupuesto Nro. ${nro}</div>
-            </body>
-            </html>
-        `);
+    const docTitle = (typeof window.getBudgetDocTitle === 'function') ? window.getBudgetDocTitle(p) : `Presupuesto ${cliName} ${nro}`.trim();
+    const safeFilename = (docTitle.replace(/[\/\\?%*:|"<>]/g, '_') + '.pdf');
+
+    if (printWindow && !printWindow.closed) {
+        try {
+            printWindow.document.title = docTitle;
+        } catch(e) {}
     }
 
     const container = document.createElement('div');
@@ -20575,10 +20911,13 @@ window.abrirPDFPresupuesto = async function(id, format = null) {
     if (typeof _waitForAllImagesInElement === 'function') await _waitForAllImagesInElement(container);
 
     const targetEl = container.querySelector('#pdf-wrapper-download') || container.firstElementChild || container;
+    if (typeof window.asegurarMarcasDeAguaEnTodasLasHojas === 'function') {
+        window.asegurarMarcasDeAguaEnTodasLasHojas(targetEl, p);
+    }
 
     const opt = {
         margin: [4, 4, 4, 4],
-        filename: `Presupuesto_${nro}.pdf`,
+        filename: safeFilename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
             scale: 2,
@@ -20590,11 +20929,11 @@ window.abrirPDFPresupuesto = async function(id, format = null) {
             x: 0,
             y: 0,
             windowWidth: 715,
-                backgroundColor: '#ffffff',
-                onclone: function(clonedDoc) {
-                    var els = clonedDoc.querySelectorAll('#pdf-wrapper-download tr, #pdf-wrapper-download td, #pdf-wrapper-download th, #pdf-wrapper-download tbody, #pdf-wrapper-download thead, #pdf-wrapper-download tfoot');
-                    els.forEach(function(el) { el.style.backgroundColor = 'transparent'; el.style.background = 'transparent'; });
-                }
+            backgroundColor: '#ffffff',
+            onclone: function(clonedDoc) {
+                var els = clonedDoc.querySelectorAll('#pdf-wrapper-download tr, #pdf-wrapper-download td, #pdf-wrapper-download th, #pdf-wrapper-download tbody, #pdf-wrapper-download thead, #pdf-wrapper-download tfoot');
+                els.forEach(function(el) { el.style.backgroundColor = 'transparent'; el.style.background = 'transparent'; });
+            }
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
@@ -20607,9 +20946,25 @@ window.abrirPDFPresupuesto = async function(id, format = null) {
             if (pdfBlob) {
                 const pdfUrl = URL.createObjectURL(pdfBlob);
                 if (printWindow && !printWindow.closed) {
-                    printWindow.location.href = pdfUrl;
+                    try {
+                        printWindow.document.title = docTitle;
+                        printWindow.document.body.style.margin = '0';
+                        printWindow.document.body.style.padding = '0';
+                        printWindow.document.body.style.overflow = 'hidden';
+                        printWindow.document.body.style.background = '#525659';
+                        printWindow.document.body.innerHTML = `
+                            <iframe src="${pdfUrl}#toolbar=1" style="position:fixed;top:0;left:0;width:100%;height:100%;border:none;margin:0;padding:0;display:block;" title="${docTitle}"></iframe>
+                        `;
+                    } catch(e) {
+                        try { printWindow.location.href = pdfUrl; } catch(err) {}
+                    }
                 } else {
-                    window.open(pdfUrl, '_blank');
+                    const a = document.createElement('a');
+                    a.href = pdfUrl;
+                    a.download = safeFilename;
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => a.remove(), 1000);
                 }
             }
         } catch(err) {
@@ -22640,7 +22995,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '520';
+window.CURRENT_APP_VERSION = '525';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
