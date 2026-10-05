@@ -1038,13 +1038,24 @@ function initSupabaseSync(callback) {
         if (tarRes.data && tarRes.data.length > 0) {
             const customPrices = getCustomItemPrices();
 
+            // Helper para identificar códigos base (Mecánicos 1-64 y Eléctricos 1-60)
+            const isBaseCodeCheck = (c) => {
+                if (typeof window.isItemBase === 'function') return window.isItemBase(c);
+                const uc = String(c || '').trim().toUpperCase();
+                if (uc.startsWith('MEC-')) return true;
+                const m = uc.match(/^ELE-0*(\d+)$/);
+                if (m && parseInt(m[1], 10) <= 60) return true;
+                return false;
+            };
+
             // Map de la base de datos a un diccionario rápido por código
             const dbByCode = {};
             let deletedStock = [];
             try {
                 deletedStock = JSON.parse(localStorage.getItem('PRESUPUESTO_DELETED_STOCK') || '[]');
-                if (deletedStock.some(c => String(c).toUpperCase().startsWith('MEC-'))) {
-                    deletedStock = deletedStock.filter(c => !String(c).toUpperCase().startsWith('MEC-'));
+                const cleanedDeleted = deletedStock.filter(c => !isBaseCodeCheck(c));
+                if (cleanedDeleted.length !== deletedStock.length) {
+                    deletedStock = cleanedDeleted;
                     localStorage.setItem('PRESUPUESTO_DELETED_STOCK', JSON.stringify(deletedStock));
                 }
             } catch(e) {}
@@ -1052,7 +1063,7 @@ function initSupabaseSync(callback) {
             tarRes.data.forEach(function(row) {
                 if (!row || !row.codigo) return;
                 if (row.estado === 'ELIMINADOS') {
-                    if (!String(row.codigo).toUpperCase().startsWith('MEC-') && !deletedStock.includes(row.codigo)) {
+                    if (!isBaseCodeCheck(row.codigo) && !deletedStock.includes(row.codigo)) {
                         deletedStock.push(row.codigo);
                     }
                     return;
@@ -1103,14 +1114,16 @@ function initSupabaseSync(callback) {
                         const row = rows.find(r => !r.planta || r.planta.trim() === '') || rows[0];
                         const dbPrice = parseFloat(row.precio);
                         const finalPrice = (!isNaN(dbPrice) && dbPrice > 0) ? dbPrice : (baseItem.precio || 0);
+                        const cleanDet = (row.detalle && row.detalle.trim() !== baseItem.codigo) ? row.detalle.trim() : baseItem.detalle;
+                        const isOfficialMaterial = baseItem.subrubro && (baseItem.subrubro.includes('Material') || baseItem.subrubro.includes('Equipo'));
                         return {
                             ...baseItem,
                             precio: finalPrice,
                             precio_unitario: finalPrice,
                             moneda: row.moneda || baseItem.moneda || 'ARS',
-                            detalle: row.detalle || baseItem.detalle,
-                            descripcion: row.detalle || baseItem.descripcion,
-                            subrubro: row.subrubro || baseItem.subrubro
+                            detalle: cleanDet,
+                            descripcion: cleanDet,
+                            subrubro: isOfficialMaterial ? 'Materiales y Equipos' : (row.subrubro || baseItem.subrubro)
                         };
                     });
             }
@@ -1263,32 +1276,46 @@ function initSupabaseSync(callback) {
             const processedCodes = new Set([
                 ...(typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' ? PRESUPUESTO_ELECTRICO_STOCK.map(i => i.codigo) : []),
                 ...(typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' ? PRESUPUESTO_MECANICO_STOCK.map(i => i.codigo) : []),
-                ...(Array.isArray(window.presupuestoMecanicoDB) ? window.presupuestoMecanicoDB.map(i => i.codigo) : [])
+                ...(Array.isArray(window.presupuestoMecanicoDB) ? window.presupuestoMecanicoDB.map(i => i.codigo) : []),
+                ...(Array.isArray(window.presupuestosCatalogDB) ? window.presupuestosCatalogDB.map(i => i.codigo) : [])
             ]);
 
             // Agregar items totalmente nuevos que no estaban en los arrays por defecto ni en Mecánico
             Object.keys(dbByCode).forEach(codigo => {
                 if (!processedCodes.has(codigo)) {
                     dbByCode[codigo].forEach(row => {
+                        const isElecCode = String(row.codigo || '').toUpperCase().startsWith('ELE-');
+                        const finalRubro = row.rubro || (isElecCode ? 'Eléctrico' : 'Mecánico');
+                        const isMat = (
+                            (row.subrubro && (row.subrubro.toLowerCase().includes('material') || row.subrubro.toLowerCase().includes('equipo'))) ||
+                            row.moneda === 'USD' ||
+                            (!['hs', 'hora', 'horas'].includes(String(row.unidad || '').toLowerCase().trim()) && !String(row.subrubro || '').toLowerCase().includes('mano de obra'))
+                        );
+
                         const newItem = {
                             codigo: row.codigo,
-                            detalle: row.detalle || '',
-                            descripcion: row.detalle || '',
-                            rubro: row.rubro || 'Mecánico',
-                            subrubro: row.subrubro || 'Materiales y Equipos',
-                            udm: row.unidad || 'Hs',
+                            detalle: (row.detalle && row.detalle.trim() !== row.codigo) ? row.detalle.trim() : (row.detalle || ''),
+                            descripcion: (row.detalle && row.detalle.trim() !== row.codigo) ? row.detalle.trim() : (row.detalle || ''),
+                            rubro: finalRubro,
+                            subrubro: row.subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO'),
+                            udm: row.unidad || (isMat ? 'c/u' : 'Hs'),
                             precio: parseFloat(row.precio) || 0,
                             precio_unitario: parseFloat(row.precio) || 0,
                             stock: parseFloat(row.stock) || 999,
                             estado: row.estado || 'ACTIVOS',
                             planta: row.planta ? row.planta.trim().toUpperCase() : null,
+                            moneda: row.moneda || (isMat ? 'USD' : 'ARS'),
                             is_custom: true
                         };
 
-                        if (row.rubro === 'Eléctrico') {
-                            if (window.presupuestosCatalogDB) window.presupuestosCatalogDB.push(newItem);
+                        if (finalRubro === 'Eléctrico') {
+                            if (window.presupuestosCatalogDB && !window.presupuestosCatalogDB.some(x => x.codigo === row.codigo)) {
+                                window.presupuestosCatalogDB.push(newItem);
+                            }
                         } else {
-                            if (window.presupuestoMecanicoDB) window.presupuestoMecanicoDB.push(newItem);
+                            if (window.presupuestoMecanicoDB && !window.presupuestoMecanicoDB.some(x => x.codigo === row.codigo && (x.planta || '') === (newItem.planta || ''))) {
+                                window.presupuestoMecanicoDB.push(newItem);
+                            }
                         }
                     });
                 }
@@ -1299,10 +1326,166 @@ function initSupabaseSync(callback) {
                 localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices));
             } catch(e) {}
             console.log("✅ " + tarRes.data.length + " ítems de tarifario cargados desde Supabase en tiempo real.");
+
+            // Auto-sincronizar ítems huérfanos locales (materiales o conceptos guardados localmente que falten en Supabase)
+            if (typeof window.sincronizarMaterialesFaltantesASupabase === 'function') {
+                window.sincronizarMaterialesFaltantesASupabase(dbByCode);
+            }
         }
     }).catch(function(tarErr) {
         console.warn("Aviso al consultar tabla 'tarifario' en Supabase:", tarErr);
     });
+
+    // Función para auto-sincronizar ítems y materiales creados localmente que no existen aún en Supabase
+    window.sincronizarMaterialesFaltantesASupabase = async function(existingDbByCode = null) {
+        try {
+            const dbClient = (typeof getDbClient === 'function') ? getDbClient() : (typeof client !== 'undefined' ? client : null);
+            if (!dbClient) return;
+
+            let dbCodes = new Set();
+            if (existingDbByCode && typeof existingDbByCode === 'object') {
+                Object.keys(existingDbByCode).forEach(c => dbCodes.add(String(c).toUpperCase().trim()));
+            } else {
+                const { data } = await dbClient.from('tarifario').select('codigo');
+                if (data && Array.isArray(data)) {
+                    data.forEach(r => { if (r && r.codigo) dbCodes.add(String(r.codigo).toUpperCase().trim()); });
+                }
+            }
+
+            const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+            const missingItems = new Map();
+
+            const scanItem = (it, defaultRubro = 'Eléctrico') => {
+                if (!it || !it.codigo) return;
+                const cd = String(it.codigo).toUpperCase().trim();
+                if (!cd || cd === '-' || cd === 'NONE' || cd === 'UNDEFINED') return;
+                if (dbCodes.has(cd)) return;
+                if (missingItems.has(cd)) return;
+
+                const isElec = cd.startsWith('ELE-') || (it.rubro === 'Eléctrico');
+                const rubroVal = isElec ? 'Eléctrico' : 'Mecánico';
+                const sub = String(it.subrubro || '').trim();
+                const isMat = (
+                    sub.toLowerCase().includes('material') ||
+                    sub.toLowerCase().includes('equipo') ||
+                    String(it.moneda || '').toUpperCase() === 'USD' ||
+                    it.is_material === true ||
+                    (!['hs', 'hora', 'horas'].includes(String(it.udm || it.unidad || '').toLowerCase().trim()) && !sub.toLowerCase().includes('mano de obra'))
+                );
+
+                missingItems.set(cd, {
+                    codigo: it.codigo,
+                    detalle: String(it.detalle || it.descripcion || cd).trim(),
+                    rubro: rubroVal,
+                    subrubro: sub || (isMat ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO'),
+                    unidad: String(it.udm || it.unidad || (isMat ? 'c/u' : 'Hs')).trim(),
+                    precio: parseFloat(it.precio || it.precio_unitario) || 0,
+                    moneda: (String(it.moneda || '').toUpperCase() === 'USD' || isMat) ? 'USD' : 'ARS',
+                    is_custom: true,
+                    planta: String(it.planta || '').trim().toUpperCase()
+                });
+            };
+
+            if (Array.isArray(window.presupuestosCatalogDB)) {
+                window.presupuestosCatalogDB.forEach(it => scanItem(it, 'Eléctrico'));
+            }
+            if (Array.isArray(window.presupuestoMecanicoDB)) {
+                window.presupuestoMecanicoDB.forEach(it => scanItem(it, 'Mecánico'));
+            }
+            if (typeof appData !== 'undefined' && appData && Array.isArray(appData.pedidos)) {
+                appData.pedidos.forEach(p => {
+                    if (p && Array.isArray(p.items)) {
+                        p.items.forEach(it => scanItem(it, p.tipo_presupuesto || 'Eléctrico'));
+                    }
+                });
+            }
+
+            if (missingItems.size === 0) return;
+
+            console.log(`🔄 Detectados ${missingItems.size} ítems no presentes en Supabase tarifario. Sincronizando...`);
+
+            const upsertBatch = [];
+            missingItems.forEach(it => {
+                const isUSD = (it.moneda === 'USD');
+                const numUSD = isUSD ? it.precio : (it.precio > 0 ? Math.round((it.precio / cotizMat) * 100) / 100 : 0);
+                const numARS = isUSD ? Math.round(it.precio * cotizMat) : it.precio;
+
+                if (it.rubro === 'Mecánico') {
+                    ['APS', 'APG'].forEach(p => {
+                        upsertBatch.push({
+                            id: `${it.codigo}_${p}_ARS`,
+                            codigo: it.codigo,
+                            detalle: it.detalle,
+                            rubro: 'Mecánico',
+                            subrubro: it.subrubro,
+                            unidad: it.unidad,
+                            precio: numARS,
+                            stock: 999,
+                            estado: 'ACTIVOS',
+                            is_custom: true,
+                            planta: p,
+                            moneda: 'ARS'
+                        });
+                        upsertBatch.push({
+                            id: `${it.codigo}_${p}_USD`,
+                            codigo: it.codigo,
+                            detalle: it.detalle,
+                            rubro: 'Mecánico',
+                            subrubro: it.subrubro,
+                            unidad: it.unidad,
+                            precio: numUSD,
+                            stock: 999,
+                            estado: 'ACTIVOS',
+                            is_custom: true,
+                            planta: p,
+                            moneda: 'USD'
+                        });
+                    });
+                } else {
+                    upsertBatch.push({
+                        id: `${it.codigo}_ARS`,
+                        codigo: it.codigo,
+                        detalle: it.detalle,
+                        rubro: 'Eléctrico',
+                        subrubro: it.subrubro,
+                        unidad: it.unidad,
+                        precio: numARS,
+                        stock: 999,
+                        estado: 'ACTIVOS',
+                        is_custom: true,
+                        planta: '',
+                        moneda: 'ARS'
+                    });
+                    upsertBatch.push({
+                        id: `${it.codigo}_USD`,
+                        codigo: it.codigo,
+                        detalle: it.detalle,
+                        rubro: 'Eléctrico',
+                        subrubro: it.subrubro,
+                        unidad: it.unidad,
+                        precio: numUSD,
+                        stock: 999,
+                        estado: 'ACTIVOS',
+                        is_custom: true,
+                        planta: '',
+                        moneda: 'USD'
+                    });
+                }
+            });
+
+            if (upsertBatch.length > 0) {
+                const res = await dbClient.from('tarifario').upsert(upsertBatch, { onConflict: 'id' });
+                if (res && res.error) {
+                    console.warn("Aviso al auto-sincronizar ítems en Supabase tarifario:", res.error);
+                } else {
+                    console.log(`✅ ${missingItems.size} ítems sincronizados correctamente en la tabla tarifario de Supabase.`);
+                    missingItems.forEach((_, cd) => dbCodes.add(cd));
+                }
+            }
+        } catch(eSync) {
+            console.warn("Aviso en sincronizarMaterialesFaltantesASupabase:", eSync);
+        }
+    };
 
     // Función para sanear y actualizar presupuestos eléctricos existentes (elimina ítems mecánicos colados, restaura precios en 0 y recalcula totales)
     window.actualizarPresupuestosElectricosExistentes = async function() {
@@ -1472,6 +1655,10 @@ function initSupabaseSync(callback) {
             try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
             if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
             if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable();
+        }
+
+        if (typeof window.sincronizarMaterialesFaltantesASupabase === 'function') {
+            window.sincronizarMaterialesFaltantesASupabase();
         }
     };
 
@@ -2259,6 +2446,9 @@ function initSupabaseSync(callback) {
                         const item = payload.new;
                         if (payload.eventType === 'DELETE' && payload.old) {
                             const oldCode = payload.old.codigo || payload.old.id;
+                            if (typeof window.isItemBase === 'function' && window.isItemBase(oldCode)) {
+                                return; // Proteger ítems base de eliminación accidental
+                            }
                             if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
                                 const idxE = PRESUPUESTO_ELECTRICO_STOCK.findIndex(x => x.codigo === oldCode);
                                 if (idxE !== -1) PRESUPUESTO_ELECTRICO_STOCK.splice(idxE, 1);
@@ -2266,6 +2456,12 @@ function initSupabaseSync(callback) {
                             if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
                                 const idxM = PRESUPUESTO_MECANICO_STOCK.findIndex(x => x.codigo === oldCode);
                                 if (idxM !== -1) PRESUPUESTO_MECANICO_STOCK.splice(idxM, 1);
+                            }
+                            if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+                                window.presupuestosCatalogDB = window.presupuestosCatalogDB.filter(x => x.codigo !== oldCode);
+                            }
+                            if (typeof window.presupuestoMecanicoDB !== 'undefined' && Array.isArray(window.presupuestoMecanicoDB)) {
+                                window.presupuestoMecanicoDB = window.presupuestoMecanicoDB.filter(x => x.codigo !== oldCode);
                             }
                             if (typeof window.renderMecanicoExcelGrid === 'function') window.renderMecanicoExcelGrid();
                             return;
@@ -2291,25 +2487,36 @@ function initSupabaseSync(callback) {
                             if (!item.planta) customPrices[item.codigo] = nPrice;
                             try { localStorage.setItem('PRESUPUESTO_CUSTOM_PRICES', JSON.stringify(customPrices)); } catch(e) {}
 
+                            const isElecCode = String(item.codigo || '').toUpperCase().startsWith('ELE-');
+                            const isMecaCode = String(item.codigo || '').toUpperCase().startsWith('MEC-');
+                            const isMat = (
+                                (item.subrubro && (item.subrubro.toLowerCase().includes('material') || item.subrubro.toLowerCase().includes('equipo'))) ||
+                                m === 'USD' ||
+                                (!['hs', 'hora', 'horas'].includes(String(item.unidad || '').toLowerCase().trim()) && !String(item.subrubro || '').toLowerCase().includes('mano de obra'))
+                            );
+                            const finalSubrubro = item.subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO');
+
                             // Actualizar catálogo eléctrico
                             if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
                                 const fe = PRESUPUESTO_ELECTRICO_STOCK.find(x => x.codigo === item.codigo);
                                 if (fe) {
                                     fe.precio = nPrice;
                                     fe.precio_unitario = nPrice;
-                                    if (item.detalle) fe.detalle = item.detalle;
-                                } else if (item.rubro === 'Eléctrico') {
+                                    if (item.detalle && item.detalle.trim() !== item.codigo) fe.detalle = item.detalle.trim();
+                                    if (item.subrubro && !fe.subrubro) fe.subrubro = item.subrubro;
+                                } else if (item.rubro === 'Eléctrico' || isElecCode) {
                                     PRESUPUESTO_ELECTRICO_STOCK.push({
                                          codigo: item.codigo,
                                          detalle: item.detalle || '',
                                          descripcion: item.detalle || '',
                                          rubro: 'Eléctrico',
-                                         subrubro: item.subrubro || 'Materiales y Equipos',
-                                         udm: item.unidad || 'Hs',
+                                         subrubro: finalSubrubro,
+                                         udm: item.unidad || (isMat ? 'c/u' : 'Hs'),
                                          precio: nPrice,
                                          precio_unitario: nPrice,
                                          stock: parseFloat(item.stock) || 999,
-                                         estado: item.estado || 'ACTIVOS'
+                                         estado: item.estado || 'ACTIVOS',
+                                         is_custom: true
                                      });
                                  }
                              }
@@ -2318,19 +2525,21 @@ function initSupabaseSync(callback) {
                                  if (fcdb) {
                                      fcdb.precio = nPrice;
                                      fcdb.precio_unitario = nPrice;
-                                     if (item.detalle) fcdb.detalle = item.detalle;
-                                 } else if (item.rubro === 'Eléctrico') {
+                                     if (item.detalle && item.detalle.trim() !== item.codigo) fcdb.detalle = item.detalle.trim();
+                                     if (item.subrubro && !fcdb.subrubro) fcdb.subrubro = item.subrubro;
+                                 } else if (item.rubro === 'Eléctrico' || isElecCode) {
                                      window.presupuestosCatalogDB.push({
                                          codigo: item.codigo,
                                          detalle: item.detalle || '',
                                          descripcion: item.detalle || '',
                                          rubro: 'Eléctrico',
-                                         subrubro: item.subrubro || 'Materiales y Equipos',
-                                         udm: item.unidad || 'Hs',
+                                         subrubro: finalSubrubro,
+                                         udm: item.unidad || (isMat ? 'c/u' : 'Hs'),
                                          precio: nPrice,
                                          precio_unitario: nPrice,
                                          stock: parseFloat(item.stock) || 999,
-                                         estado: item.estado || 'ACTIVOS'
+                                         estado: item.estado || 'ACTIVOS',
+                                         is_custom: true
                                      });
                                  }
                              }
@@ -2344,14 +2553,14 @@ function initSupabaseSync(callback) {
                                      fm.precio_unitario = nPrice;
                                      const validDet = (item.detalle && item.detalle.trim() !== item.codigo) ? item.detalle.trim() : "";
                                      if (validDet) fm.detalle = validDet;
-                                 } else if (item.rubro === 'Mecánico') {
+                                 } else if (item.rubro === 'Mecánico' || isMecaCode) {
                                      PRESUPUESTO_MECANICO_STOCK.push({
                                          codigo: item.codigo,
                                          detalle: item.detalle || '',
                                          descripcion: item.detalle || '',
                                          rubro: 'Mecánico',
-                                         subrubro: item.subrubro || 'Materiales y Equipos',
-                                         udm: item.unidad || 'Hs',
+                                         subrubro: item.subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO'),
+                                         udm: item.unidad || (isMat ? 'c/u' : 'Hs'),
                                          precio: nPrice,
                                          precio_unitario: nPrice,
                                          stock: parseFloat(item.stock) || 999,
@@ -2545,10 +2754,10 @@ window.resolveItemSubrubro = function(it, tipoPresupuesto = '') {
     const det = String(it.detalle || it.descripcion || '').trim();
     const detLow = det.toLowerCase();
 
-    // 1. Buscar en catálogo Mecánico
-    const catM = (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK))
-        ? PRESUPUESTO_MECANICO_STOCK
-        : (window.presupuestoMecanicoDB || []);
+    // 1. Buscar en catálogo Mecánico activo en memoria
+    const catM = (window.presupuestoMecanicoDB && window.presupuestoMecanicoDB.length > 0)
+        ? window.presupuestoMecanicoDB
+        : ((typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) ? PRESUPUESTO_MECANICO_STOCK : []);
     if (code) {
         const foundM = catM.find(c => c && (c.codigo === code || c.id === code));
         if (foundM && foundM.subrubro && String(foundM.subrubro).trim()) {
@@ -2556,10 +2765,10 @@ window.resolveItemSubrubro = function(it, tipoPresupuesto = '') {
         }
     }
 
-    // 2. Buscar en catálogo Eléctrico
-    const catE = (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK))
-        ? PRESUPUESTO_ELECTRICO_STOCK
-        : (window.presupuestosCatalogDB || []);
+    // 2. Buscar en catálogo Eléctrico activo en memoria
+    const catE = (window.presupuestosCatalogDB && window.presupuestosCatalogDB.length > 0)
+        ? window.presupuestosCatalogDB
+        : ((typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) ? PRESUPUESTO_ELECTRICO_STOCK : []);
     if (code) {
         const foundE = catE.find(c => c && (c.codigo === code || c.id === code));
         if (foundE && foundE.subrubro && String(foundE.subrubro).trim()) {
@@ -2601,14 +2810,20 @@ window.resolveItemSubrubro = function(it, tipoPresupuesto = '') {
         if (!isNaN(num) && num <= 27) {
             return 'Materiales y Equipos';
         }
-        return 'Mano de Obra MANTENIMIENTO';
+        if (!isNaN(num) && num <= 60) {
+            return 'Mano de Obra MANTENIMIENTO';
+        }
+        return 'Materiales y Equipos';
     }
     if (code.startsWith('MEC-')) {
         const num = parseInt(code.replace(/\D/g, ''), 10);
         if (!isNaN(num) && num <= 9) {
             return 'Materiales y Equipos';
         }
-        return 'Mano de Obra MANTENIMIENTO';
+        if (!isNaN(num) && num <= 64) {
+            return 'Mano de Obra MANTENIMIENTO';
+        }
+        return 'Materiales y Equipos';
     }
 
     if (tipoPresupuesto === 'Mecánico') {
@@ -4517,16 +4732,22 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
             }
             if (!cleanDetalle) cleanDetalle = codigo;
 
+            const isMatCheck = (
+                (cleanSubrubro && (cleanSubrubro.toLowerCase().includes('material') || cleanSubrubro.toLowerCase().includes('equipo'))) ||
+                (typeof window.isMaterialItem === 'function' && window.isMaterialItem({ codigo, subrubro: cleanSubrubro, unidad: cleanUdm, moneda: m })) ||
+                m === 'USD' ||
+                (!['hs', 'hora', 'horas'].includes(cleanUdm.toLowerCase().trim()) && !cleanSubrubro.toLowerCase().includes('mano de obra'))
+            );
+            const defaultSub = isMatCheck ? 'Materiales y Equipos' : (rubroVal === 'Mecánico' ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO');
+
             const upsertRow = {
                 id: rowId,
                 codigo: codigo,
                 detalle: cleanDetalle,
                 rubro: rubroVal,
-                subrubro: cleanSubrubro || (rubroVal === 'Mecánico' ? 'Materiales y Equipos' : 'Mano de Obra'),
-                unidad: cleanUdm || 'Hs',
+                subrubro: cleanSubrubro || defaultSub,
+                unidad: cleanUdm || (isMatCheck ? 'c/u' : 'Hs'),
                 precio: numPrice,
-                precio_ars: (m === 'ARS' ? numPrice : null),
-                precio_usd: (m === 'USD' ? numPrice : null),
                 stock: 999,
                 estado: 'ACTIVOS',
                 is_custom: true,
@@ -5817,23 +6038,31 @@ window.OFFICIAL_BASE_MECANICO_CODES = new Set(
 );
 window.BASE_MECANICO_CODES = window.OFFICIAL_BASE_MECANICO_CODES;
 
-window.isMecanicoItemBase = function(itemOrCode) {
+window.OFFICIAL_BASE_ELECTRICO_CODES = new Set(
+    Array.from({ length: 60 }, (_, i) => `ELE-${String(i + 1).padStart(3, '0')}`)
+);
+window.BASE_ELECTRICO_CODES = window.OFFICIAL_BASE_ELECTRICO_CODES;
+
+window.isItemBase = function(itemOrCode) {
     if (!itemOrCode) return false;
     if (typeof itemOrCode === 'object') {
         if (itemOrCode.is_custom === true || itemOrCode.isCustom === true) return false;
         itemOrCode = itemOrCode.codigo;
     }
     const cleanCode = String(itemOrCode).trim().toUpperCase();
-    return window.OFFICIAL_BASE_MECANICO_CODES.has(cleanCode);
+    return window.OFFICIAL_BASE_MECANICO_CODES.has(cleanCode) || window.OFFICIAL_BASE_ELECTRICO_CODES.has(cleanCode);
 };
 
-window.isMecanicoItemCustom = function(itemOrCode) {
+window.isItemCustom = function(itemOrCode) {
     if (!itemOrCode) return false;
     if (typeof itemOrCode === 'object' && (itemOrCode.is_custom === true || itemOrCode.isCustom === true)) return true;
     const code = typeof itemOrCode === 'object' ? itemOrCode.codigo : itemOrCode;
     if (!code) return false;
-    return !window.isMecanicoItemBase(code);
+    return !window.isItemBase(code);
 };
+
+window.isMecanicoItemBase = window.isItemBase;
+window.isMecanicoItemCustom = window.isItemCustom;
 
 function applyCustomPricesToCatalog(catalog) {
     if (!catalog || !Array.isArray(catalog)) return catalog;
@@ -17657,11 +17886,12 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         // Find first visible tab index
         let firstVisibleTab = -1;
         sections.forEach((sec, idx) => {
-            if (sec.items.length > 0 && firstVisibleTab === -1) {
+            const isMatTab = (idx === 0 || (sec.name && (sec.name.includes("Material") || sec.name.includes("Equipo"))));
+            if ((sec.items.length > 0 || isMatTab) && firstVisibleTab === -1) {
                 firstVisibleTab = idx;
             }
         });
-        if (firstVisibleTab !== -1 && (window.activeMecaTab === -1 || !sections[window.activeMecaTab] || sections[window.activeMecaTab].items.length === 0)) {
+        if (firstVisibleTab !== -1 && (window.activeMecaTab === -1 || !sections[window.activeMecaTab])) {
             window.activeMecaTab = firstVisibleTab;
         }
     }
@@ -17701,9 +17931,10 @@ if (curPlanta === 'APA') curPlanta = 'APS';
     let visibleTabNumber = 1;
     sections.forEach((sec, idx) => {
         const hasItems = sec.items.length > 0;
-        const displayStyle = hasItems ? 'block' : 'none';
+        const isMatTab = (idx === 0 || (sec.name && (sec.name.includes("Material") || sec.name.includes("Equipo"))));
+        const displayStyle = (hasItems || isMatTab) ? 'block' : 'none';
         const isSelected = window.activeMecaTab === idx;
-        const tabNumber = hasItems ? visibleTabNumber++ : '';
+        const tabNumber = (hasItems || isMatTab) ? visibleTabNumber++ : '';
         html += `
             <button type="button" id="meca-tab-${idx}" onclick="switchMecaTab(${idx})"
                 style="display: ${displayStyle}; padding: 10px 16px; border: 1px solid ${isSelected ? '#0891b2' : 'rgba(255, 255, 255, 0.1)'}; border-bottom: none; border-radius: 8px 8px 0 0; background: ${isSelected ? '#0891b2' : 'rgba(30, 41, 59, 0.6)'}; color: ${isSelected ? '#ffffff' : 'var(--text-muted)'}; font-weight: ${isSelected ? '800' : '700'}; font-size: 12px; cursor: pointer; text-transform: uppercase; transition: all 0.2s ease;">
@@ -22831,8 +23062,6 @@ window.confirmarNuevoItemTarifario = function() {
                             subrubro: subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra EN TALLER'),
                             unidad: udm,
                             precio: numARS,
-                            precio_ars: numARS,
-                            precio_usd: numUSD,
                             stock: 999,
                             estado: 'ACTIVOS',
                             is_custom: true,
@@ -22847,8 +23076,6 @@ window.confirmarNuevoItemTarifario = function() {
                             subrubro: subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra EN TALLER'),
                             unidad: udm,
                             precio: numUSD,
-                            precio_ars: numARS,
-                            precio_usd: numUSD,
                             stock: 999,
                             estado: 'ACTIVOS',
                             is_custom: true,
@@ -22865,8 +23092,6 @@ window.confirmarNuevoItemTarifario = function() {
                         subrubro: subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO'),
                         unidad: udm,
                         precio: numARS,
-                        precio_ars: numARS,
-                        precio_usd: numUSD,
                         stock: 999,
                         estado: 'ACTIVOS',
                         is_custom: true,
@@ -22881,8 +23106,6 @@ window.confirmarNuevoItemTarifario = function() {
                         subrubro: subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO'),
                         unidad: udm,
                         precio: numUSD,
-                        precio_ars: numARS,
-                        precio_usd: numUSD,
                         stock: 999,
                         estado: 'ACTIVOS',
                         is_custom: true,
@@ -22915,6 +23138,14 @@ window.confirmarNuevoItemTarifario = function() {
 
 
 window.deleteStockItem = function(codigo) {
+    if (typeof window.isItemBase === 'function' && window.isItemBase(codigo)) {
+        if (typeof showToast === 'function') {
+            showToast('Los artículos base están protegidos y no pueden ser eliminados.', 'warning');
+        } else {
+            alert('Los artículos base están protegidos y no pueden ser eliminados.');
+        }
+        return;
+    }
     if (!confirm('¿Seguro que deseas eliminar el artículo ' + codigo + '?')) return;
 
     // Attempt to remove from all arrays
@@ -22936,9 +23167,9 @@ window.deleteStockItem = function(codigo) {
 
 
 window.eliminarItemDelTarifario = function(code) {
-    if (typeof window.isMecanicoItemBase === 'function' && window.isMecanicoItemBase(code)) {
+    if (typeof window.isItemBase === 'function' && window.isItemBase(code)) {
         if (typeof showToast === 'function') {
-            showToast('Los ítems base del tarifario mecánico están protegidos y no pueden ser eliminados.', 'warning');
+            showToast('Los ítems base del tarifario están protegidos y no pueden ser eliminados.', 'warning');
         }
         return;
     }
