@@ -47,6 +47,47 @@ try {
 } catch(e) {}
 const LOCAL_STATE_KEY = 'solicitudes_pedidos_local_state';
 
+// --- PROTECCIÓN Y CÓDIGOS OFICIALES BASE DEL TARIFARIO ---
+window.OFFICIAL_BASE_MECANICO_CODES = new Set(
+    Array.from({ length: 64 }, (_, i) => `MEC-${String(i + 1).padStart(3, '0')}`)
+);
+window.BASE_MECANICO_CODES = window.OFFICIAL_BASE_MECANICO_CODES;
+
+window.OFFICIAL_BASE_ELECTRICO_CODES = new Set(
+    Array.from({ length: 60 }, (_, i) => `ELE-${String(i + 1).padStart(3, '0')}`)
+);
+window.BASE_ELECTRICO_CODES = window.OFFICIAL_BASE_ELECTRICO_CODES;
+
+window.isItemBase = function(itemOrCode) {
+    if (!itemOrCode) return false;
+    if (typeof itemOrCode === 'object') {
+        if (itemOrCode.is_custom === true || itemOrCode.isCustom === true) return false;
+        itemOrCode = itemOrCode.codigo;
+    }
+    const cleanCode = String(itemOrCode).trim().toUpperCase();
+    return window.OFFICIAL_BASE_MECANICO_CODES.has(cleanCode) || window.OFFICIAL_BASE_ELECTRICO_CODES.has(cleanCode);
+};
+
+window.isItemCustom = function(itemOrCode) {
+    if (!itemOrCode) return false;
+    if (typeof itemOrCode === 'object' && (itemOrCode.is_custom === true || itemOrCode.isCustom === true)) return true;
+    const code = typeof itemOrCode === 'object' ? itemOrCode.codigo : itemOrCode;
+    if (!code) return false;
+    return !window.isItemBase(code);
+};
+
+window.isMecanicoItemBase = window.isItemBase;
+window.isMecanicoItemCustom = window.isItemCustom;
+
+// Sanear de inmediato lista negra local: nunca almacenar códigos oficiales base
+try {
+    const rawDel = JSON.parse(localStorage.getItem('PRESUPUESTO_DELETED_STOCK') || '[]');
+    const cleanedDel = rawDel.filter(c => !window.isItemBase(c));
+    if (cleanedDel.length !== rawDel.length) {
+        localStorage.setItem('PRESUPUESTO_DELETED_STOCK', JSON.stringify(cleanedDel));
+    }
+} catch(e) {}
+
 // Bases de datos globales centralizadas (Sincronizadas dinámicamente desde Supabase)
 window.clientesDB = window.clientesDB || [];
 window.condicionesDB = window.condicionesDB || [
@@ -1038,22 +1079,12 @@ function initSupabaseSync(callback) {
         if (tarRes.data && tarRes.data.length > 0) {
             const customPrices = getCustomItemPrices();
 
-            // Helper para identificar códigos base (Mecánicos 1-64 y Eléctricos 1-60)
-            const isBaseCodeCheck = (c) => {
-                if (typeof window.isItemBase === 'function') return window.isItemBase(c);
-                const uc = String(c || '').trim().toUpperCase();
-                if (uc.startsWith('MEC-')) return true;
-                const m = uc.match(/^ELE-0*(\d+)$/);
-                if (m && parseInt(m[1], 10) <= 60) return true;
-                return false;
-            };
-
             // Map de la base de datos a un diccionario rápido por código
             const dbByCode = {};
             let deletedStock = [];
             try {
                 deletedStock = JSON.parse(localStorage.getItem('PRESUPUESTO_DELETED_STOCK') || '[]');
-                const cleanedDeleted = deletedStock.filter(c => !isBaseCodeCheck(c));
+                const cleanedDeleted = deletedStock.filter(c => !window.isItemBase(c));
                 if (cleanedDeleted.length !== deletedStock.length) {
                     deletedStock = cleanedDeleted;
                     localStorage.setItem('PRESUPUESTO_DELETED_STOCK', JSON.stringify(deletedStock));
@@ -1063,7 +1094,7 @@ function initSupabaseSync(callback) {
             tarRes.data.forEach(function(row) {
                 if (!row || !row.codigo) return;
                 if (row.estado === 'ELIMINADOS') {
-                    if (!isBaseCodeCheck(row.codigo) && !deletedStock.includes(row.codigo)) {
+                    if (!window.isItemBase(row.codigo) && !deletedStock.includes(row.codigo)) {
                         deletedStock.push(row.codigo);
                     }
                     return;
@@ -1104,26 +1135,26 @@ function initSupabaseSync(callback) {
             });
 
             // Reconstruir catálogo Eléctrico (toma el primer precio disponible)
+            // LOS ÍTEMS BASE DEL STOCK ELÉCTRICO NUNCA SE FILTRAN NI ELIMINAN
             if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
                 window.presupuestosCatalogDB = PRESUPUESTO_ELECTRICO_STOCK
-                    .filter(baseItem => !deletedStock.includes(baseItem.codigo))
                     .map(baseItem => {
                         const rows = dbByCode[baseItem.codigo];
-                        if (!rows || rows.length === 0) return { ...baseItem, moneda: baseItem.moneda || 'ARS' };
-                        // Priorizar el que no tenga planta (o la vacía) para Eléctrico
-                        const row = rows.find(r => !r.planta || r.planta.trim() === '') || rows[0];
-                        const dbPrice = parseFloat(row.precio);
+                        const row = (rows && rows.length > 0) ? (rows.find(r => !r.planta || r.planta.trim() === '') || rows[0]) : null;
+                        const dbPrice = row ? parseFloat(row.precio) : NaN;
                         const finalPrice = (!isNaN(dbPrice) && dbPrice > 0) ? dbPrice : (baseItem.precio || 0);
-                        const cleanDet = (row.detalle && row.detalle.trim() !== baseItem.codigo) ? row.detalle.trim() : baseItem.detalle;
+                        const cleanDet = (row && row.detalle && row.detalle.trim() !== baseItem.codigo) ? row.detalle.trim() : baseItem.detalle;
                         const isOfficialMaterial = baseItem.subrubro && (baseItem.subrubro.includes('Material') || baseItem.subrubro.includes('Equipo'));
+                        const cleanSubrubro = isOfficialMaterial ? 'Materiales y Equipos' : ((row && row.subrubro) ? row.subrubro : baseItem.subrubro);
                         return {
                             ...baseItem,
                             precio: finalPrice,
                             precio_unitario: finalPrice,
-                            moneda: row.moneda || baseItem.moneda || 'ARS',
+                            moneda: (row && row.moneda) || baseItem.moneda || 'ARS',
                             detalle: cleanDet,
                             descripcion: cleanDet,
-                            subrubro: isOfficialMaterial ? 'Materiales y Equipos' : (row.subrubro || baseItem.subrubro)
+                            subrubro: cleanSubrubro,
+                            is_custom: false
                         };
                     });
             }
@@ -1331,6 +1362,11 @@ function initSupabaseSync(callback) {
             if (typeof window.sincronizarMaterialesFaltantesASupabase === 'function') {
                 window.sincronizarMaterialesFaltantesASupabase(dbByCode);
             }
+        } else {
+            // Si la tabla tarifario en Supabase está vacía o sin datos, inicializar sembrando el catálogo oficial completo
+            if (typeof window.sincronizarMaterialesFaltantesASupabase === 'function') {
+                window.sincronizarMaterialesFaltantesASupabase({});
+            }
         }
     }).catch(function(tarErr) {
         console.warn("Aviso al consultar tabla 'tarifario' en Supabase:", tarErr);
@@ -1362,7 +1398,8 @@ function initSupabaseSync(callback) {
                 if (dbCodes.has(cd)) return;
                 if (missingItems.has(cd)) return;
 
-                const isElec = cd.startsWith('ELE-') || (it.rubro === 'Eléctrico');
+                const isBase = (typeof window.isItemBase === 'function') ? window.isItemBase(cd) : false;
+                const isElec = cd.startsWith('ELE-') || (it.rubro === 'Eléctrico') || (defaultRubro === 'Eléctrico');
                 const rubroVal = isElec ? 'Eléctrico' : 'Mecánico';
                 const sub = String(it.subrubro || '').trim();
                 const isMat = (
@@ -1379,13 +1416,20 @@ function initSupabaseSync(callback) {
                     rubro: rubroVal,
                     subrubro: sub || (isMat ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO'),
                     unidad: String(it.udm || it.unidad || (isMat ? 'c/u' : 'Hs')).trim(),
-                    precio: parseFloat(it.precio || it.precio_unitario) || 0,
-                    moneda: (String(it.moneda || '').toUpperCase() === 'USD' || isMat) ? 'USD' : 'ARS',
-                    is_custom: true,
+                    precio: parseFloat(it.precio !== undefined ? it.precio : it.precio_unitario) || 0,
+                    moneda: (String(it.moneda || '').toUpperCase() === 'USD' || (isMat && !isBase)) ? 'USD' : (it.moneda || 'ARS'),
+                    is_custom: !isBase,
                     planta: String(it.planta || '').trim().toUpperCase()
                 });
             };
 
+            // Escanear stocks oficiales base primero para garantizar que nunca falten en Supabase
+            if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+                PRESUPUESTO_ELECTRICO_STOCK.forEach(it => scanItem(it, 'Eléctrico'));
+            }
+            if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) {
+                PRESUPUESTO_MECANICO_STOCK.forEach(it => scanItem(it, 'Mecánico'));
+            }
             if (Array.isArray(window.presupuestosCatalogDB)) {
                 window.presupuestosCatalogDB.forEach(it => scanItem(it, 'Eléctrico'));
             }
@@ -1409,6 +1453,7 @@ function initSupabaseSync(callback) {
                 const isUSD = (it.moneda === 'USD');
                 const numUSD = isUSD ? it.precio : (it.precio > 0 ? Math.round((it.precio / cotizMat) * 100) / 100 : 0);
                 const numARS = isUSD ? Math.round(it.precio * cotizMat) : it.precio;
+                const isBase = !it.is_custom;
 
                 if (it.rubro === 'Mecánico') {
                     ['APS', 'APG'].forEach(p => {
@@ -1422,7 +1467,7 @@ function initSupabaseSync(callback) {
                             precio: numARS,
                             stock: 999,
                             estado: 'ACTIVOS',
-                            is_custom: true,
+                            is_custom: !isBase,
                             planta: p,
                             moneda: 'ARS'
                         });
@@ -1436,40 +1481,58 @@ function initSupabaseSync(callback) {
                             precio: numUSD,
                             stock: 999,
                             estado: 'ACTIVOS',
-                            is_custom: true,
+                            is_custom: !isBase,
                             planta: p,
                             moneda: 'USD'
                         });
                     });
                 } else {
-                    upsertBatch.push({
-                        id: `${it.codigo}_ARS`,
-                        codigo: it.codigo,
-                        detalle: it.detalle,
-                        rubro: 'Eléctrico',
-                        subrubro: it.subrubro,
-                        unidad: it.unidad,
-                        precio: numARS,
-                        stock: 999,
-                        estado: 'ACTIVOS',
-                        is_custom: true,
-                        planta: '',
-                        moneda: 'ARS'
-                    });
-                    upsertBatch.push({
-                        id: `${it.codigo}_USD`,
-                        codigo: it.codigo,
-                        detalle: it.detalle,
-                        rubro: 'Eléctrico',
-                        subrubro: it.subrubro,
-                        unidad: it.unidad,
-                        precio: numUSD,
-                        stock: 999,
-                        estado: 'ACTIVOS',
-                        is_custom: true,
-                        planta: '',
-                        moneda: 'USD'
-                    });
+                    // Eléctrico
+                    if (isBase) {
+                        upsertBatch.push({
+                            id: it.codigo,
+                            codigo: it.codigo,
+                            detalle: it.detalle,
+                            rubro: 'Eléctrico',
+                            subrubro: it.subrubro,
+                            unidad: it.unidad,
+                            precio: numARS,
+                            stock: 999,
+                            estado: 'ACTIVOS',
+                            is_custom: false,
+                            planta: '',
+                            moneda: it.moneda || 'ARS'
+                        });
+                    } else {
+                        upsertBatch.push({
+                            id: `${it.codigo}_ARS`,
+                            codigo: it.codigo,
+                            detalle: it.detalle,
+                            rubro: 'Eléctrico',
+                            subrubro: it.subrubro,
+                            unidad: it.unidad,
+                            precio: numARS,
+                            stock: 999,
+                            estado: 'ACTIVOS',
+                            is_custom: true,
+                            planta: '',
+                            moneda: 'ARS'
+                        });
+                        upsertBatch.push({
+                            id: `${it.codigo}_USD`,
+                            codigo: it.codigo,
+                            detalle: it.detalle,
+                            rubro: 'Eléctrico',
+                            subrubro: it.subrubro,
+                            unidad: it.unidad,
+                            precio: numUSD,
+                            stock: 999,
+                            estado: 'ACTIVOS',
+                            is_custom: true,
+                            planta: '',
+                            moneda: 'USD'
+                        });
+                    }
                 }
             });
 
@@ -6090,10 +6153,30 @@ function applyCustomPricesToCatalog(catalog) {
 
 function getActiveStockCatalog() {
     let cat = [];
-    if (reqTipoPresupuesto === 'Eléctrico' && typeof window.presupuestosCatalogDB !== 'undefined') {
-        cat = window.presupuestosCatalogDB;
-    } else if (reqTipoPresupuesto === 'Eléctrico' && typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
-        cat = PRESUPUESTO_ELECTRICO_STOCK;
+    if (reqTipoPresupuesto === 'Eléctrico') {
+        if (Array.isArray(window.presupuestosCatalogDB) && window.presupuestosCatalogDB.length > 0) {
+            // Garantizar que todos los ítems base oficiales de PRESUPUESTO_ELECTRICO_STOCK estén presentes
+            if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+                const existingCodes = new Set(window.presupuestosCatalogDB.map(x => x && x.codigo));
+                PRESUPUESTO_ELECTRICO_STOCK.forEach(b => {
+                    if (b && b.codigo && !existingCodes.has(b.codigo)) {
+                        window.presupuestosCatalogDB.push({
+                            ...b,
+                            precio: b.precio || 0,
+                            precio_unitario: b.precio || 0,
+                            detalle: b.detalle,
+                            descripcion: b.detalle,
+                            subrubro: (b.subrubro && (b.subrubro.includes('Material') || b.subrubro.includes('Equipo'))) ? 'Materiales y Equipos' : b.subrubro,
+                            moneda: b.moneda || 'ARS',
+                            is_custom: false
+                        });
+                    }
+                });
+            }
+            cat = window.presupuestosCatalogDB;
+        } else if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
+            cat = PRESUPUESTO_ELECTRICO_STOCK;
+        }
     } else if (reqTipoPresupuesto === 'Mecánico' && typeof window.presupuestoMecanicoDB !== 'undefined' && window.presupuestoMecanicoDB.length > 0) {
         // Usa la base de datos construida desde Supabase que SI tiene las plantas
         cat = window.presupuestoMecanicoDB;
@@ -23189,13 +23272,15 @@ window.eliminarItemDelTarifario = function(code) {
     if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
         window.presupuestosCatalogDB = window.presupuestosCatalogDB.filter(i => i.codigo !== code);
     }
-    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
-        window.PRESUPUESTO_ELECTRICO_STOCK = PRESUPUESTO_ELECTRICO_STOCK.filter(i => i.codigo !== code);
+    if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK) && !window.isItemBase(code)) {
+        const idxE = PRESUPUESTO_ELECTRICO_STOCK.findIndex(i => i && i.codigo === code);
+        if (idxE !== -1) PRESUPUESTO_ELECTRICO_STOCK.splice(idxE, 1);
     }
-    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) {
-        window.PRESUPUESTO_MECANICO_STOCK = PRESUPUESTO_MECANICO_STOCK.filter(i => i.codigo !== code);
+    if (typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK) && !window.isItemBase(code)) {
+        const idxM = PRESUPUESTO_MECANICO_STOCK.findIndex(i => i && i.codigo === code);
+        if (idxM !== -1) PRESUPUESTO_MECANICO_STOCK.splice(idxM, 1);
     }
-    if (typeof stockDB !== 'undefined' && Array.isArray(stockDB)) {
+    if (typeof stockDB !== 'undefined' && Array.isArray(stockDB) && !window.isItemBase(code)) {
         window.stockDB = stockDB.filter(i => i.codigo !== code);
     }
 
@@ -23209,21 +23294,14 @@ window.eliminarItemDelTarifario = function(code) {
         removeCustomItemPrice(code);
     }
 
-    // 4.1. Persistir código en lista negra de eliminados para que no resucite al refrescar
+    // 4.1. Persistir código en lista negra de eliminados solo si es ítem custom (nunca código oficial base)
     try {
         let deletedList = JSON.parse(localStorage.getItem('PRESUPUESTO_DELETED_STOCK') || '[]');
-        if (!deletedList.includes(code)) {
+        if (!deletedList.includes(code) && !window.isItemBase(code)) {
             deletedList.push(code);
             localStorage.setItem('PRESUPUESTO_DELETED_STOCK', JSON.stringify(deletedList));
         }
     } catch(e) {}
-
-    // 5. Renumber electrical items si aplica
-    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico' && typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
-        PRESUPUESTO_ELECTRICO_STOCK.forEach((it, i) => {
-            it.codigo = 'ELE-' + String(i + 1).padStart(3, '0');
-        });
-    }
 
     // 6. Sincronizar eliminación en Supabase (borrando base y variantes por planta)
     try {
