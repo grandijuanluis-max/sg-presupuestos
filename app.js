@@ -13097,8 +13097,9 @@ window.verDetallePedido = function(id, explicitMode) {
                            readonly 
                            onclick="abrirRobotF6()" 
                            title="Haga clic aquí o presione F6 para seleccionar cliente" 
-                           style="width: 100%; font-size: 11px; padding: 3px 26px 3px 6px; color: #0f172a; background: #fef08a; border: 1.5px solid #eab308; border-radius: 4px; font-weight: bold; cursor: pointer;">
-                    <i class="fas fa-search" onclick="abrirRobotF6()" style="position: absolute; right: 7px; color: #b45309; cursor: pointer; font-size: 11px;" title="Buscar Cliente (F6)"></i>
+                           style="width: 100%; font-size: 11px; padding: 3px 44px 3px 6px; color: #0f172a; background: #fef08a; border: 1.5px solid #eab308; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                    <i class="fas fa-search" onclick="abrirRobotF6()" style="position: absolute; right: 24px; color: #b45309; cursor: pointer; font-size: 11px;" title="Buscar Cliente (F6)"></i>
+                    <i class="fas fa-user-plus" onclick="gestionarClientesABM()" style="position: absolute; right: 6px; color: #15803d; cursor: pointer; font-size: 11px;" title="Gestionar Clientes (ABM)"></i>
                 </div>
             `);
             setElemText('auth-meca-cliente-codigo-val', rawCliCode);
@@ -22674,6 +22675,497 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } catch(e) {}
 });
+
+/* ==========================================
+   ALTA, BAJA Y MODIFICACIÓN DE CLIENTES (ABM)
+   ========================================== */
+window._editingClienteCodigo = null;
+
+// Obtener el siguiente código correlativo e ID numérico para nuevo cliente
+window.getNextClienteCodeAndId = function() {
+    const list = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) ? window.clientesDB : [];
+    let maxNum = 0;
+    list.forEach(c => {
+        if (!c) return;
+        const codeNum = parseInt(String(c.codigo || '').trim(), 10);
+        if (!isNaN(codeNum) && codeNum > maxNum) maxNum = codeNum;
+        const idNum = parseInt(String(c.id || '').trim(), 10);
+        if (!isNaN(idNum) && idNum > maxNum) maxNum = idNum;
+    });
+    const nextVal = maxNum > 0 ? (maxNum + 1) : 1;
+    return {
+        nextCode: String(nextVal),
+        nextId: nextVal
+    };
+};
+
+window.gestionarClientesABM = function() {
+    let modal = document.getElementById('modal-gestionar-clientes');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modal-gestionar-clientes';
+        modal.className = 'modal';
+        modal.style.cssText = 'display: flex; position: fixed; z-index: 10005; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); align-items: center; justify-content: center; backdrop-filter: blur(5px);';
+        document.body.appendChild(modal);
+
+        // Cierra con Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modal.style.display === 'flex') {
+                window.cerrarModalClientes();
+            }
+        });
+
+        // Cierra haciendo click afuera
+        modal.addEventListener('mousedown', function(e) {
+            if (e.target === modal) window.cerrarModalClientes();
+        });
+    }
+
+    window._editingClienteCodigo = null;
+    window.renderModalGestionarClientes();
+    modal.style.display = 'flex';
+};
+
+window.cerrarModalClientes = function() {
+    const modal = document.getElementById('modal-gestionar-clientes');
+    if (modal) modal.style.display = 'none';
+    window._editingClienteCodigo = null;
+};
+
+window.renderModalGestionarClientes = function(searchFilter = '') {
+    const modal = document.getElementById('modal-gestionar-clientes');
+    if (!modal) return;
+
+    const list = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) ? window.clientesDB : [];
+    const { nextCode, nextId } = window.getNextClienteCodeAndId();
+
+    const isEditing = !!window._editingClienteCodigo;
+    let clienteEdit = null;
+    if (isEditing) {
+        clienteEdit = list.find(c => String(c.codigo).trim() === String(window._editingClienteCodigo).trim());
+    }
+
+    const currentFilter = (typeof searchFilter === 'string') ? searchFilter.trim().toLowerCase() : '';
+    const filteredList = currentFilter ? list.filter(c => {
+        const cod = String(c.codigo || '').toLowerCase();
+        const idStr = String(c.id || '').toLowerCase();
+        const nom = String(c.nombre || '').toLowerCase();
+        const cuit = String(c.cuit || '').toLowerCase();
+        const loc = String(c.localidad || '').toLowerCase();
+        const dom = String(c.domicilio || '').toLowerCase();
+        const tel = String(c.telefono || '').toLowerCase();
+        const mail = String(c.email || c.mail || '').toLowerCase();
+        return cod.includes(currentFilter) || idStr.includes(currentFilter) || nom.includes(currentFilter) || 
+               cuit.includes(currentFilter) || loc.includes(currentFilter) || dom.includes(currentFilter) ||
+               tel.includes(currentFilter) || mail.includes(currentFilter);
+    }) : list;
+
+    modal.innerHTML = `
+        <div style="background: #0f172a; color: #ffffff; border: 1.5px solid rgba(234, 179, 8, 0.35); border-radius: 12px; width: 920px; max-width: 95%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7); font-family: inherit;">
+            <!-- Header Modal -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 22px; border-bottom: 1px solid rgba(255,255,255,0.1); background: #1e293b;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px;">
+                        <i class="fas fa-users-cog"></i>
+                    </span>
+                    <div>
+                        <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #f8fafc; letter-spacing: 0.5px;">Gestión de Clientes (ABM)</h3>
+                        <span style="font-size: 11px; color: #94a3b8;">Alta, modificación, correlatividad de código y sincronización en tiempo real</span>
+                    </div>
+                </div>
+                <button type="button" onclick="cerrarModalClientes()" style="background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; padding: 4px 8px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#94a3b8'">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body Modal con Scroll -->
+            <div style="padding: 20px 22px; overflow-y: auto; flex: 1;">
+                <!-- Formulario de Alta / Modificación -->
+                <div id="form-cliente-abm-box" style="background: #1e293b; border: 1.5px solid ${isEditing ? '#eab308' : 'rgba(255,255,255,0.1)'}; border-radius: 10px; padding: 18px 20px; margin-bottom: 22px; box-shadow: ${isEditing ? '0 0 15px rgba(234, 179, 8, 0.25)' : 'none'};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+                        <h4 style="margin: 0; font-size: 14px; font-weight: 700; color: ${isEditing ? '#facc15' : '#10b981'}; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas ${isEditing ? 'fa-user-edit' : 'fa-user-plus'}"></i>
+                            <span>${isEditing ? `Modificando Cliente: ${clienteEdit ? clienteEdit.nombre : window._editingClienteCodigo}` : 'Agregar Nuevo Cliente'}</span>
+                        </h4>
+                        ${isEditing ? `
+                            <button type="button" onclick="cancelarEdicionClienteABM()" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer;">
+                                <i class="fas fa-times"></i> Cancelar Edición
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <!-- Campos en Grid -->
+                    <div style="display: grid; grid-template-columns: 140px 140px 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">Código (Siguiente):</label>
+                            <input type="text" id="input-abm-cliente-codigo" value="${isEditing && clienteEdit ? (clienteEdit.codigo || '') : nextCode}" placeholder="${nextCode}"
+                                   style="width: 100%; box-sizing: border-box; background: #0f172a; color: #22d3ee; border: 1.5px solid #0284c7; border-radius: 6px; padding: 7px 10px; font-size: 13px; font-weight: 700; font-family: monospace;">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">ID (Numérico):</label>
+                            <input type="number" id="input-abm-cliente-id" value="${isEditing && clienteEdit ? (clienteEdit.id || nextId) : nextId}" placeholder="${nextId}" step="1" min="1"
+                                   style="width: 100%; box-sizing: border-box; background: #0f172a; color: #a78bfa; border: 1.5px solid #7c3aed; border-radius: 6px; padding: 7px 10px; font-size: 13px; font-weight: 700; font-family: monospace;">
+                        </div>
+                        <div style="grid-column: span 2;">
+                            <label style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">Nombre / Razón Social <span style="color:#ef4444;">*</span>:</label>
+                            <input type="text" id="input-abm-cliente-nombre" value="${isEditing && clienteEdit ? (clienteEdit.nombre || '') : ''}" placeholder="Ej: NUEVO CLIENTE SA"
+                                   style="width: 100%; box-sizing: border-box; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 7px 10px; font-size: 13px; font-weight: 700;"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('input-abm-cliente-cuit').focus();}">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">CUIT:</label>
+                            <input type="text" id="input-abm-cliente-cuit" value="${isEditing && clienteEdit ? (clienteEdit.cuit || '') : ''}" placeholder="Ej: 30-12345678-9"
+                                   style="width: 100%; box-sizing: border-box; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 7px 10px; font-size: 12px; font-family: monospace;"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('input-abm-cliente-telefono').focus();}">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">Teléfono:</label>
+                            <input type="text" id="input-abm-cliente-telefono" value="${isEditing && clienteEdit ? (clienteEdit.telefono || '') : ''}" placeholder="Ej: 341-4567890"
+                                   style="width: 100%; box-sizing: border-box; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 7px 10px; font-size: 12px;"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('input-abm-cliente-mail').focus();}">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">Mail:</label>
+                            <input type="email" id="input-abm-cliente-mail" value="${isEditing && clienteEdit ? (clienteEdit.email || clienteEdit.mail || '') : ''}" placeholder="Ej: administracion@cliente.com"
+                                   style="width: 100%; box-sizing: border-box; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 7px 10px; font-size: 12px;"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('input-abm-cliente-domicilio').focus();}">
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: flex-end;">
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">Domicilio:</label>
+                            <input type="text" id="input-abm-cliente-domicilio" value="${isEditing && clienteEdit ? (clienteEdit.domicilio || '') : ''}" placeholder="Ej: Av. San Martín 1234"
+                                   style="width: 100%; box-sizing: border-box; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 7px 10px; font-size: 12px;"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('input-abm-cliente-localidad').focus();}">
+                        </div>
+                        <div>
+                            <label style="font-size: 11px; font-weight: 700; color: #94a3b8; display: block; margin-bottom: 4px;">Localidad:</label>
+                            <input type="text" id="input-abm-cliente-localidad" value="${isEditing && clienteEdit ? (clienteEdit.localidad || '') : ''}" placeholder="Ej: Rosario, Santa Fe"
+                                   style="width: 100%; box-sizing: border-box; background: #0f172a; color: #ffffff; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 7px 10px; font-size: 12px;"
+                                   onkeydown="if(event.key==='Enter'){event.preventDefault();guardarClienteABM();}">
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" onclick="guardarClienteABM()"
+                                    style="background: ${isEditing ? '#eab308' : '#10b981'}; color: ${isEditing ? '#000' : '#fff'}; border: none; border-radius: 6px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 6px;">
+                                <i class="fas ${isEditing ? 'fa-check' : 'fa-save'}"></i>
+                                <span>${isEditing ? 'Actualizar Cliente' : 'Guardar Cliente'}</span>
+                            </button>
+                            ${!isEditing ? `
+                                <button type="button" onclick="limpiarFormClienteABM()"
+                                        style="background: #334155; color: #94a3b8; border: none; border-radius: 6px; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer;" title="Limpiar formulario">
+                                    <i class="fas fa-eraser"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Buscador de Clientes en el ABM -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px;">
+                    <div style="position: relative; flex: 1;">
+                        <input type="text" id="input-buscar-cliente-abm" value="${searchFilter || ''}" placeholder="🔍 Filtrar por código, ID, nombre, CUIT, teléfono, mail, localidad..."
+                               style="width: 100%; box-sizing: border-box; background: #1e293b; color: #ffffff; border: 1px solid #334155; border-radius: 6px; padding: 8px 12px 8px 36px; font-size: 13px;"
+                               oninput="filtrarClientesABM(this.value)">
+                        <i class="fas fa-search" style="position: absolute; left: 12px; top: 11px; color: #64748b; font-size: 13px;"></i>
+                    </div>
+                    <span style="font-size: 12px; color: #94a3b8; white-space: nowrap;">
+                        Total: <strong style="color: #22d3ee;">${filteredList.length}</strong> clientes
+                    </span>
+                </div>
+
+                <!-- Tabla de Clientes -->
+                <div style="max-height: 290px; overflow-y: auto; background: #1e293b; border: 1px solid #334155; border-radius: 8px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                        <thead>
+                            <tr style="background: #0f172a; border-bottom: 1px solid rgba(255,255,255,0.1); position: sticky; top: 0; z-index: 2;">
+                                <th style="padding: 10px 12px; color: #22d3ee; font-weight: 700; width: 65px;">Cód.</th>
+                                <th style="padding: 10px 12px; color: #a78bfa; font-weight: 700; width: 55px;">ID</th>
+                                <th style="padding: 10px 12px; color: #f8fafc; font-weight: 700;">Nombre / Razón Social</th>
+                                <th style="padding: 10px 12px; color: #94a3b8; font-weight: 600; width: 110px;">CUIT</th>
+                                <th style="padding: 10px 12px; color: #94a3b8; font-weight: 600; width: 110px;">Teléfono</th>
+                                <th style="padding: 10px 12px; color: #94a3b8; font-weight: 600;">Domicilio / Localidad</th>
+                                <th style="padding: 10px 12px; color: #f8fafc; font-weight: 700; width: 140px; text-align: center;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filteredList.length === 0 ? `
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: #94a3b8; padding: 25px; font-size: 13px;">
+                                        No se encontraron clientes registrados con ese criterio.
+                                    </td>
+                                </tr>
+                            ` : ''}
+                            ${filteredList.map(c => {
+                                const isCurrent = (window._editingClienteCodigo && String(window._editingClienteCodigo).trim() === String(c.codigo).trim());
+                                const safeCod = String(c.codigo || '').replace(/'/g, "\\'");
+                                return `
+                                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); background: ${isCurrent ? 'rgba(234, 179, 8, 0.15)' : 'transparent'}; transition: background 0.15s;" onmouseover="if(!this.dataset.active) this.style.backgroundColor='rgba(255,255,255,0.03)'" onmouseout="if(!this.dataset.active) this.style.backgroundColor='${isCurrent ? 'rgba(234, 179, 8, 0.15)' : 'transparent'}'">
+                                        <td style="padding: 8px 12px; font-family: monospace; font-weight: 700; color: #22d3ee;">${c.codigo || '-'}</td>
+                                        <td style="padding: 8px 12px; font-family: monospace; font-weight: 700; color: #a78bfa;">${c.id || '-'}</td>
+                                        <td style="padding: 8px 12px;">
+                                            <strong style="color: #ffffff; display: block;">${c.nombre || '-'}</strong>
+                                            ${(c.email || c.mail) ? `<span style="font-size: 11px; color: #60a5fa;"><i class="fas fa-envelope" style="font-size: 10px; margin-right: 3px;"></i>${c.email || c.mail}</span>` : ''}
+                                        </td>
+                                        <td style="padding: 8px 12px; font-family: monospace; color: #cbd5e1;">${c.cuit || '-'}</td>
+                                        <td style="padding: 8px 12px; color: #cbd5e1;">${c.telefono || '-'}</td>
+                                        <td style="padding: 8px 12px; color: #94a3b8; font-size: 11px;">
+                                            <div>${c.domicilio || '-'}</div>
+                                            <div style="color: #cbd5e1; font-weight: 600;">${c.localidad || ''}</div>
+                                        </td>
+                                        <td style="padding: 8px 12px; text-align: center;">
+                                            <div style="display: flex; gap: 6px; justify-content: center; align-items: center;">
+                                                <button type="button" onclick="elegirClienteDesdeABM('${safeCod}')"
+                                                        title="Seleccionar este cliente en el presupuesto"
+                                                        style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;">
+                                                    ✓ Elegir
+                                                </button>
+                                                <button type="button" onclick="editarClienteABM('${safeCod}')"
+                                                        title="Modificar datos del cliente"
+                                                        style="background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid #eab308; border-radius: 4px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                                                    <i class="fas fa-pen" style="font-size: 11px;"></i>
+                                                </button>
+                                                <button type="button" onclick="eliminarClienteABM('${safeCod}')"
+                                                        title="Eliminar cliente"
+                                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; border-radius: 4px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                                                    <i class="fas fa-trash-alt" style="font-size: 11px;"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Footer Modal -->
+            <div style="padding: 14px 22px; background: #1e293b; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11px; color: #94a3b8;">
+                    💡 El código asigna correlatividad automática y el ID es siempre estrictamente numérico.
+                </span>
+                <button type="button" onclick="cerrarModalClientes()" style="background: #334155; color: #ffffff; border: none; border-radius: 6px; padding: 8px 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#475569'" onmouseout="this.style.background='#334155'">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Focus apropiado
+    setTimeout(() => {
+        if (isEditing) {
+            const nomInp = document.getElementById('input-abm-cliente-nombre');
+            if (nomInp) { nomInp.focus(); nomInp.select(); }
+        } else {
+            const nomInp = document.getElementById('input-abm-cliente-nombre');
+            if (nomInp) nomInp.focus();
+        }
+    }, 50);
+};
+
+window.filtrarClientesABM = function(val) {
+    window.renderModalGestionarClientes(val);
+    const searchInp = document.getElementById('input-buscar-cliente-abm');
+    if (searchInp) {
+        searchInp.focus();
+        searchInp.setSelectionRange(searchInp.value.length, searchInp.value.length);
+    }
+};
+
+window.limpiarFormClienteABM = function() {
+    window._editingClienteCodigo = null;
+    window.renderModalGestionarClientes();
+};
+
+window.cancelarEdicionClienteABM = function() {
+    window._editingClienteCodigo = null;
+    window.renderModalGestionarClientes();
+};
+
+window.editarClienteABM = function(codigo) {
+    window._editingClienteCodigo = String(codigo).trim();
+    window.renderModalGestionarClientes();
+    const box = document.getElementById('form-cliente-abm-box');
+    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+};
+
+window.guardarClienteABM = function() {
+    try {
+        const inpCod = document.getElementById('input-abm-cliente-codigo');
+        const inpId = document.getElementById('input-abm-cliente-id');
+        const inpNom = document.getElementById('input-abm-cliente-nombre');
+        const inpCuit = document.getElementById('input-abm-cliente-cuit');
+        const inpTel = document.getElementById('input-abm-cliente-telefono');
+        const inpMail = document.getElementById('input-abm-cliente-mail');
+        const inpDom = document.getElementById('input-abm-cliente-domicilio');
+        const inpLoc = document.getElementById('input-abm-cliente-localidad');
+
+        if (!inpNom) return;
+        const nombreVal = inpNom.value.trim().toUpperCase();
+        if (!nombreVal) {
+            if (typeof showToast === 'function') showToast('Por favor ingrese el Nombre o Razón Social del cliente', 'warning');
+            else alert('Por favor ingrese el Nombre o Razón Social del cliente');
+            inpNom.focus();
+            return;
+        }
+
+        const { nextCode, nextId } = window.getNextClienteCodeAndId();
+
+        // 1. Código: correlativo o ingresado
+        let codigoVal = inpCod && inpCod.value.trim() ? inpCod.value.trim() : nextCode;
+
+        // 2. ID: estrictamente numérico siempre
+        let rawId = inpId ? parseInt(inpId.value, 10) : NaN;
+        if (isNaN(rawId) || rawId <= 0) {
+            const parsedCodeNum = parseInt(codigoVal, 10);
+            rawId = (!isNaN(parsedCodeNum) && parsedCodeNum > 0) ? parsedCodeNum : nextId;
+        }
+        const numericId = rawId;
+
+        const cuitVal = inpCuit ? inpCuit.value.trim() : '';
+        const telVal = inpTel ? inpTel.value.trim() : '';
+        const mailVal = inpMail ? inpMail.value.trim() : '';
+        const domVal = inpDom ? inpDom.value.trim() : '';
+        const locVal = inpLoc ? inpLoc.value.trim() : '';
+
+        const isEditing = !!window._editingClienteCodigo;
+        const list = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) ? window.clientesDB : [];
+
+        // Validar colisión de código si es nuevo
+        if (!isEditing) {
+            const existeCod = list.some(c => c && String(c.codigo).trim().toLowerCase() === codigoVal.toLowerCase());
+            if (existeCod) {
+                // Asignar el siguiente correlativo para evitar colisión
+                codigoVal = nextCode;
+            }
+        }
+
+        const clienteObj = {
+            id: numericId,
+            codigo: String(codigoVal),
+            nombre: nombreVal,
+            cuit: cuitVal,
+            telefono: telVal,
+            email: mailVal,
+            mail: mailVal,
+            domicilio: domVal,
+            localidad: locVal,
+            condicion_id: '1',
+            condicion_nombre: '30 DIAS'
+        };
+
+        // Actualizar en memoria local
+        if (isEditing) {
+            const oldCod = String(window._editingClienteCodigo).trim();
+            const idx = list.findIndex(c => String(c.codigo).trim() === oldCod || String(c.id).trim() === oldCod);
+            if (idx !== -1) {
+                list[idx] = Object.assign({}, list[idx], clienteObj);
+            } else {
+                list.push(clienteObj);
+            }
+        } else {
+            const idx = list.findIndex(c => String(c.codigo).trim() === String(codigoVal).trim());
+            if (idx !== -1) {
+                list[idx] = Object.assign({}, list[idx], clienteObj);
+            } else {
+                list.push(clienteObj);
+            }
+        }
+
+        window.clientesDB = list;
+        if (typeof clientesDB !== 'undefined') clientesDB = list;
+
+        // Persistir en Supabase
+        if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            const payloadSupabase = {
+                id: numericId,
+                codigo: String(codigoVal),
+                nombre: nombreVal,
+                cuit: cuitVal,
+                telefono: telVal,
+                email: mailVal,
+                domicilio: domVal,
+                localidad: locVal
+            };
+            supabaseClient.from('clientes').upsert([payloadSupabase], { onConflict: 'codigo' }).then(res => {
+                if (res.error) {
+                    console.warn("Aviso en Supabase al guardar cliente:", res.error);
+                }
+            }).catch(e => console.warn("Error Supabase:", e));
+        }
+
+        if (typeof showToast === 'function') {
+            showToast(isEditing ? `Cliente "${nombreVal}" actualizado con éxito` : `Cliente "${nombreVal}" creado con código ${codigoVal}`, 'success');
+        }
+
+        window._editingClienteCodigo = null;
+        window.renderModalGestionarClientes();
+
+    } catch(err) {
+        console.error("Error al guardar cliente en ABM:", err);
+        alert("Error al guardar cliente: " + err.message);
+    }
+};
+
+window.eliminarClienteABM = function(codigo) {
+    if (!codigo) return;
+    const list = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) ? window.clientesDB : [];
+    const target = list.find(c => String(c.codigo).trim() === String(codigo).trim() || String(c.id).trim() === String(codigo).trim());
+    const nom = target ? target.nombre : codigo;
+
+    if (!confirm(`¿Está seguro de eliminar al cliente "${nom}" (Código ${codigo})?\nEsta acción no se puede deshacer.`)) {
+        return;
+    }
+
+    // Eliminar de memoria local
+    const filtered = list.filter(c => String(c.codigo).trim() !== String(codigo).trim() && String(c.id).trim() !== String(codigo).trim());
+    window.clientesDB = filtered;
+    if (typeof clientesDB !== 'undefined') clientesDB = filtered;
+
+    // Eliminar de Supabase
+    if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+        supabaseClient.from('clientes').delete().eq('codigo', String(codigo)).then(res => {
+            if (res.error) {
+                console.warn("Aviso al eliminar de Supabase:", res.error);
+            }
+        }).catch(e => console.warn(e));
+    }
+
+    if (window._editingClienteCodigo && String(window._editingClienteCodigo).trim() === String(codigo).trim()) {
+        window._editingClienteCodigo = null;
+    }
+
+    if (typeof showToast === 'function') {
+        showToast(`Cliente "${nom}" eliminado correctamente`, 'info');
+    }
+
+    window.renderModalGestionarClientes();
+};
+
+window.elegirClienteDesdeABM = function(codigo) {
+    if (!codigo) return;
+    const list = (typeof window.clientesDB !== 'undefined' && Array.isArray(window.clientesDB)) ? window.clientesDB : [];
+    const target = list.find(c => String(c.codigo).trim() === String(codigo).trim() || String(c.id).trim() === String(codigo).trim());
+    if (target) {
+        if (typeof seleccionarCliente === 'function') {
+            seleccionarCliente(target);
+        } else {
+            const reqMecaClient = document.getElementById('req-meca-cliente');
+            if (reqMecaClient) {
+                reqMecaClient.value = target.nombre;
+                reqMecaClient.dataset.codigo = target.codigo;
+            }
+        }
+        window.cerrarModalClientes();
+        if (typeof showToast === 'function') {
+            showToast(`Cliente seleccionado: ${target.nombre}`, 'success');
+        }
+    }
+};
 
 /* ==========================================
    PERMISOS DE EDICIÓN DE PRECIOS Y CORRELATIVIDAD
