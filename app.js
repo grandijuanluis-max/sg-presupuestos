@@ -6969,8 +6969,22 @@ function initRequestView() {
 
             // Por defecto, F6 siempre abre el Buscador de Clientes
             abrirRobotF6();
-            showToast("Buscador de Clientes (Atajo F6)", "info");
         } else if (e.key === 'Escape') {
+            const robotF6 = document.getElementById('modal-robot-f6-popup');
+            if (robotF6 && robotF6.style.display === 'flex') {
+                if (typeof window.cerrarRobotF6 === 'function') window.cerrarRobotF6();
+                return;
+            }
+            const robotProv = document.getElementById('modal-robot-prov-popup');
+            if (robotProv && robotProv.style.display === 'flex') {
+                if (typeof window.cerrarRobotProveedores === 'function') window.cerrarRobotProveedores();
+                return;
+            }
+            const modalClientes = document.getElementById('modal-gestionar-clientes');
+            if (modalClientes && modalClientes.style.display === 'flex') {
+                if (typeof window.cerrarModalClientes === 'function') window.cerrarModalClientes();
+                return;
+            }
             const overlay = document.getElementById('modal-overlay');
             if (overlay && overlay.style.display === 'flex') {
                 closeModal();
@@ -8303,14 +8317,37 @@ function seleccionarCliente(cliente) {
 }
 
 // 2. BUSCADOR F6 DE PROVEEDORES
+window.cerrarRobotProveedores = function() {
+    const popup = document.getElementById('modal-robot-prov-popup');
+    if (popup) popup.style.display = 'none';
+};
+
 window.abrirRobotProveedores = function() {
-    openModal('tpl-modal-robot-proveedores');
+    let popup = document.getElementById('modal-robot-prov-popup');
+    if (!popup) {
+        popup = document.createElement('div');
+        popup.id = 'modal-robot-prov-popup';
+        popup.className = 'modal';
+        popup.style.cssText = 'display: flex; position: fixed; z-index: 10020; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); align-items: center; justify-content: center; backdrop-filter: blur(5px);';
+        document.body.appendChild(popup);
+    }
+    const template = document.getElementById('tpl-modal-robot-proveedores');
+    if (!template) return;
+    popup.innerHTML = '';
+    popup.appendChild(template.content.cloneNode(true));
+    popup.style.display = 'flex';
+
+    // Asegurar que el botón de cerrar use cerrarRobotProveedores
+    popup.querySelectorAll('[onclick*="closeModal"]').forEach(btn => {
+        btn.setAttribute('onclick', 'window.cerrarRobotProveedores()');
+    });
+
     const proveedores = ['SG MONTAJES SRL', 'ACOSTA SERVICIO'];
     let selectedProvIdx = 0;
 
     const updateProvHighlight = () => {
-        const cardSg = document.getElementById('prov-card-sg');
-        const cardAcosta = document.getElementById('prov-card-acosta');
+        const cardSg = popup.querySelector('#prov-card-sg') || document.getElementById('prov-card-sg');
+        const cardAcosta = popup.querySelector('#prov-card-acosta') || document.getElementById('prov-card-acosta');
         if (cardSg && cardAcosta) {
             if (selectedProvIdx === 0) {
                 cardSg.style.outline = '2px solid #22d3ee';
@@ -8329,8 +8366,8 @@ window.abrirRobotProveedores = function() {
     setTimeout(updateProvHighlight, 50);
 
     const onProvKeyDown = (e) => {
-        const modal = document.getElementById('modal-overlay');
-        if (!modal || modal.style.display === 'none') {
+        const currentPopup = document.getElementById('modal-robot-prov-popup');
+        if (!currentPopup || currentPopup.style.display === 'none') {
             window.removeEventListener('keydown', onProvKeyDown);
             return;
         }
@@ -8370,7 +8407,7 @@ window.seleccionarProveedor = function(nombre) {
         if (typeof saveTempEdits === 'function') saveTempEdits();
     }
 
-    closeModal();
+    window.cerrarRobotProveedores();
     showToast(`Proveedor seleccionado: ${nombre}`, 'success');
 
     // Pasar automáticamente al siguiente campo (Fecha de Oferta) en Paso 1
@@ -8384,12 +8421,40 @@ window.seleccionarProveedor = function(nombre) {
 };
 
 // 3. BUSCADOR F6 AVANZADO DE CLIENTES (ROBOT)
+window.cerrarRobotF6 = function() {
+    const popup = document.getElementById('modal-robot-f6-popup');
+    if (popup) popup.style.display = 'none';
+};
+
 window.abrirRobotF6 = function() {
-    openModal('tpl-modal-robot');
-    const searchInput = document.getElementById('robot-search-input');
-    const resultsList = document.getElementById('robot-results-list');
-    const resultsCount = document.getElementById('robot-results-count');
-    const resultsTable = document.getElementById('robot-results-table');
+    let popup = document.getElementById('modal-robot-f6-popup');
+    if (!popup) {
+        popup = document.createElement('div');
+        popup.id = 'modal-robot-f6-popup';
+        popup.className = 'modal';
+        popup.style.cssText = 'display: flex; position: fixed; z-index: 10020; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); align-items: center; justify-content: center; backdrop-filter: blur(5px);';
+        document.body.appendChild(popup);
+    }
+    const template = document.getElementById('tpl-modal-robot');
+    if (!template) return;
+    popup.innerHTML = '';
+    popup.appendChild(template.content.cloneNode(true));
+    popup.style.display = 'flex';
+
+    // Hook buttons inside popup to close popup instead of closeModal()
+    popup.querySelectorAll('[onclick*="closeModal"]').forEach(btn => {
+        const onclickAttr = btn.getAttribute('onclick') || '';
+        if (onclickAttr.includes('gestionarClientesABM')) {
+            btn.setAttribute('onclick', 'window.cerrarRobotF6(); gestionarClientesABM();');
+        } else {
+            btn.setAttribute('onclick', 'window.cerrarRobotF6()');
+        }
+    });
+
+    const searchInput = popup.querySelector('#robot-search-input') || document.getElementById('robot-search-input');
+    const resultsList = popup.querySelector('#robot-results-list') || document.getElementById('robot-results-list');
+    const resultsCount = popup.querySelector('#robot-results-count') || document.getElementById('robot-results-count');
+    const resultsTable = popup.querySelector('#robot-results-table') || document.getElementById('robot-results-table');
     const scrollContainer = resultsTable ? resultsTable.closest('.table-responsive') : null;
 
     let currentRobotMatches = [];
@@ -8431,7 +8496,7 @@ window.abrirRobotF6 = function() {
 
             tr.onclick = () => {
                 seleccionarCliente(c);
-                closeModal();
+                window.cerrarRobotF6();
                 showToast(`Cliente seleccionado: ${c.nombre}`, 'success');
             };
 
@@ -8464,13 +8529,13 @@ window.abrirRobotF6 = function() {
         } else {
             currentRobotMatches = filteredClients.filter(c =>
                 c.nombre.toLowerCase().includes(cleanQuery) ||
-                c.cuit.includes(cleanQuery) ||
-                c.codigo.includes(cleanQuery) ||
+                (c.cuit && c.cuit.includes(cleanQuery)) ||
+                (c.codigo && String(c.codigo).includes(cleanQuery)) ||
                 (c.localidad || '').toLowerCase().includes(cleanQuery)
             );
         }
 
-        resultsCount.innerText = `Mostrando ${currentRobotMatches.length} clientes`;
+        if (resultsCount) resultsCount.innerText = `Mostrando ${currentRobotMatches.length} clientes`;
         renderRobotResultsChunk();
     };
 
@@ -8509,7 +8574,7 @@ window.abrirRobotF6 = function() {
                 if (currentRobotMatches.length > 0 && currentRobotMatches[selectedIndex]) {
                     const selClient = currentRobotMatches[selectedIndex];
                     seleccionarCliente(selClient);
-                    closeModal();
+                    window.cerrarRobotF6();
                     showToast(`Cliente seleccionado: ${selClient.nombre}`, 'success');
                 }
             }
@@ -23903,7 +23968,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '531';
+window.CURRENT_APP_VERSION = '532';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
