@@ -401,6 +401,15 @@ function getDbClient() {
 window.isItemUSD = function(it, parentPresupuesto) {
     if (!it) return false;
 
+    // Si el comprobante padre entero está fijado en Dólares (moneda_id === 2 o moneda === 'USD')
+    if (parentPresupuesto && (parentPresupuesto.moneda_id === 2 ||
+        String(parentPresupuesto.moneda || '').toUpperCase() === 'USD' ||
+        String(parentPresupuesto.moneda || '').toUpperCase() === 'U$D' ||
+        String(parentPresupuesto.moneda || '').toUpperCase() === 'DOLARES' ||
+        String(parentPresupuesto.moneda || '').toUpperCase() === 'DÓLARES')) {
+        return true;
+    }
+
     // 1. PRIORIDAD SUPREMA: Respetar la moneda explícita del ítem
     const mon = String(it.moneda || '').toUpperCase().trim();
     if (mon === 'USD' || mon === 'U$D' || mon === 'DOLARES' || mon === 'DÓLARES') {
@@ -764,7 +773,7 @@ function normalizePresupuestosRubro(pedidos) {
                 it.udm = realUdm;
                 if (itUSD) {
                     it.moneda = 'USD';
-                    const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+                    const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450) || 1450;
                     if (it.precio_usd === undefined || it.precio_usd === null || isNaN(parseFloat(it.precio_usd))) {
                         it.precio_usd = (pr > 0 && pr < 10000) ? pr : (parseFloat(it.precio) || 0);
                     }
@@ -1730,22 +1739,94 @@ function initSupabaseSync(callback) {
         if (!it) return 999999;
         const code = String(it.codigo || it.id || '').toUpperCase().trim();
         if (!code || code === '-') return 999998;
+
+        // 1. Ítems Mecánicos (MEC-XXX)
+        if (code.startsWith('MEC-')) {
+            const match = code.match(/^MEC-0*(\d+)/);
+            const num = match ? parseInt(match[1], 10) : 999;
+            // 1. Materiales y Equipos: MEC-001 a MEC-009
+            if (num >= 1 && num <= 9) return 1000 + num;
+            // 2. Mano de Obra en Taller: MEC-010 a MEC-017
+            if (num >= 10 && num <= 17) return 2000 + num;
+            // 3. Mano de Obra Mantenimiento: MEC-018 a MEC-024
+            if (num >= 18 && num <= 24) return 3000 + num;
+            // 4. Mano de Obra Parada de Planta: MEC-025 a MEC-031
+            if (num >= 25 && num <= 31) return 4000 + num;
+            // 5. Mano de Obra Emergencia Mantenimiento: MEC-032 a MEC-038
+            if (num >= 32 && num <= 38) return 5000 + num;
+            // 6. Otros Conceptos Mecánicos adicionales
+            return 6000 + num;
+        }
+
+        // 2. Ítems Eléctricos (ELE-XXX)
+        if (code.startsWith('ELE-')) {
+            const match = code.match(/^ELE-0*(\d+)/);
+            const num = match ? parseInt(match[1], 10) : 999;
+            // 1. Materiales y Equipos: ELE-001 a ELE-027
+            if (num >= 1 && num <= 27) return 10000 + num;
+
+            // 2. Mano de Obra Mantenimiento:
+            // Hs Normales (Prioridad 1): ELE-038 (Oficial Esp), ELE-039 (Oficial), ELE-040 (Medio Oficial), ELE-041 (Ayudante), ELE-042 (Chofer)
+            if (num >= 38 && num <= 42) return 20000 + (num - 38);
+            // Hs 36% (Prioridad 2): ELE-033 (Oficial Esp), ELE-034 (Oficial), ELE-035 (Medio Oficial), ELE-036 (Ayudante), ELE-037 (Chofer)
+            if (num >= 33 && num <= 37) return 20100 + (num - 33);
+            // Hs 76% (Prioridad 3): ELE-028 (Oficial Esp), ELE-029 (Oficial), ELE-030 (Medio Oficial), ELE-031 (Ayudante), ELE-032 (Chofer)
+            if (num >= 28 && num <= 32) return 20200 + (num - 28);
+            // Roles especiales de Mantenimiento: ELE-043 (Supervisor), ELE-044 (Coordinador), ELE-045 (Pañolero)
+            if (num >= 43 && num <= 45) return 20300 + (num - 43);
+
+            // 3. Mano de Obra Parada de Planta:
+            // Hs Normales (Prioridad 1): ELE-056 (Oficial Esp), ELE-057 (Oficial), ELE-058 (Medio Oficial), ELE-059 (Ayudante), ELE-060 (Chofer)
+            if (num >= 56 && num <= 60) return 30000 + (num - 56);
+            // Hs 36% (Prioridad 2): ELE-051 (Oficial Esp), ELE-052 (Oficial), ELE-053 (Medio Oficial), ELE-054 (Ayudante), ELE-055 (Chofer)
+            if (num >= 51 && num <= 55) return 30100 + (num - 51);
+            // Hs 76% (Prioridad 3): ELE-046 (Oficial Esp), ELE-047 (Oficial), ELE-048 (Medio Oficial), ELE-049 (Ayudante), ELE-050 (Chofer)
+            if (num >= 46 && num <= 50) return 30200 + (num - 46);
+
+            // 4. Otros Conceptos Eléctricos adicionales
+            return 40000 + num;
+        }
+
+        // 3. Si no tiene prefijo MEC o ELE, buscar si el código existe en los catálogos
         const catalog = [
             ...(window.presupuestoMecanicoDB || []),
             ...(window.presupuestosCatalogDB || []),
             ...(typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' ? PRESUPUESTO_MECANICO_STOCK : []),
             ...(typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' ? PRESUPUESTO_ELECTRICO_STOCK : [])
         ];
-        const cIdx = catalog.findIndex(c => c && (String(c.codigo).toUpperCase().trim() === code || String(c.id).toUpperCase().trim() === code));
-        if (cIdx !== -1) return cIdx;
-        const match = code.match(/^[A-Z]+-0*(\d+)/);
-        if (match) {
-            const num = parseInt(match[1], 10);
-            if (code.startsWith('MEC-')) return num;
-            if (code.startsWith('ELE-')) return 1000 + num;
-            return num;
+        const found = catalog.find(c => c && (String(c.codigo).toUpperCase().trim() === code || String(c.id).toUpperCase().trim() === code));
+        if (found && found.codigo && String(found.codigo).toUpperCase().trim() !== code) {
+            return window.getItemTarifarioSortIndex(found);
         }
-        return 999999;
+
+        // 4. Subrubros canónicos (para ítems genéricos / de texto libre)
+        const sub = String(it.subrubro || '').toLowerCase();
+        if (sub.includes('material') || sub.includes('equipo')) return 50000;
+        if (sub.includes('taller')) return 60000;
+        if (sub.includes('mantenimiento') && !sub.includes('emergencia')) return 70000;
+        if (sub.includes('parada')) return 80000;
+        if (sub.includes('emergencia')) return 90000;
+        if (sub.includes('electr')) return 100000;
+        if (sub.includes('civil')) return 110000;
+        if (sub.includes('estructur') || sub.includes('fabricac')) return 120000;
+        if (sub.includes('cañer') || sub.includes('piping')) return 130000;
+        if (sub.includes('automat')) return 140000;
+        if (sub.includes('ingenier')) return 150000;
+
+        return 999000 + (parseInt(it.orden || 0, 10) || 0);
+    };
+
+    window.sortPresupuestoItemsTarifario = function(itemsList) {
+        if (!Array.isArray(itemsList)) return [];
+        return [...itemsList].sort((a, b) => {
+            const sA = window.getItemTarifarioSortIndex(a);
+            const sB = window.getItemTarifarioSortIndex(b);
+            if (sA !== sB) return sA - sB;
+            const ordA = parseInt(a.orden || 0, 10) || 0;
+            const ordB = parseInt(b.orden || 0, 10) || 0;
+            if (ordA !== ordB && ordA > 0 && ordB > 0) return ordA - ordB;
+            return String(a.codigo || '').localeCompare(String(b.codigo || ''));
+        });
     };
 
     // 2.9. FUNCIÓN DIRECTA PARA TRAER Y CACHEAR ÍTEMS DE UN PRESUPUESTO DESDE 'presupuesto_items'
@@ -1791,7 +1872,10 @@ function initSupabaseSync(callback) {
         }
 
         // 4. Consultar directamente a la tabla 'presupuesto_items' de Supabase (SDK o REST)
-        const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+        const existingP = (typeof appData !== 'undefined' && appData && Array.isArray(appData.pedidos)) ? appData.pedidos.find(x => x && String(x.id).trim() === pid) : null;
+        const cotizMat = (existingP && (existingP.cotizacion_materiales || existingP.cotizacion))
+            ? parseFloat(existingP.cotizacion_materiales || existingP.cotizacion)
+            : ((window.getCotizacionMateriales ? window.getCotizacionMateriales(existingP || { id: pid }) : 1450) || 1450);
         const dbCli = (typeof getDbClient === 'function') ? getDbClient() : null;
         let rawItems = null;
 
@@ -1863,12 +1947,7 @@ function initSupabaseSync(callback) {
                 };
             });
 
-            mapped.sort((a, b) => {
-                const sA = window.getItemTarifarioSortIndex(a);
-                const sB = window.getItemTarifarioSortIndex(b);
-                if (sA !== sB) return sA - sB;
-                return (a.orden || 0) - (b.orden || 0);
-            });
+            mapped = window.sortPresupuestoItemsTarifario(mapped);
 
             window._presupuestoItemsByPid = window._presupuestoItemsByPid || {};
             window._presupuestoItemsByPid[pid] = mapped;
@@ -1931,8 +2010,12 @@ function initSupabaseSync(callback) {
                         }
                     }
 
+                    const itemCotiz = (existingP && (existingP.cotizacion_materiales || existingP.cotizacion))
+                        ? parseFloat(existingP.cotizacion_materiales || existingP.cotizacion)
+                        : ((window.getCotizacionMateriales ? window.getCotizacionMateriales(existingP || { id: pid }) : 1450) || 1450);
+
                     const finalPuUSD = isUSD ? (refItem && refItem.precio_usd ? parseFloat(refItem.precio_usd) : (refItem && isUSD && refItem.precio ? parseFloat(refItem.precio) : pu)) : 0;
-                    const finalPuARS = isUSD ? (finalPuUSD * cotizMat) : pu;
+                    const finalPuARS = isUSD ? (finalPuUSD * itemCotiz) : pu;
                     const finalSubUSD = isUSD ? (cant * finalPuUSD) : null;
                     const finalSub = isUSD ? (cant * finalPuARS) : (parseFloat(it.subtotal) > 0 ? parseFloat(it.subtotal) : (cant * pu));
 
@@ -1954,7 +2037,7 @@ function initSupabaseSync(callback) {
                         precio_ars: finalPuARS,
                         subtotal: finalSub,
                         subtotal_usd: finalSubUSD,
-                        cotizacion_aplicada: isUSD ? cotizMat : null,
+                        cotizacion_aplicada: isUSD ? itemCotiz : null,
                         estado: 'Pendiente'
                     });
                 });
@@ -2029,12 +2112,7 @@ function initSupabaseSync(callback) {
                 }
 
                 Object.keys(itemsMap).forEach(pid => {
-                    itemsMap[pid].sort((a, b) => {
-                        const sA = window.getItemTarifarioSortIndex(a);
-                        const sB = window.getItemTarifarioSortIndex(b);
-                        if (sA !== sB) return sA - sB;
-                        return (a.orden || 0) - (b.orden || 0);
-                    });
+                    itemsMap[pid] = window.sortPresupuestoItemsTarifario(itemsMap[pid]);
                 });
                 window._presupuestoItemsByPid = itemsMap;
 
@@ -2081,6 +2159,7 @@ function initSupabaseSync(callback) {
                             }
                             return item;
                         });
+                        p.items = window.sortPresupuestoItemsTarifario(p.items);
                         if (typeof window.savePresupuestoItemsCache === 'function') {
                             window.savePresupuestoItemsCache(pid, p.items);
                         }
@@ -2175,6 +2254,18 @@ function initSupabaseSync(callback) {
                         if (!p.nro_oc && (existingPedidosMap[pid].nro_oc || existingPedidosMap[pid].meca_nro_oc)) {
                             p.nro_oc = existingPedidosMap[pid].nro_oc || existingPedidosMap[pid].meca_nro_oc;
                             p.meca_nro_oc = p.nro_oc;
+                        }
+                        const oldCotiz = existingPedidosMap[pid].cotizacion_materiales || existingPedidosMap[pid].cotizacion;
+                        if (oldCotiz && parseFloat(oldCotiz) > 0) {
+                            if (!p.cotizacion_materiales) p.cotizacion_materiales = parseFloat(oldCotiz);
+                            if (!p.cotizacion) p.cotizacion = parseFloat(oldCotiz);
+                        }
+                    }
+                    if (typeof window.getPresupuestoCotizacion === 'function') {
+                        const savedMapCotiz = window.getPresupuestoCotizacion(pid);
+                        if (savedMapCotiz > 0) {
+                            p.cotizacion_materiales = savedMapCotiz;
+                            p.cotizacion = savedMapCotiz;
                         }
                     }
                 });
@@ -4324,36 +4415,80 @@ window.getCustomItemPrices = function() {
 };
 
 // ==========================================================
-// GESTIÓN DE COTIZACIÓN EXCLUSIVA DE MATERIALES (U$D)
+// GESTIÓN DE COTIZACIÓN EXCLUSIVA DE MATERIALES (U$D) POR PRESUPUESTO
 // ==========================================================
-window.getCotizacionMateriales = function() {
-    // 1. Si hay un input en pantalla con valor válido, priorizarlo
-    const gridInp = document.getElementById('grid-cotizacion-materiales');
-    if (gridInp && gridInp.value) {
-        const parsed = window.parseArgNumber(gridInp.value);
-        if (parsed > 0) return parsed;
-    }
-    const reqMecaInp = document.getElementById('req-meca-cotizacion-materiales');
-    if (reqMecaInp && reqMecaInp.value) {
-        const parsed = window.parseArgNumber(reqMecaInp.value);
-        if (parsed > 0) return parsed;
-    }
-    const reqStdInp = document.getElementById('req-cotizacion-materiales');
-    if (reqStdInp && reqStdInp.value) {
-        const parsed = window.parseArgNumber(reqStdInp.value);
-        if (parsed > 0) return parsed;
-    }
-    // 2. Si el pedido activo en edición tiene cotización guardada
-    if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
-        const pCotiz = parseFloat(pedidoActivo.cotizacion_materiales || pedidoActivo.cotizacion);
+window.getPresupuestoCotizacion = function(pid) {
+    if (!pid) return 0;
+    try {
+        const dict = JSON.parse(localStorage.getItem('PRESUPUESTOS_COTIZACIONES_MAP') || '{}');
+        const c = parseFloat(dict[String(pid).trim()]);
+        if (!isNaN(c) && c > 0) return c;
+    } catch(e) {}
+    return 0;
+};
+
+window.savePresupuestoCotizacion = function(pid, val) {
+    if (!pid) return;
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 0) return;
+    try {
+        const dict = JSON.parse(localStorage.getItem('PRESUPUESTOS_COTIZACIONES_MAP') || '{}');
+        dict[String(pid).trim()] = num;
+        localStorage.setItem('PRESUPUESTOS_COTIZACIONES_MAP', JSON.stringify(dict));
+    } catch(e) {}
+};
+
+window.getCotizacionMateriales = function(pOrBudget) {
+    // 1. PRIORIDAD SUPREMA: El comprobante específico solicitado o el pedido activo
+    const targetP = pOrBudget || (typeof pedidoActivo !== 'undefined' ? pedidoActivo : null) || window.pedidoActivo;
+    if (targetP) {
+        let pCotiz = parseFloat(targetP.cotizacion_materiales || targetP.cotizacion);
         if (!isNaN(pCotiz) && pCotiz > 0) return pCotiz;
+        const pid = String(targetP.id || '').trim();
+        if (pid) {
+            const savedCotiz = window.getPresupuestoCotizacion ? window.getPresupuestoCotizacion(pid) : 0;
+            if (savedCotiz > 0) return savedCotiz;
+            if (typeof appData !== 'undefined' && Array.isArray(appData.pedidos)) {
+                const found = appData.pedidos.find(x => x && String(x.id).trim() === pid);
+                if (found) {
+                    pCotiz = parseFloat(found.cotizacion_materiales || found.cotizacion);
+                    if (!isNaN(pCotiz) && pCotiz > 0) return pCotiz;
+                }
+            }
+        }
     }
-    // 3. Valor almacenado en localStorage
+
+    // 2. Si el usuario está interactuando activamente con el input de la grilla en el modal/editor abierto
+    const gridInp = document.getElementById('grid-cotizacion-materiales');
+    if (gridInp && gridInp.value && document.activeElement === gridInp) {
+        const parsed = window.parseArgNumber ? window.parseArgNumber(gridInp.value) : parseFloat(gridInp.value);
+        if (parsed > 0) return parsed;
+    }
+
+    // 3. Si hay un input en pantalla en el formulario de creación de nuevo presupuesto visible
+    const newReqForm = document.getElementById('view-solicitud') || document.getElementById('form-nuevo-presupuesto');
+    const isNewReqVisible = newReqForm && newReqForm.style.display !== 'none';
+    if (isNewReqVisible) {
+        const reqStdInp = document.getElementById('req-cotizacion-materiales');
+        if (reqStdInp && reqStdInp.value) {
+            const parsed = window.parseArgNumber ? window.parseArgNumber(reqStdInp.value) : parseFloat(reqStdInp.value);
+            if (parsed > 0) return parsed;
+        }
+    }
+
+    // 4. Si el gridInp existe y tiene valor (cuando no hay targetP con cotización propia)
+    if (gridInp && gridInp.value) {
+        const parsed = window.parseArgNumber ? window.parseArgNumber(gridInp.value) : parseFloat(gridInp.value);
+        if (parsed > 0) return parsed;
+    }
+
+    // 5. Valor almacenado en localStorage
     try {
         const stored = parseFloat(localStorage.getItem('PRESUPUESTO_COTIZACION_MATERIALES'));
         if (!isNaN(stored) && stored > 0) return stored;
     } catch(e) {}
-    // 4. Default estándar ($1.450,00)
+
+    // 6. Default estándar ($1.450,00)
     return 1450.00;
 };
 
@@ -4363,6 +4498,29 @@ window.setCotizacionMateriales = function(val, updateInputs = true) {
     try {
         localStorage.setItem('PRESUPUESTO_COTIZACION_MATERIALES', num.toString());
     } catch(e) {}
+
+    // Guardar inmediatamente en el comprobante activo para que no se pierda
+    if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
+        pedidoActivo.cotizacion_materiales = num;
+        pedidoActivo.cotizacion = num;
+        if (pedidoActivo.id && typeof window.savePresupuestoCotizacion === 'function') {
+            window.savePresupuestoCotizacion(pedidoActivo.id, num);
+        }
+    }
+    if (window.pedidoActivo) {
+        window.pedidoActivo.cotizacion_materiales = num;
+        window.pedidoActivo.cotizacion = num;
+        if (window.pedidoActivo.id && typeof window.savePresupuestoCotizacion === 'function') {
+            window.savePresupuestoCotizacion(window.pedidoActivo.id, num);
+        }
+    }
+    if (window.pedidoActivo && window.pedidoActivo.id && typeof appData !== 'undefined' && Array.isArray(appData.pedidos)) {
+        const pOrig = appData.pedidos.find(x => x && String(x.id).trim() === String(window.pedidoActivo.id).trim());
+        if (pOrig) {
+            pOrig.cotizacion_materiales = num;
+            pOrig.cotizacion = num;
+        }
+    }
 
     // Actualizar catálogo en memoria dinámicamente con la nueva cotización (solo para ítems Materiales en USD)
     try {
@@ -4417,6 +4575,14 @@ window.onReqCotizacionMaterialesInput = function(input) {
     if (!input) return;
     const parsed = window.parseCotizacionInput(input.value);
     if (parsed > 0) {
+        if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
+            pedidoActivo.cotizacion_materiales = parsed;
+            pedidoActivo.cotizacion = parsed;
+        }
+        if (window.pedidoActivo) {
+            window.pedidoActivo.cotizacion_materiales = parsed;
+            window.pedidoActivo.cotizacion = parsed;
+        }
         window.setCotizacionMateriales(parsed, false);
         // Sincronizar todos los inputs en pantalla SIN pisar el que el usuario está escribiendo
         ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
@@ -4439,11 +4605,21 @@ window.onCotizacionBlur = function(input) {
     if (!input) return;
     const parsed = window.parseCotizacionInput(input.value);
     const finalVal = (parsed > 0) ? parsed : (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450);
+    if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
+        pedidoActivo.cotizacion_materiales = finalVal;
+        pedidoActivo.cotizacion = finalVal;
+    }
+    if (window.pedidoActivo) {
+        window.pedidoActivo.cotizacion_materiales = finalVal;
+        window.pedidoActivo.cotizacion = finalVal;
+    }
     window.setCotizacionMateriales(finalVal, true);
     if (typeof window.recalcMecaExcelAll === 'function') {
         window.recalcMecaExcelAll();
     }
 };
+
+
 
 window.onGridCotizacionMaterialesChange = function(input) {
     window.onReqCotizacionMaterialesInput(input);
@@ -7959,6 +8135,10 @@ window.agregarArticuloDetalle = function() {
         });
     }
 
+    if (typeof window.sortPresupuestoItemsTarifario === 'function') {
+        pedidoItems = window.sortPresupuestoItemsTarifario(pedidoItems);
+    }
+
     // Limpiar campos de búsqueda
     productoSeleccionado = null;
     if (prodInput) prodInput.value = '';
@@ -8015,6 +8195,10 @@ window.actualizarItemFila = function(codigo, nuevaQty, nuevoPrecio) {
 window.actualizarTablaItemsRequerimiento = function() {
     const listBody = document.getElementById('req-items-list');
     if (!listBody) return;
+
+    if (Array.isArray(pedidoItems) && typeof window.sortPresupuestoItemsTarifario === 'function') {
+        pedidoItems = window.sortPresupuestoItemsTarifario(pedidoItems);
+    }
 
     if (pedidoItems.length === 0) {
         listBody.innerHTML = `
@@ -9007,8 +9191,11 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
             targetPedido.meca_propuesta = document.getElementById('req-meca-propuesta') ? document.getElementById('req-meca-propuesta').value : '';
             targetPedido.meca_personal = document.getElementById('req-meca-personal') ? document.getElementById('req-meca-personal').value : '';
             targetPedido.meca_exclusiones = document.getElementById('req-meca-exclusiones') ? document.getElementById('req-meca-exclusiones').value : '';
-            targetPedido.cotizacion_materiales = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+            targetPedido.cotizacion_materiales = (window.getCotizacionMateriales ? window.getCotizacionMateriales(targetPedido) : targetPedido.cotizacion_materiales) || targetPedido.cotizacion_materiales || 1450;
             targetPedido.cotizacion = targetPedido.cotizacion_materiales;
+            if (typeof window.savePresupuestoCotizacion === 'function') {
+                window.savePresupuestoCotizacion(targetPedido.id, targetPedido.cotizacion_materiales);
+            }
             const reqCurrencyEl = document.getElementById('req-currency');
             const selectedMonedaId = reqCurrencyEl ? parseInt(reqCurrencyEl.value, 10) : (targetPedido.moneda_id || 1);
             const allUsdItems = (pedidoItems || []).length > 0 && (pedidoItems || []).every(it => it && (it.moneda === 'USD' || it.moneda === 'U$D'));
@@ -9116,8 +9303,22 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
                 meca_propuesta: document.getElementById('req-meca-propuesta') ? document.getElementById('req-meca-propuesta').value : '',
                 meca_personal: document.getElementById('req-meca-personal') ? document.getElementById('req-meca-personal').value : '',
                 meca_exclusiones: document.getElementById('req-meca-exclusiones') ? document.getElementById('req-meca-exclusiones').value : '',
-                cotizacion_materiales: (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450,
-                cotizacion: (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450,
+                cotizacion_materiales: (() => {
+                    const reqInp = document.getElementById('req-cotizacion-materiales') || document.getElementById('grid-cotizacion-materiales');
+                    if (reqInp && reqInp.value) {
+                        const parsed = window.parseArgNumber ? window.parseArgNumber(reqInp.value) : parseFloat(reqInp.value);
+                        if (parsed > 0) return parsed;
+                    }
+                    return (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+                })(),
+                cotizacion: (() => {
+                    const reqInp = document.getElementById('req-cotizacion-materiales') || document.getElementById('grid-cotizacion-materiales');
+                    if (reqInp && reqInp.value) {
+                        const parsed = window.parseArgNumber ? window.parseArgNumber(reqInp.value) : parseFloat(reqInp.value);
+                        if (parsed > 0) return parsed;
+                    }
+                    return (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+                })(),
                 moneda_id: (document.getElementById('req-currency') && parseInt(document.getElementById('req-currency').value, 10) === 2) ? 2 : ((pedidoItems || []).length > 0 && (pedidoItems || []).every(it => it && (it.moneda === 'USD' || it.moneda === 'U$D')) ? 2 : 1),
                 moneda: ((document.getElementById('req-currency') && parseInt(document.getElementById('req-currency').value, 10) === 2) || ((pedidoItems || []).length > 0 && (pedidoItems || []).every(it => it && (it.moneda === 'USD' || it.moneda === 'U$D')))) ? 'USD' : 'ARS',
                 operador: user ? user.username : 'admin',
@@ -9131,6 +9332,9 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
             };
 
             appData.pedidos.push(newPedido);
+            if (typeof window.savePresupuestoCotizacion === 'function') {
+                window.savePresupuestoCotizacion(newPedido.id, newPedido.cotizacion_materiales);
+            }
             try { saveData(); } catch(e) {}
             let supOk = false;
             if (typeof window.guardarPresupuestoEnSupabase === 'function') {
@@ -12163,12 +12367,25 @@ window.saveTempEdits = function() {
         pedidoActivo.moneda_id = parseInt(currSelect.value);
         pedidoActivo.moneda = (pedidoActivo.moneda_id === 2 ? 'USD' : (pedidoActivo.moneda_id === 60 ? 'EUR' : 'ARS'));
         if (pedidoActivo.moneda_id === 2 || pedidoActivo.moneda_id === 60) {
-            pedidoActivo.cotizacion = cotizInput ? parseFloat(cotizInput.value) : 1.0;
+            pedidoActivo.cotizacion = cotizInput ? (window.parseArgNumber ? window.parseArgNumber(cotizInput.value) : parseFloat(cotizInput.value)) : 1.0;
             if (isNaN(pedidoActivo.cotizacion) || pedidoActivo.cotizacion <= 0) {
-                pedidoActivo.cotizacion = (pedidoActivo.moneda_id === 2 ? 1011.00 : 1100.00);
+                pedidoActivo.cotizacion = (pedidoActivo.moneda_id === 2 ? 1450.00 : 1550.00);
             }
+            pedidoActivo.cotizacion_materiales = pedidoActivo.cotizacion;
         } else {
-            pedidoActivo.cotizacion = 1.0;
+            const gridCotizInp = document.getElementById('grid-cotizacion-materiales');
+            let matCotiz = 0;
+            if (gridCotizInp && gridCotizInp.value) {
+                matCotiz = window.parseArgNumber ? window.parseArgNumber(gridCotizInp.value) : parseFloat(gridCotizInp.value);
+            }
+            if (matCotiz <= 0 && cotizInput && cotizInput.value) {
+                matCotiz = window.parseArgNumber ? window.parseArgNumber(cotizInput.value) : parseFloat(cotizInput.value);
+            }
+            if (matCotiz <= 0) {
+                matCotiz = parseFloat(pedidoActivo.cotizacion_materiales || pedidoActivo.cotizacion || 1450);
+            }
+            pedidoActivo.cotizacion_materiales = matCotiz;
+            pedidoActivo.cotizacion = matCotiz;
         }
     }
 
@@ -12180,6 +12397,9 @@ window.saveTempEdits = function() {
 
     // Save items from Excel grid if active
     if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+        if (typeof window.sortPresupuestoItemsTarifario === 'function') {
+            pedidoItems = window.sortPresupuestoItemsTarifario(pedidoItems);
+        }
         pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
         const newAmt = pedidoActivo.items.reduce((sum, item) => {
             const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
@@ -12220,18 +12440,12 @@ window.onAuthCurrencyChange = function() {
     const rateInput = document.getElementById('auth-exchange-rate-input');
 
     if (currencySelect) {
-        const val = parseInt(currencySelect.value);
         if (rateContainer) {
-            rateContainer.style.display = (val === 2 || val === 60) ? 'flex' : 'none';
+            rateContainer.style.display = 'flex';
         }
-        if (rateInput) {
-            if (val === 2) {
-                rateInput.value = "1011.00000000";
-            } else if (val === 60) {
-                rateInput.value = "1100.00000000";
-            } else {
-                rateInput.value = "1.00000000";
-            }
+        if (rateInput && (!rateInput.value || parseFloat(rateInput.value) <= 1)) {
+            const curCotiz = (window.getCotizacionMateriales ? window.getCotizacionMateriales(pedidoActivo) : 1450) || 1450;
+            rateInput.value = curCotiz.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
     }
     saveTempEdits();
@@ -12443,6 +12657,9 @@ window.guardarModificacionesPedido = function() {
     realOrder.moneda = pedidoActivo.moneda || (realOrder.moneda_id === 2 ? 'USD' : 'ARS');
     realOrder.cotizacion = pedidoActivo.cotizacion || pedidoActivo.cotizacion_materiales || 1450;
     realOrder.cotizacion_materiales = pedidoActivo.cotizacion_materiales || pedidoActivo.cotizacion || 1450;
+    if (typeof window.savePresupuestoCotizacion === 'function') {
+        window.savePresupuestoCotizacion(realOrder.id, realOrder.cotizacion_materiales);
+    }
 
     realOrder.items = activeItems.map(item => {
         const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
@@ -12820,8 +13037,14 @@ window.verDetallePedido = function(id, explicitMode) {
 
     const p = pedidoActivo;
     reqTipoPresupuesto = (p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'));
+    if (Array.isArray(p.items) && typeof window.sortPresupuestoItemsTarifario === 'function') {
+        p.items = window.sortPresupuestoItemsTarifario(p.items);
+    }
     if (isEditingAllowed) {
         pedidoItems = JSON.parse(JSON.stringify(p.items || []));
+        if (Array.isArray(pedidoItems) && typeof window.sortPresupuestoItemsTarifario === 'function') {
+            pedidoItems = window.sortPresupuestoItemsTarifario(pedidoItems);
+        }
         window._itemExplicitCurrency = {};
         if (Array.isArray(pedidoItems)) {
             pedidoItems.forEach(it => {
@@ -12838,13 +13061,16 @@ window.verDetallePedido = function(id, explicitMode) {
     if (typeof window.fetchPresupuestoItemsDirect === 'function') {
         window.fetchPresupuestoItemsDirect(pid).then(directItems => {
             if (Array.isArray(directItems) && directItems.length > 0) {
-                pedido.items = directItems;
+                const sortedDirect = (typeof window.sortPresupuestoItemsTarifario === 'function')
+                    ? window.sortPresupuestoItemsTarifario(directItems)
+                    : directItems;
+                pedido.items = sortedDirect;
                 if (window.pedidoActivo && String(window.pedidoActivo.id).trim() === pid) {
-                    window.pedidoActivo.items = directItems;
+                    window.pedidoActivo.items = sortedDirect;
                     if (isEditingAllowed) {
-                        window.pedidoItems = JSON.parse(JSON.stringify(directItems));
+                        window.pedidoItems = JSON.parse(JSON.stringify(sortedDirect));
                         window._itemExplicitCurrency = {};
-                        directItems.forEach(it => {
+                        sortedDirect.forEach(it => {
                             if (it && it.codigo && it.moneda) {
                                 window._itemExplicitCurrency[it.codigo] = (String(it.moneda).toUpperCase() === 'USD' || String(it.moneda).toUpperCase() === 'U$D') ? 'USD' : 'ARS';
                             }
@@ -13290,9 +13516,9 @@ window.verDetallePedido = function(id, explicitMode) {
                 <option value="2" ${p.moneda_id === 2 ? 'selected' : ''}>2 - Dólares</option>
                 <option value="60" ${p.moneda_id === 60 ? 'selected' : ''}>60 - Euros</option>
             </select>
-            <div id="auth-exchange-rate-container" style="display: ${p.moneda_id === 2 || p.moneda_id === 60 ? 'flex' : 'none'}; align-items: center; gap: 5px; margin-top: 4px;">
-                <span style="font-size: 9px; font-weight: bold; color: var(--text-muted);">COTIZACIÓN:</span>
-                <input type="text" id="auth-exchange-rate-input" value="${(p.cotizacion || 1.0).toFixed(8)}" style="width: 90px; text-align: right; font-family: monospace; font-size: 11px; padding: 4px 6px; color: white; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px;">
+            <div id="auth-exchange-rate-container" style="display: flex; align-items: center; gap: 5px; margin-top: 4px;">
+                <span style="font-size: 9px; font-weight: bold; color: var(--text-muted);">COTIZ. U$D:</span>
+                <input type="text" id="auth-exchange-rate-input" value="${(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450)).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" style="width: 90px; text-align: right; font-family: monospace; font-size: 11px; padding: 4px 6px; color: white; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px;" oninput="saveTempEdits(); if(typeof window.onGridCotizacionMaterialesChange === 'function') window.onGridCotizacionMaterialesChange(this);">
             </div>
         `;
         const currEl = document.getElementById('auth-currency-container');
@@ -13304,8 +13530,10 @@ window.verDetallePedido = function(id, explicitMode) {
         if (document.getElementById('auth-transport-container')) document.getElementById('auth-transport-container').innerText = (p.transporte_nombre || '-').toUpperCase();
 
         let currText = 'PESOS';
-        if (p.moneda_id === 2) currText = `DÓLARES (cot. ${(p.cotizacion || 1.0).toFixed(8)})`;
-        else if (p.moneda_id === 60) currText = `EUROS (cot. ${(p.cotizacion || 1.0).toFixed(8)})`;
+        const pCotiz = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450)) || 1450;
+        if (p.moneda_id === 2 || String(p.moneda || '').toUpperCase() === 'USD') currText = `DÓLARES (cot. $${pCotiz.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+        else if (p.moneda_id === 60) currText = `EUROS (cot. $${pCotiz.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+        else if (pCotiz > 0) currText = `PESOS (cot. U$D $${pCotiz.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
         if (document.getElementById('auth-currency-container')) document.getElementById('auth-currency-container').innerText = currText;
     }
 
@@ -13392,7 +13620,7 @@ window.verDetallePedido = function(id, explicitMode) {
             return;
         }
 
-        const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
+        const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450)) || 1450;
         const formattedItems = (typeof window.getPresupuestoFormattedItems === 'function')
             ? window.getPresupuestoFormattedItems(p, activeMode)
             : [];
@@ -13512,6 +13740,22 @@ window.verDetallePedido = function(id, explicitMode) {
             });
         }
 
+        if (activeMode === 'resumido' && formattedItems.length === 1) {
+            const singleItem = formattedItems[0];
+            const isSingleUSD = (typeof window.isItemUSD === 'function')
+                ? window.isItemUSD(singleItem, p)
+                : (String(singleItem.moneda || '').toUpperCase() === 'USD' || String(singleItem.moneda || '').toUpperCase() === 'U$D');
+            if (isSingleUSD) {
+                laborTotalARS = 0;
+                materialsTotalUSD = (singleItem.subtotal_usd !== undefined && singleItem.subtotal_usd !== null)
+                    ? parseFloat(singleItem.subtotal_usd)
+                    : (parseFloat(singleItem.subtotal) || 0);
+            } else {
+                materialsTotalUSD = 0;
+                laborTotalARS = parseFloat(singleItem.subtotal) || 0;
+            }
+        }
+
         let grandTotalDisplay = '';
         if (laborTotalARS > 0 && materialsTotalUSD > 0) {
             grandTotalDisplay = `$${laborTotalARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} + U$D ${materialsTotalUSD.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -13568,11 +13812,6 @@ window.verDetallePedido = function(id, explicitMode) {
                                 <td colspan="4" style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; text-transform: uppercase; color: #4ade80; font-weight: 900; letter-spacing: 0.5px; background: transparent;"><strong>TOTAL GENERAL:</strong></td>
                                 <td style="border: 1px solid rgba(16, 185, 129, 0.3); padding: 10px 14px; text-align: right; font-family: monospace; font-weight: 900; font-size: 15px; color: #4ade80; white-space: nowrap; background: transparent;">${grandTotalDisplay}</td>
                             </tr>
-                            ${materialsTotalUSD > 0 ? `
-                            <tr style="background: transparent; border-top: 1px solid rgba(56, 189, 248, 0.25); font-size: 11px;">
-                                <td colspan="4" style="border: 1px solid rgba(56, 189, 248, 0.18); padding: 5px 14px; text-align: right; color: #38bdf8; font-weight: 700; background: transparent;">Cotiz. U$D:</td>
-                                <td style="border: 1px solid rgba(56, 189, 248, 0.18); padding: 5px 14px; text-align: right; font-family: monospace; color: #38bdf8; font-weight: 700; background: transparent;">$${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                            </tr>` : ''}
                         </tfoot>
                     </table>
                 </div>
@@ -13613,6 +13852,11 @@ window.verDetallePedido = function(id, explicitMode) {
 
             </div>
         `;
+
+        const cotizSpan = document.getElementById('auth-meca-cotiz-val');
+        if (cotizSpan) {
+            cotizSpan.innerText = '$' + cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
     };
 
     window.cambiarTipoReporteEnVista = function(nuevoTipo) {
@@ -14140,7 +14384,9 @@ window.imprimirPresupuestoModal = async function() {
             if ((!pedidoActivo.items || pedidoActivo.items.length <= 1) && typeof window.fetchPresupuestoItemsDirect === 'function') {
                 const directItems = await window.fetchPresupuestoItemsDirect(pedidoActivo.id);
                 if (Array.isArray(directItems) && directItems.length > 0) {
-                    pedidoActivo.items = directItems;
+                    pedidoActivo.items = (typeof window.sortPresupuestoItemsTarifario === 'function')
+                        ? window.sortPresupuestoItemsTarifario(directItems)
+                        : directItems;
                 }
             }
 
@@ -14165,6 +14411,9 @@ window.imprimirPresupuestoModal = async function() {
 
             // 1. Sincronizar ítems editados desde la grilla activa si existieran
             if (Array.isArray(pedidoItems) && pedidoItems.length > 0) {
+                if (typeof window.sortPresupuestoItemsTarifario === 'function') {
+                    pedidoItems = window.sortPresupuestoItemsTarifario(pedidoItems);
+                }
                 pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
                 const newAmt = pedidoActivo.items.reduce((sum, item) => {
                     const q = parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0;
@@ -17673,7 +17922,7 @@ window.compartirWhatsAppPedido = function(id) {
     if (!p) return;
     const nro = formatPresupuestoCodigo(p);
     const cliente = p.cliente_nombre ? p.cliente_nombre.toUpperCase() : 'CONSUMIDOR FINAL';
-    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
+    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450)) || 1450;
 
     let laborARS = 0;
     let matUSD = 0;
@@ -17981,26 +18230,11 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         }
     ];
 
-    if (reqTipoPresupuesto === 'Eléctrico') {
-        const getElePriority = (code) => {
-            const c = String(code || '').toUpperCase().trim();
-            // Mantenimiento: Hs Normales (1), Hs 36% (2), Hs 76% (3)
-            if (['ELE-038', 'ELE-039', 'ELE-040', 'ELE-041', 'ELE-042'].includes(c)) return 1;
-            if (['ELE-033', 'ELE-034', 'ELE-035', 'ELE-036', 'ELE-037'].includes(c)) return 2;
-            if (['ELE-028', 'ELE-029', 'ELE-030', 'ELE-031', 'ELE-032'].includes(c)) return 3;
-            // Parada de Planta: Hs Normales (1), Hs 36% (2), Hs 76% (3)
-            if (['ELE-056', 'ELE-057', 'ELE-058', 'ELE-059', 'ELE-060'].includes(c)) return 1;
-            if (['ELE-051', 'ELE-052', 'ELE-053', 'ELE-054', 'ELE-055'].includes(c)) return 2;
-            if (['ELE-046', 'ELE-047', 'ELE-048', 'ELE-049', 'ELE-050'].includes(c)) return 3;
-            return 99;
-        };
-        if (sections[2] && Array.isArray(sections[2].items)) {
-            sections[2].items.sort((a, b) => getElePriority(a.codigo) - getElePriority(b.codigo));
+    sections.forEach(sec => {
+        if (Array.isArray(sec.items) && typeof window.sortPresupuestoItemsTarifario === 'function') {
+            sec.items = window.sortPresupuestoItemsTarifario(sec.items);
         }
-        if (sections[3] && Array.isArray(sections[3].items)) {
-            sections[3].items.sort((a, b) => getElePriority(a.codigo) - getElePriority(b.codigo));
-        }
-    }
+    });
 
     // Catch-all: Asegurar que ningún ítem quede oculto por nombre de subrubro no coincidente
     const categorized = new Set();
@@ -18060,7 +18294,7 @@ if (curPlanta === 'APA') curPlanta = 'APS';
                         <input type="text"
                                 id="grid-cotizacion-materiales"
                                 inputmode="decimal"
-                                value="${(window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450).toString().replace(/\./g, ',')}"
+                                value="${(window.getCotizacionMateriales ? window.getCotizacionMateriales(typeof pedidoActivo !== 'undefined' ? pedidoActivo : null) : 1450).toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}"
                                 ${isEditable ? '' : 'disabled'}
                                 onkeydown="onMecaPriceKeyDown(event, this)"
                                 oninput="window.onGridCotizacionMaterialesChange ? window.onGridCotizacionMaterialesChange(this) : null"
@@ -20593,7 +20827,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     const _activeWatermark = _isAcosta ? _watermarkAcostaB64 : _watermarkSgB64;
     const _activeLogo = _isAcosta ? _logoAcostaB64 : (logoSrc || ((typeof window !== 'undefined' && window.LOGO_SG_BASE64) ? window.LOGO_SG_BASE64 : 'logo_sg_montajes.png'));
 
-    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
+    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450)) || 1450;
     let laborTotalARS = 0;
     let materialsTotalUSD = 0;
 
@@ -20635,6 +20869,21 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                 laborTotalARS += (window.parseArgNumber ? window.parseArgNumber(r.subtotal) : (parseFloat(r.subtotal) || 0));
             }
         });
+    }
+    if (format === 'resumido' && items.length === 1) {
+        const singleItem = items[0];
+        const isSingleUSD = (typeof window.isItemUSD === 'function')
+            ? window.isItemUSD(singleItem, p)
+            : (String(singleItem.moneda || '').toUpperCase() === 'USD' || String(singleItem.moneda || '').toUpperCase() === 'U$D');
+        if (isSingleUSD) {
+            laborTotalARS = 0;
+            materialsTotalUSD = (singleItem.subtotal_usd !== undefined && singleItem.subtotal_usd !== null)
+                ? parseFloat(singleItem.subtotal_usd)
+                : (parseFloat(singleItem.subtotal) || 0);
+        } else {
+            materialsTotalUSD = 0;
+            laborTotalARS = parseFloat(singleItem.subtotal) || 0;
+        }
     }
     const materialsTotalARS = materialsTotalUSD * cotizMat;
     const computedGrandTotal = (laborTotalARS + materialsTotalARS > 0) ? (laborTotalARS + materialsTotalARS) : total;
@@ -20949,11 +21198,6 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
                                 <td colspan="4" style="padding: 5px 8px; font-weight: 800; border-right: 1px solid #000; background: transparent; color: #000000;">TOTAL GENERAL:</td>
                                 <td style="padding: 5px 6px; text-align: right; font-weight: 800; background: transparent; color: #000000; font-size: 11px; white-space: nowrap;">${grandTotalPdfDisplay}</td>
                             </tr>
-                            ${materialsTotalUSD > 0 ? `
-                            <tr style="border-top: 1px solid #000; font-size: 9.5px; background: transparent; page-break-inside: avoid; break-inside: avoid;">
-                                <td colspan="4" style="padding: 3px 8px; font-weight: 700; border-right: 1px solid #000; background: transparent; color: #000000;">Cotiz. U$D:</td>
-                                <td style="padding: 3px 6px; text-align: right; font-weight: 700; background: transparent; color: #000000; white-space: nowrap;">$${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                            </tr>` : ''}
                         </tfoot>
                     </table>
                 </div>
@@ -20967,6 +21211,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 
                 <div class="no-page-break" style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px 8px; font-size: 9px; color: #1e293b; line-height: 1.35; margin-bottom: 5px; background: #f8fafc; page-break-inside: avoid; break-inside: avoid;">
                     <div style="font-weight: bold; color: #0f172a; margin-bottom: 2px;">⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.</div>
+                    <div><strong>Cotiz. U$D:</strong> $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     <div><strong>i. Garantía Requerida:</strong> 6 MESES</div>
                     <div><strong>ii. Convenio:</strong> La Mano de Obra contempla el Convenio UOCRA vigente. Los trabajos en planta contemplan el convenio Agroexportador.</div>
                     <div><strong>iii. Forma de Pago:</strong> 30 días fecha de factura</div>
@@ -21790,7 +22035,7 @@ window.getPresupuestoFormattedItems = function(p, format) {
         }
     }
     const seenCodes = new Set();
-    const validItems = [];
+    let validItems = [];
     items.forEach(item => {
         if (!item) return;
         const isExistingHeader = (item.codigo === '-' && (item.cantidad === '-' || item.precio === '-')) ||
@@ -21823,14 +22068,15 @@ window.getPresupuestoFormattedItems = function(p, format) {
         });
     });
 
-    if (typeof window.getItemTarifarioSortIndex === 'function') {
-        validItems.sort((a, b) => {
-            const sA = window.getItemTarifarioSortIndex(a);
-            const sB = window.getItemTarifarioSortIndex(b);
-            if (sA !== sB) return sA - sB;
-            return String(a.codigo || '').localeCompare(String(b.codigo || ''));
-        });
+    if (typeof window.sortPresupuestoItemsTarifario === 'function') {
+        validItems = window.sortPresupuestoItemsTarifario(validItems);
     }
+
+    const isParentUSD = (p && (p.moneda_id === 2 ||
+        String(p.moneda || '').toUpperCase() === 'USD' ||
+        String(p.moneda || '').toUpperCase() === 'U$D' ||
+        String(p.moneda || '').toUpperCase() === 'DOLARES' ||
+        String(p.moneda || '').toUpperCase() === 'DÓLARES'));
 
     if (validItems.length === 0) {
         const amt = parseFloat(p.importe_neto !== undefined ? p.importe_neto : (p.importe || 0)) || 0;
@@ -21846,47 +22092,92 @@ window.getPresupuestoFormattedItems = function(p, format) {
             detalle: catDet,
             cantidad: 1,
             precio: amt,
+            precio_usd: isParentUSD ? amt : null,
             precio_unitario: amt,
             subtotal: amt,
+            subtotal_usd: isParentUSD ? amt : null,
             subrubro: subSec,
             rubro: isMec ? 'Mecánico' : 'Eléctrico',
-            moneda: 'ARS',
-            is_material: false
+            moneda: isParentUSD ? 'USD' : 'ARS',
+            is_material: isParentUSD ? true : false
         });
     }
 
-    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450)) || 1450;
+    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450)) || 1450;
 
     let computedGrandTotal = 0;
+    let computedGrandTotalUSD = 0;
+    let computedGrandTotalARS = 0;
+    let totalItemsCount = 0;
+    let usdItemsCount = 0;
+
     validItems.forEach(it => {
+        totalItemsCount++;
         const q = window.parseArgNumber ? window.parseArgNumber(it.cantidad) : (parseFloat(String(it.cantidad || '0').replace(',', '.')) || 0);
         const isUSD = (typeof window.isItemUSD === 'function') ? window.isItemUSD(it, p) : (it.moneda === 'USD' || it.moneda === 'U$D');
         if (isUSD) {
+            usdItemsCount++;
             const prUSD = (it.precio_usd !== undefined && it.precio_usd !== null && !isNaN(parseFloat(it.precio_usd)))
                 ? parseFloat(it.precio_usd)
                 : (window.parseArgNumber ? window.parseArgNumber(it.precio !== undefined ? it.precio : it.precio_unitario) : (parseFloat(String(it.precio || 0)) || 0));
             const subUSD = (it.subtotal_usd !== undefined && it.subtotal_usd !== null && !isNaN(parseFloat(it.subtotal_usd)))
                 ? parseFloat(it.subtotal_usd)
                 : (q * prUSD);
+            computedGrandTotalUSD += subUSD;
             computedGrandTotal += (subUSD * cotizMat);
         } else {
             const pr = window.parseArgNumber ? window.parseArgNumber(it.precio !== undefined ? it.precio : it.precio_unitario) : (parseFloat(String(it.precio || 0)) || 0);
             const sub = (it.subtotal !== undefined && it.subtotal !== null && !isNaN(window.parseArgNumber ? window.parseArgNumber(it.subtotal) : parseFloat(it.subtotal)))
                 ? (window.parseArgNumber ? window.parseArgNumber(it.subtotal) : parseFloat(it.subtotal))
                 : (q * pr);
+            computedGrandTotalARS += sub;
             computedGrandTotal += sub;
         }
     });
 
     if (finalFormat === 'resumido') {
         const devText = (p.meca_denominacion || p.denominacion || p.motivo || 'SERVICIOS Y MONTAJES').toUpperCase();
+        const isComprobanteTodoUSD = isParentUSD ||
+            (totalItemsCount > 0 && usdItemsCount === totalItemsCount) ||
+            (computedGrandTotalUSD > 0 && computedGrandTotalARS === 0);
+
+        if (isComprobanteTodoUSD) {
+            let totalUSD = computedGrandTotalUSD;
+            if (totalUSD <= 0) {
+                if (p.importe_usd && parseFloat(String(p.importe_usd).replace(',', '.')) > 0) {
+                    totalUSD = parseFloat(String(p.importe_usd).replace(',', '.'));
+                } else if (p.importe && parseFloat(String(p.importe).replace(',', '.')) > 0) {
+                    const rawImp = parseFloat(String(p.importe).replace(',', '.'));
+                    if (rawImp > 50000 && cotizMat > 1 && isParentUSD) {
+                        totalUSD = rawImp / cotizMat;
+                    } else {
+                        totalUSD = rawImp;
+                    }
+                }
+            }
+            return [{
+                codigo: (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(p) : p.id) || '001',
+                detalle: devText,
+                precio: totalUSD,
+                precio_usd: totalUSD,
+                cantidad: 1,
+                subtotal: totalUSD,
+                subtotal_usd: totalUSD,
+                moneda: 'USD',
+                is_material: true
+            }];
+        }
+
         const totalVal = (computedGrandTotal > 0) ? computedGrandTotal : (parseFloat(String(p.importe || '0').replace(',', '.')) || 0);
         return [{
             codigo: (typeof formatPresupuestoCodigo === 'function' ? formatPresupuestoCodigo(p) : p.id) || '001',
             detalle: devText,
             precio: totalVal,
+            precio_usd: null,
             cantidad: 1,
             subtotal: totalVal,
+            subtotal_usd: null,
+            moneda: 'ARS',
             is_material: false
         }];
     }
@@ -21899,7 +22190,7 @@ window.getPresupuestoFormattedItems = function(p, format) {
             ...(typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' ? PRESUPUESTO_ELECTRICO_STOCK : [])
         ];
         const groupedLabor = {};
-        const materials = [];
+        let materials = [];
 
         validItems.forEach((item, idx) => {
             let subrubro = (item.subrubro || '').trim();
@@ -22057,8 +22348,8 @@ window.getPresupuestoFormattedItems = function(p, format) {
         });
 
         if (materials.length > 0) {
-            if (typeof window.getItemTarifarioSortIndex === 'function') {
-                materials.sort((a, b) => window.getItemTarifarioSortIndex(a) - window.getItemTarifarioSortIndex(b));
+            if (typeof window.sortPresupuestoItemsTarifario === 'function') {
+                materials = window.sortPresupuestoItemsTarifario(materials);
             }
             formatted.push({
                 codigo: '-',
@@ -22224,32 +22515,15 @@ window.getPresupuestoFormattedItems = function(p, format) {
         return a.localeCompare(b);
     });
 
-    const getElePriority = (code) => {
-        const c = String(code || '').toUpperCase().trim();
-        // Mantenimiento: Hs Normales (1), Hs 36% (2), Hs 76% (3)
-        if (['ELE-038', 'ELE-039', 'ELE-040', 'ELE-041', 'ELE-042'].includes(c)) return 1;
-        if (['ELE-033', 'ELE-034', 'ELE-035', 'ELE-036', 'ELE-037'].includes(c)) return 2;
-        if (['ELE-028', 'ELE-029', 'ELE-030', 'ELE-031', 'ELE-032'].includes(c)) return 3;
-        // Parada de Planta: Hs Normales (1), Hs 36% (2), Hs 76% (3)
-        if (['ELE-056', 'ELE-057', 'ELE-058', 'ELE-059', 'ELE-060'].includes(c)) return 1;
-        if (['ELE-051', 'ELE-052', 'ELE-053', 'ELE-054', 'ELE-055'].includes(c)) return 2;
-        if (['ELE-046', 'ELE-047', 'ELE-048', 'ELE-049', 'ELE-050'].includes(c)) return 3;
-        return 99;
-    };
+
 
     const formatted = [];
     sortedCategoryKeys.forEach(catTitle => {
-        const catItems = groupsMap[catTitle];
+        let catItems = groupsMap[catTitle];
         if (catItems && catItems.length > 0) {
-            catItems.sort((a, b) => {
-                const pA = getElePriority(a.codigo);
-                const pB = getElePriority(b.codigo);
-                if (pA !== 99 && pB !== 99 && pA !== pB) return pA - pB;
-                const oA = (typeof window.getItemTarifarioSortIndex === 'function') ? window.getItemTarifarioSortIndex(a) : 999999;
-                const oB = (typeof window.getItemTarifarioSortIndex === 'function') ? window.getItemTarifarioSortIndex(b) : 999999;
-                if (oA !== oB) return oA - oB;
-                return String(a.codigo || '').localeCompare(String(b.codigo || ''));
-            });
+            if (typeof window.sortPresupuestoItemsTarifario === 'function') {
+                catItems = window.sortPresupuestoItemsTarifario(catItems);
+            }
             formatted.push({ codigo: '-', detalle: catTitle, precio: '-', cantidad: '-', subtotal: '-', is_material: false });
             catItems.forEach(item => formatted.push(item));
         }
@@ -23968,7 +24242,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '532';
+window.CURRENT_APP_VERSION = '536';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
