@@ -1610,6 +1610,9 @@ function initSupabaseSync(callback) {
             }
 
             // 2. Corregir precios de ítems eléctricos de stock y recalcular subtotales
+            const pCotiz = parseFloat(p.cotizacion_materiales || p.cotizacion) || 
+                           (window.getPresupuestoCotizacion ? window.getPresupuestoCotizacion(p.id) : 0) || 
+                           (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450) || 1450;
             p.items.forEach(it => {
                 if (!it) return;
                 const code = String(it.codigo || '').trim().toUpperCase();
@@ -1649,9 +1652,9 @@ function initSupabaseSync(callback) {
                     it.precio_usd = puUSD;
                     it.precio = puUSD;
                     it.precio_unitario = puUSD;
-                    it.precio_ars = puUSD * cotizMat;
+                    it.precio_ars = puUSD * pCotiz;
                     it.subtotal_usd = cant * puUSD;
-                    it.subtotal = cant * puUSD * cotizMat;
+                    it.subtotal = cant * puUSD * pCotiz;
                 } else if (currentPrice > 0) {
                     const expectedSub = cant * currentPrice;
                     if (!it.subtotal || Math.abs((it.subtotal || 0) - expectedSub) > 0.01) {
@@ -2121,6 +2124,9 @@ function initSupabaseSync(callback) {
                 let changed = false;
                 appData.pedidos.forEach(function(p) {
                     const pid = String(p.id).trim();
+                    const pCotiz = (p && (p.cotizacion_materiales || p.cotizacion))
+                        ? parseFloat(p.cotizacion_materiales || p.cotizacion)
+                        : ((window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450) || 1450);
                     const localCachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
                     
                     if (itemsMap[pid] && itemsMap[pid].length > 0) {
@@ -2145,9 +2151,9 @@ function initSupabaseSync(callback) {
                                 else if (!item.precio_usd) item.precio_usd = parseFloat(item.precio || item.precio_unitario || 0);
                                 if (ref && ref.subtotal_usd) item.subtotal_usd = parseFloat(ref.subtotal_usd);
                                 else if (!item.subtotal_usd) item.subtotal_usd = (item.cantidad || 1) * (item.precio_usd || item.precio || 0);
-                                item.precio_ars = (item.precio_usd || 0) * cotizMat;
-                                item.subtotal = (item.subtotal_usd || 0) * cotizMat;
-                                item.cotizacion_aplicada = cotizMat;
+                                item.precio_ars = (item.precio_usd || 0) * pCotiz;
+                                item.subtotal = (item.subtotal_usd || 0) * pCotiz;
+                                item.cotizacion_aplicada = pCotiz;
                             } else {
                                 item.moneda = 'ARS';
                                 item.precio = (ref && ref.precio_ars) ? parseFloat(ref.precio_ars) : (parseFloat(item.precio || item.precio_unitario || 0));
@@ -4456,6 +4462,18 @@ window.getCotizacionMateriales = function(pOrBudget) {
                 }
             }
         }
+        // Chequear en sus propios items si tienen cotizacion_aplicada
+        if (Array.isArray(targetP.items)) {
+            const itWithCot = targetP.items.find(x => x && x.cotizacion_aplicada && parseFloat(x.cotizacion_aplicada) > 0);
+            if (itWithCot) {
+                const c = parseFloat(itWithCot.cotizacion_aplicada);
+                if (!isNaN(c) && c > 0) return c;
+            }
+        }
+        // Si se pidió un comprobante específico (pOrBudget), NUNCA caer en inputs de pantalla de otro comprobante ni en localStorage global!
+        if (pOrBudget) {
+            return 1450.00;
+        }
     }
 
     // 2. Si el usuario está interactuando activamente con el input de la grilla en el modal/editor abierto
@@ -4469,94 +4487,61 @@ window.getCotizacionMateriales = function(pOrBudget) {
     const newReqForm = document.getElementById('view-solicitud') || document.getElementById('form-nuevo-presupuesto');
     const isNewReqVisible = newReqForm && newReqForm.style.display !== 'none';
     if (isNewReqVisible) {
-        const reqStdInp = document.getElementById('req-cotizacion-materiales');
+        const reqStdInp = document.getElementById('req-cotizacion-materiales') || document.getElementById('req-meca-cotizacion-materiales');
         if (reqStdInp && reqStdInp.value) {
             const parsed = window.parseArgNumber ? window.parseArgNumber(reqStdInp.value) : parseFloat(reqStdInp.value);
             if (parsed > 0) return parsed;
         }
     }
 
-    // 4. Si el gridInp existe y tiene valor (cuando no hay targetP con cotización propia)
-    if (gridInp && gridInp.value) {
-        const parsed = window.parseArgNumber ? window.parseArgNumber(gridInp.value) : parseFloat(gridInp.value);
-        if (parsed > 0) return parsed;
-    }
-
-    // 5. Valor almacenado en localStorage
-    try {
-        const stored = parseFloat(localStorage.getItem('PRESUPUESTO_COTIZACION_MATERIALES'));
-        if (!isNaN(stored) && stored > 0) return stored;
-    } catch(e) {}
-
-    // 6. Default estándar ($1.450,00)
+    // 4. Default estándar ($1.450,00)
     return 1450.00;
 };
 
 window.setCotizacionMateriales = function(val, updateInputs = true) {
     const num = parseFloat(val);
     if (isNaN(num) || num <= 0) return;
-    try {
-        localStorage.setItem('PRESUPUESTO_COTIZACION_MATERIALES', num.toString());
-    } catch(e) {}
 
     // Guardar inmediatamente en el comprobante activo para que no se pierda
-    if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
-        pedidoActivo.cotizacion_materiales = num;
-        pedidoActivo.cotizacion = num;
-        if (pedidoActivo.id && typeof window.savePresupuestoCotizacion === 'function') {
-            window.savePresupuestoCotizacion(pedidoActivo.id, num);
+    const activeP = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo;
+    if (activeP) {
+        activeP.cotizacion_materiales = num;
+        activeP.cotizacion = num;
+        const pid = String(activeP.id || '').trim();
+        if (pid && typeof window.savePresupuestoCotizacion === 'function') {
+            window.savePresupuestoCotizacion(pid, num);
         }
-    }
-    if (window.pedidoActivo) {
-        window.pedidoActivo.cotizacion_materiales = num;
-        window.pedidoActivo.cotizacion = num;
-        if (window.pedidoActivo.id && typeof window.savePresupuestoCotizacion === 'function') {
-            window.savePresupuestoCotizacion(window.pedidoActivo.id, num);
-        }
-    }
-    if (window.pedidoActivo && window.pedidoActivo.id && typeof appData !== 'undefined' && Array.isArray(appData.pedidos)) {
-        const pOrig = appData.pedidos.find(x => x && String(x.id).trim() === String(window.pedidoActivo.id).trim());
-        if (pOrig) {
-            pOrig.cotizacion_materiales = num;
-            pOrig.cotizacion = num;
-        }
-    }
-
-    // Actualizar catálogo en memoria dinámicamente con la nueva cotización (solo para ítems Materiales en USD)
-    try {
-        const cat = (typeof getActiveStockCatalog === 'function') ? getActiveStockCatalog() : [];
-        cat.forEach(item => {
-            if (!item) return;
-            const isMat = (typeof window.isItemUSD === 'function') ? window.isItemUSD(item) : (item.moneda === 'USD');
-            if (isMat) {
-                const pUsd = (item.precio_usd !== undefined && item.precio_usd !== null && item.precio_usd > 0)
-                    ? item.precio_usd
-                    : (item.moneda === 'USD' ? (item.precio || item.precio_unitario || 0) : null);
-                if (pUsd) {
-                    item.precio_usd = pUsd;
-                    item.precio_ars = Math.round(pUsd * num);
-                }
-            } else {
-                // Es Mano de Obra (ARS) -> NUNCA debe tener precio_usd
-                item.precio_usd = null;
-                if (!item.precio_ars && item.precio) {
-                    item.precio_ars = item.precio;
-                }
+        if (typeof appData !== 'undefined' && Array.isArray(appData.pedidos)) {
+            const pOrig = appData.pedidos.find(x => x && String(x.id).trim() === pid);
+            if (pOrig) {
+                pOrig.cotizacion_materiales = num;
+                pOrig.cotizacion = num;
             }
-        });
-    } catch(e) {}
+        }
+    } else {
+        try {
+            localStorage.setItem('PRESUPUESTO_COTIZACION_MATERIALES', num.toString());
+        } catch(e) {}
+    }
 
     if (updateInputs) {
         const formatted = num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el && document.activeElement !== el) {
-                el.value = formatted;
+        if (activeP) {
+            const gridEl = document.getElementById('grid-cotizacion-materiales');
+            if (gridEl && document.activeElement !== gridEl) gridEl.value = formatted;
+            const rateInp = document.getElementById('auth-exchange-rate-input');
+            if (rateInp && document.activeElement !== rateInp) rateInp.value = formatted;
+        } else {
+            ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && document.activeElement !== el) {
+                    el.value = formatted;
+                }
+            });
+            const rateInp = document.getElementById('req-exchange-rate');
+            if (rateInp && document.activeElement !== rateInp) {
+                rateInp.value = num.toFixed(2);
             }
-        });
-        const rateInp = document.getElementById('req-exchange-rate');
-        if (rateInp && document.activeElement !== rateInp) {
-            rateInp.value = num.toFixed(2);
         }
         const sumStd = document.getElementById('summary-cotiz-materiales');
         if (sumStd) sumStd.innerText = `$${formatted}`;
@@ -4575,25 +4560,39 @@ window.onReqCotizacionMaterialesInput = function(input) {
     if (!input) return;
     const parsed = window.parseCotizacionInput(input.value);
     if (parsed > 0) {
-        if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
-            pedidoActivo.cotizacion_materiales = parsed;
-            pedidoActivo.cotizacion = parsed;
-        }
-        if (window.pedidoActivo) {
-            window.pedidoActivo.cotizacion_materiales = parsed;
-            window.pedidoActivo.cotizacion = parsed;
+        const activeP = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo;
+        if (activeP) {
+            activeP.cotizacion_materiales = parsed;
+            activeP.cotizacion = parsed;
+            const pid = String(activeP.id || '').trim();
+            if (pid && typeof window.savePresupuestoCotizacion === 'function') {
+                window.savePresupuestoCotizacion(pid, parsed);
+            }
+            if (typeof appData !== 'undefined' && Array.isArray(appData.pedidos)) {
+                const pOrig = appData.pedidos.find(x => x && String(x.id).trim() === pid);
+                if (pOrig) {
+                    pOrig.cotizacion_materiales = parsed;
+                    pOrig.cotizacion = parsed;
+                }
+            }
         }
         window.setCotizacionMateriales(parsed, false);
-        // Sincronizar todos los inputs en pantalla SIN pisar el que el usuario está escribiendo
-        ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el && el !== input && document.activeElement !== el) {
-                el.value = input.value;
+        if (activeP && (input.id === 'grid-cotizacion-materiales' || input.id === 'auth-exchange-rate-input')) {
+            const gridEl = document.getElementById('grid-cotizacion-materiales');
+            const authEl = document.getElementById('auth-exchange-rate-input');
+            if (gridEl && gridEl !== input && document.activeElement !== gridEl) gridEl.value = input.value;
+            if (authEl && authEl !== input && document.activeElement !== authEl) authEl.value = input.value;
+        } else {
+            ['grid-cotizacion-materiales', 'req-cotizacion-materiales', 'req-meca-cotizacion-materiales'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el !== input && document.activeElement !== el) {
+                    el.value = input.value;
+                }
+            });
+            const rateInp = document.getElementById('req-exchange-rate');
+            if (rateInp && document.activeElement !== rateInp) {
+                rateInp.value = parsed.toFixed(2);
             }
-        });
-        const rateInp = document.getElementById('req-exchange-rate');
-        if (rateInp && document.activeElement !== rateInp) {
-            rateInp.value = parsed.toFixed(2);
         }
         if (typeof window.recalcMecaExcelAll === 'function') {
             window.recalcMecaExcelAll();
@@ -4603,15 +4602,23 @@ window.onReqCotizacionMaterialesInput = function(input) {
 
 window.onCotizacionBlur = function(input) {
     if (!input) return;
+    const activeP = (typeof pedidoActivo !== 'undefined' && pedidoActivo) || window.pedidoActivo;
     const parsed = window.parseCotizacionInput(input.value);
-    const finalVal = (parsed > 0) ? parsed : (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450);
-    if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
-        pedidoActivo.cotizacion_materiales = finalVal;
-        pedidoActivo.cotizacion = finalVal;
-    }
-    if (window.pedidoActivo) {
-        window.pedidoActivo.cotizacion_materiales = finalVal;
-        window.pedidoActivo.cotizacion = finalVal;
+    const finalVal = (parsed > 0) ? parsed : (window.getCotizacionMateriales ? window.getCotizacionMateriales(activeP) : 1450);
+    if (activeP) {
+        activeP.cotizacion_materiales = finalVal;
+        activeP.cotizacion = finalVal;
+        const pid = String(activeP.id || '').trim();
+        if (pid && typeof window.savePresupuestoCotizacion === 'function') {
+            window.savePresupuestoCotizacion(pid, finalVal);
+        }
+        if (typeof appData !== 'undefined' && Array.isArray(appData.pedidos)) {
+            const pOrig = appData.pedidos.find(x => x && String(x.id).trim() === pid);
+            if (pOrig) {
+                pOrig.cotizacion_materiales = finalVal;
+                pOrig.cotizacion = finalVal;
+            }
+        }
     }
     window.setCotizacionMateriales(finalVal, true);
     if (typeof window.recalcMecaExcelAll === 'function') {
@@ -7858,6 +7865,12 @@ window.goToRequestStep = function(step) {
                 summaryTotal.innerHTML = `<span style="color: #34d399; font-size: 28px; font-weight: 900; font-family: monospace;">$ ${sumLaborARS.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>`;
             }
         }
+
+        const sumCotizBox = document.getElementById('summary-cotiz-container');
+        const sumMecaCotizBox = document.getElementById('summary-meca-cotiz-container');
+        const hasUSDInSummary = (sumMatUSD > 0) || (pedidoItems || []).some(it => it && (it.moneda === 'USD' || it.moneda === 'U$D'));
+        if (sumCotizBox) sumCotizBox.style.display = hasUSDInSummary ? 'block' : 'none';
+        if (sumMecaCotizBox) sumMecaCotizBox.style.display = hasUSDInSummary ? 'block' : 'none';
     }
 
     // Ocultar todos los contenedores de paso
@@ -9304,7 +9317,7 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
                 meca_personal: document.getElementById('req-meca-personal') ? document.getElementById('req-meca-personal').value : '',
                 meca_exclusiones: document.getElementById('req-meca-exclusiones') ? document.getElementById('req-meca-exclusiones').value : '',
                 cotizacion_materiales: (() => {
-                    const reqInp = document.getElementById('req-cotizacion-materiales') || document.getElementById('grid-cotizacion-materiales');
+                    const reqInp = document.getElementById('req-cotizacion-materiales') || document.getElementById('req-meca-cotizacion-materiales');
                     if (reqInp && reqInp.value) {
                         const parsed = window.parseArgNumber ? window.parseArgNumber(reqInp.value) : parseFloat(reqInp.value);
                         if (parsed > 0) return parsed;
@@ -9312,7 +9325,7 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
                     return (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
                 })(),
                 cotizacion: (() => {
-                    const reqInp = document.getElementById('req-cotizacion-materiales') || document.getElementById('grid-cotizacion-materiales');
+                    const reqInp = document.getElementById('req-cotizacion-materiales') || document.getElementById('req-meca-cotizacion-materiales');
                     if (reqInp && reqInp.value) {
                         const parsed = window.parseArgNumber ? window.parseArgNumber(reqInp.value) : parseFloat(reqInp.value);
                         if (parsed > 0) return parsed;
@@ -12386,6 +12399,9 @@ window.saveTempEdits = function() {
             }
             pedidoActivo.cotizacion_materiales = matCotiz;
             pedidoActivo.cotizacion = matCotiz;
+            if (pedidoActivo.id && typeof window.savePresupuestoCotizacion === 'function') {
+                window.savePresupuestoCotizacion(pedidoActivo.id, matCotiz);
+            }
         }
     }
 
@@ -13531,9 +13547,16 @@ window.verDetallePedido = function(id, explicitMode) {
 
         let currText = 'PESOS';
         const pCotiz = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450)) || 1450;
+        const hasUSD = (p.moneda_id === 2 || String(p.moneda || '').toUpperCase() === 'USD' || String(p.moneda || '').toUpperCase() === 'U$D') ||
+                       (Array.isArray(p.items) && p.items.some(it => {
+                           if (!it || it.estado === 'Rechazado') return false;
+                           if (typeof window.isItemUSD === 'function') return window.isItemUSD(it, p);
+                           return String(it.moneda || '').toUpperCase() === 'USD' || String(it.moneda || '').toUpperCase() === 'U$D';
+                       }));
         if (p.moneda_id === 2 || String(p.moneda || '').toUpperCase() === 'USD') currText = `DÓLARES (cot. $${pCotiz.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
         else if (p.moneda_id === 60) currText = `EUROS (cot. $${pCotiz.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
-        else if (pCotiz > 0) currText = `PESOS (cot. U$D $${pCotiz.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+        else if (hasUSD) currText = `PESOS (cot. U$D $${pCotiz.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+        else currText = 'PESOS';
         if (document.getElementById('auth-currency-container')) document.getElementById('auth-currency-container').innerText = currText;
     }
 
@@ -13853,8 +13876,17 @@ window.verDetallePedido = function(id, explicitMode) {
             </div>
         `;
 
+        const hasAnyUSD = (materialsTotalUSD > 0) ||
+            (String(p.moneda || '').toUpperCase() === 'USD' || String(p.moneda || '').toUpperCase() === 'U$D' || p.moneda_id === 2) ||
+            (Array.isArray(formattedItems) && formattedItems.some(it => (typeof window.isItemUSD === 'function' ? window.isItemUSD(it, p) : (it.moneda === 'USD' || it.moneda === 'U$D')))) ||
+            (Array.isArray(p.items) && p.items.some(it => (typeof window.isItemUSD === 'function' ? window.isItemUSD(it, p) : (it.moneda === 'USD' || it.moneda === 'U$D'))));
+
+        const cotizRow = document.getElementById('auth-meca-cotiz-container');
         const cotizSpan = document.getElementById('auth-meca-cotiz-val');
-        if (cotizSpan) {
+        if (cotizRow) {
+            cotizRow.style.display = hasAnyUSD ? 'block' : 'none';
+        }
+        if (cotizSpan && hasAnyUSD) {
             cotizSpan.innerText = '$' + cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
     };
@@ -19210,6 +19242,12 @@ if (curPlanta === 'APA') curPlanta = 'APS';
     const sumMecaCotizMat = document.getElementById('summary-meca-cotiz-materiales');
     if (sumMecaCotizMat) sumMecaCotizMat.innerText = `$${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
 
+    const sumCotizBox = document.getElementById('summary-cotiz-container');
+    const sumMecaCotizBox = document.getElementById('summary-meca-cotiz-container');
+    const hasUSDInSummary = (materialsTotalUSD > 0) || (pedidoItems || []).some(it => it && (it.moneda === 'USD' || it.moneda === 'U$D'));
+    if (sumCotizBox) sumCotizBox.style.display = hasUSDInSummary ? 'block' : 'none';
+    if (sumMecaCotizBox) sumMecaCotizBox.style.display = hasUSDInSummary ? 'block' : 'none';
+
     if (typeof pedidoActivo !== 'undefined' && pedidoActivo) {
         pedidoActivo.items = JSON.parse(JSON.stringify(pedidoItems));
         if (typeof recalcAuthTotal === 'function') {
@@ -21017,6 +21055,21 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
     }
     watermarksHtml += `</div>`;
 
+    const hasAnyUSD = (materialsTotalUSD > 0) ||
+        (String(p.moneda || '').toUpperCase() === 'USD' || String(p.moneda || '').toUpperCase() === 'U$D' || p.moneda_id === 2) ||
+        (Array.isArray(p.items) && p.items.some(it => {
+            if (!it || it.estado === 'Rechazado') return false;
+            if (typeof window.isItemUSD === 'function') return window.isItemUSD(it, p);
+            return String(it.moneda || '').toUpperCase() === 'USD' || String(it.moneda || '').toUpperCase() === 'U$D';
+        })) ||
+        (Array.isArray(items) && items.some(it => {
+            if (!it || it.estado === 'Rechazado') return false;
+            if (typeof window.isItemUSD === 'function') return window.isItemUSD(it, p);
+            return String(it.moneda || '').toUpperCase() === 'USD' || String(it.moneda || '').toUpperCase() === 'U$D';
+        }));
+
+    const cotizRowHtml = hasAnyUSD ? `<div><strong>Cotiz. U$D:</strong> $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>` : '';
+
     const htmlContent = `
         <div id="pdf-wrapper-download" style="box-sizing: border-box; width: 715px; min-width: 715px; max-width: 715px; padding: 4px 8px; font-family: Arial, Helvetica, sans-serif; background: #ffffff; color: #000000; margin: 0 auto; position: relative;">
             <style>
@@ -21211,7 +21264,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 
                 <div class="no-page-break" style="border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px 8px; font-size: 9px; color: #1e293b; line-height: 1.35; margin-bottom: 5px; background: #f8fafc; page-break-inside: avoid; break-inside: avoid;">
                     <div style="font-weight: bold; color: #0f172a; margin-bottom: 2px;">⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.</div>
-                    <div><strong>Cotiz. U$D:</strong> $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    ${cotizRowHtml}
                     <div><strong>i. Garantía Requerida:</strong> 6 MESES</div>
                     <div><strong>ii. Convenio:</strong> La Mano de Obra contempla el Convenio UOCRA vigente. Los trabajos en planta contemplan el convenio Agroexportador.</div>
                     <div><strong>iii. Forma de Pago:</strong> 30 días fecha de factura</div>
@@ -24242,7 +24295,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '536';
+window.CURRENT_APP_VERSION = '537';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 

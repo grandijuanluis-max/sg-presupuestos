@@ -14302,6 +14302,11 @@ window.generarPDFAvanceProyectoHistorico = function(id, certIndex) {
 
 
 window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliName, logoSrc, nowStr) {
+    const cotizMat = parseFloat(p.cotizacion_materiales || p.cotizacion || (window.getCotizacionMateriales ? window.getCotizacionMateriales(p) : 1450)) || 1450;
+    const hasAnyUSD = (String(p.moneda || '').toUpperCase() === 'USD' || String(p.moneda || '').toUpperCase() === 'U$D' || p.moneda_id === 2) ||
+        (Array.isArray(p.items) && p.items.some(it => it && (String(it.moneda || '').toUpperCase() === 'USD' || String(it.moneda || '').toUpperCase() === 'U$D'))) ||
+        (Array.isArray(items) && items.some(it => it && (String(it.moneda || '').toUpperCase() === 'USD' || String(it.moneda || '').toUpperCase() === 'U$D')));
+    const cotizRowHtml = hasAnyUSD ? `<div><strong>Cotiz. U$D:</strong> $${cotizMat.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>` : '';
     const fechaEmision = p.fecha || nowStr;
     const hora = "10:36:51";
     const cuitCli = p.cuit || "30-50679216-5";
@@ -14472,6 +14477,7 @@ window.generarHTMLPresupuestoNuevo = function(p, format, items, total, nro, cliN
 
                 <div style="border: 1px solid #f59e0b; border-radius: 6px; padding: 10px; font-size: 11px; color: #b45309; line-height: 1.5; margin-bottom: 15px;">
                     <div style="font-weight: bold;">⚠️ Aclaraciones: LAS HORAS DE EMERGENCIA SE CONTEMPLAN 5 HORAS NORMALES.</div>
+                    ${cotizRowHtml}
                     <div><strong>i. Garantía Requerida:</strong> 6 MESES</div>
                     <div><strong>ii. Convenio:</strong> La Mano de Obra contempla el Convenio UOCRA vigente. Los trabajos en planta contemplan el convenio Agroexportador.</div>
                     <div><strong>iii. Forma de Pago:</strong> 30 días fecha de factura</div>
