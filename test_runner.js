@@ -341,30 +341,39 @@ function normalizePresupuestosRubro(pedidos) {
         }
 
         const ocVal = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+        const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
         const estStr = String(p.estado || '').trim();
         const estLower = estStr.toLowerCase();
 
         if (estLower === 'rechazado' || estLower === 'anulado') {
             p.estado = 'Rechazado';
-        } else if (
-            estLower === 'aprobado con oc' ||
-            estLower.includes('con oc') ||
-            estLower.includes('con orden') ||
-            estLower === 'facturado parcial' ||
-            estLower === 'facturado total' ||
-            estLower === 'cargado con orden de compra' ||
-            estLower === 'autorizado' ||
-            estLower === 'aprobado' ||
-            (ocVal !== '' && ocVal !== '-' && estLower !== 'rechazado')
-        ) {
-            if (!p.estado_facturacion) {
-                p.estado_facturacion = (estLower === 'facturado total' || parseFloat(p.facturado_porcentaje || 0) >= 100) ? 'Total' : (parseFloat(p.facturado_porcentaje || 0) > 0 ? 'Parcial' : 'Pendiente');
-            }
-            p.estado = 'Aprobado con OC';
+        } else if (estLower === 'facturado total' || parseFloat(p.facturado_porcentaje || 0) >= 100) {
+            p.estado = 'Facturado Total';
+            p.estado_facturacion = 'Total';
+            if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
+            if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
+        } else if (estLower === 'facturado parcial' || parseFloat(p.facturado_porcentaje || 0) > 0) {
+            p.estado = 'Facturado Parcial';
+            p.estado_facturacion = 'Parcial';
             if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
             if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
         } else if (estLower === 'aprobado sin oc' || (estLower.includes('sin oc') && estLower.includes('aprobado'))) {
             p.estado = 'Aprobado sin OC';
+        } else if (
+            estLower === 'aprobado con oc' ||
+            estLower.includes('con oc') ||
+            estLower.includes('con orden') ||
+            estLower === 'cargado con orden de compra'
+        ) {
+            p.estado = 'Aprobado con OC';
+            if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
+            if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
+        } else if (estLower === 'aprobado' || estLower === 'autorizado') {
+            p.estado = hasFormalOc ? 'Aprobado con OC' : 'Aprobado sin OC';
+            if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
+            if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
+        } else if (hasFormalOc && !estLower.includes('sin oc') && estLower !== 'rechazado') {
+            p.estado = 'Aprobado con OC';
         } else {
             p.estado = 'Enviado sin OC';
         }
@@ -1291,7 +1300,7 @@ const allAvailableModules = [
     { id: 'menu-all', label: 'Seguimiento', icon: 'fa-solid fa-clock-rotate-left', tpl: 'tpl-assignments', action: () => initAssignmentsView('Modificacion') },
     { id: 'menu-estado-presupuesto', label: 'Estado del Presupuesto', icon: 'fa-solid fa-list-check', tpl: 'tpl-assignments', action: () => initAssignmentsView('EstadoPresupuesto') },
     { id: 'menu-rechazados', label: 'Rechazo de Presupuesto', icon: 'fa-solid fa-ban', tpl: 'tpl-assignments', action: () => initAssignmentsView('Rechazados') },
-    { id: 'menu-facturacion', label: 'Registros de Facturación', icon: 'fa-solid fa-file-invoice-dollar', tpl: 'tpl-facturacion', action: () => { showView('tpl-facturacion'); if (window.renderFacturacionTable) window.renderFacturacionTable(); } },
+    { id: 'menu-facturacion', label: 'Registros de Facturación', icon: 'fa-solid fa-file-invoice-dollar', tpl: 'tpl-facturacion', action: () => { if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable(); } },
     { id: 'menu-metrics', label: 'Estadísticas y BI', icon: 'fa-solid fa-chart-pie', tpl: 'tpl-metrics', action: initMetricsView },
     { id: 'menu-admin', label: 'Configuración', icon: 'fa-solid fa-gear', tpl: 'tpl-admin', action: initAdminView }
 ];
@@ -14621,30 +14630,55 @@ window.renderFacturacionTable = function() {
     
     const searchVal = (document.getElementById('facturacion-search-input')?.value || '').toLowerCase().trim();
     const estadoFilter = (document.getElementById('facturacion-estado-filter')?.value || '').trim();
+    const aprobFilter = (document.getElementById('facturacion-aprobacion-filter')?.value || '').trim();
     
     const allPedidos = (window.appData && Array.isArray(window.appData.pedidos)) ? window.appData.pedidos : [];
-    // Una vez que los comprobantes estén aprobados con OC pasan a registrar facturación
+
+    function resolveAprobacionEstado(p) {
+        if (!p) return 'Aprobado sin OC';
+        const ocVal = String(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+        const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
+        const estLow = String(p.estado || '').trim().toLowerCase();
+
+        if (estLow === 'aprobado sin oc' || ((estLow === 'aprobado con oc' || estLow === 'aprobado' || estLow === 'autorizado') && !hasFormalOc)) {
+            return 'Aprobado sin OC';
+        }
+        if (estLow === 'aprobado con oc' || (hasFormalOc && (estLow === 'aprobado' || estLow === 'autorizado' || estLow === 'cargado con orden de compra'))) {
+            return 'Aprobado con OC';
+        }
+        if (hasFormalOc) return 'Aprobado con OC';
+        return 'Aprobado sin OC';
+    }
+
+    // Una vez que los comprobantes estén aprobados (con o sin OC) pasan a registrar facturación
     const validOrders = allPedidos.filter(p => {
         if (!p) return false;
         const est = String(p.estado || '').trim().toLowerCase();
-        const oc = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
-        
-        // Descartar rechazados, anulados o cancelados
+        const oc = String(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+
+        // 1. Filtro por Rubro activo (Eléctrico / Mecánico / Todos)
+        const curRubro = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto) || (typeof getCurrentUser === 'function' && getCurrentUser() && getCurrentUser().rubro_defecto) || 'Eléctrico';
+        const pRubro = (typeof window.resolveRubroPresupuesto === 'function') ? window.resolveRubroPresupuesto(p) : (p.tipo_presupuesto || 'Eléctrico');
+        if (curRubro && curRubro !== 'Todos' && pRubro !== curRubro) return false;
+
+        // Descartar rechazados, anulados, cancelados o no aprobados aún (Enviado sin OC, Pendiente)
         if (est === 'rechazado' || est === 'anulado' || est === 'cancelado') return false;
-        
+        if (est === 'enviado sin oc' || est === 'cargado sin orden de compra' || est === 'pendiente' || est === 'pendiente de autorización') return false;
+
         const avancePct = parseFloat(p.avance_porcentaje_acumulado || p.avance_obra_porcentaje || 0);
         const hasAvances = (Array.isArray(p.avances) && p.avances.length > 0) || avancePct > 0;
         const factPct = parseFloat(p.facturado_porcentaje || 0);
         const factMonto = parseFloat(p.monto_facturado || 0);
         const hasFacturacion = factPct > 0 || factMonto > 0 || (Array.isArray(p.historial_facturacion) && p.historial_facturacion.length > 0) || est === 'facturado parcial' || est === 'facturado total';
-        const hasOc = (oc !== '' && oc !== '-');
+        const hasOc = (oc !== '' && oc !== '-' && oc !== 's/n' && oc !== 'S/N');
         const isApprovedConOc = est === 'aprobado con oc' || est.includes('con oc') || est.includes('con orden') || est === 'cargado con orden de compra';
+        const isApproved = est === 'aprobado' || est === 'aprobado sin oc' || est === 'autorizado' || (est.includes('aprobado') && !est.includes('rechazado'));
 
         // Pasan a facturación:
-        // 1. Aprobados con OC (o con número de OC cargado)
+        // 1. Aprobados (con o sin OC), autorizados
         // 2. Comprobantes que tienen Avance de Obra registrado
-        // 3. Comprobantes con facturación iniciada
-        return isApprovedConOc || hasOc || hasAvances || hasFacturacion;
+        // 3. Comprobantes con facturación iniciada o número de OC
+        return isApprovedConOc || isApproved || hasOc || hasAvances || hasFacturacion;
     });
     
     let countPendiente = 0, sumPendiente = 0;
@@ -14688,18 +14722,35 @@ window.renderFacturacionTable = function() {
         const detStr = (p.meca_denominacion || p.motivo || p.denominacion || '').toLowerCase();
         const matchesSearch = !searchVal || nroStr.includes(searchVal) || cliStr.includes(searchVal) || detStr.includes(searchVal);
         
+        const estAprob = resolveAprobacionEstado(p);
+
+        // 1. Filtro por aprobación (Con OC / Sin OC)
+        let matchesAprob = true;
+        if (aprobFilter) {
+            matchesAprob = (estAprob === aprobFilter);
+        }
+
+        // 2. Filtro por estado facturación / aprobación
         const factPct = parseFloat(p.facturado_porcentaje || 0);
         let estFact = 'Pendiente';
         if (factPct >= 100 || p.estado === 'Facturado Total') estFact = 'Total';
         else if (factPct > 0 || p.estado === 'Facturado Parcial') estFact = 'Parcial';
         
-        const matchesEstado = !estadoFilter || estFact === estadoFilter;
-        return matchesSearch && matchesEstado;
+        let matchesEstado = true;
+        if (estadoFilter) {
+            if (estadoFilter === 'Aprobado con OC' || estadoFilter === 'Aprobado sin OC') {
+                matchesEstado = (estAprob === estadoFilter);
+            } else {
+                matchesEstado = (estFact === estadoFilter);
+            }
+        }
+        
+        return matchesSearch && matchesAprob && matchesEstado;
     });
     
     let html = '';
     if (filtered.length === 0) {
-        html = `<tr><td colspan="8" style="text-align: center; padding: 20px; color: #94a3b8;">No se encontraron registros de facturación.</td></tr>`;
+        html = `<tr><td colspan="9" style="text-align: center; padding: 20px; color: #94a3b8;">No se encontraron registros de facturación.</td></tr>`;
     } else {
         filtered.forEach(p => {
             const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
@@ -14709,6 +14760,14 @@ window.renderFacturacionTable = function() {
             const factPct = parseFloat(p.facturado_porcentaje || 0);
             const factMonto = parseFloat(p.monto_facturado || 0) || (total * factPct / 100);
             const avanceObraPct = parseFloat(p.avance_obra_porcentaje || p.avance_porcentaje_acumulado || 0);
+
+            const estAprob = resolveAprobacionEstado(p);
+            let badgeAprob = `<span class="badge" style="background: rgba(234,179,8,0.2); color: #fef08a; border: 1px solid rgba(234,179,8,0.6); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-check-double"></i> Aprobado sin OC</span>`;
+            if (estAprob === 'Aprobado con OC') {
+                const ocNum = String(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+                const ocExtra = (ocNum && ocNum !== '-' && ocNum.toLowerCase() !== 's/n') ? `<span style="font-size: 9.5px; opacity: 0.85; font-family: monospace;">(${ocNum})</span>` : '';
+                badgeAprob = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.6); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-check-circle"></i> Aprobado con OC ${ocExtra}</span>`;
+            }
             
             let badgeEst = `<span class="badge" style="background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Pendiente</span>`;
             if (factPct >= 100 || p.estado === 'Facturado Total') {
@@ -14719,17 +14778,25 @@ window.renderFacturacionTable = function() {
             
             html += `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                    <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${nro}</td>
+                    <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">
+                        <span style="cursor: pointer; text-decoration: underline;" onclick="verDetallePedido('${p.id}', 'ver')" title="Ver Comprobante">${nro}</span>
+                    </td>
                     <td style="padding: 10px; font-weight: 600; color: #ffffff;">${cli}</td>
                     <td style="padding: 10px; color: #cbd5e1;">${det}</td>
+                    <td style="padding: 10px; text-align: center;">${badgeAprob}</td>
                     <td style="padding: 10px; text-align: right; font-family: monospace; font-weight: 700; color: #ffffff;">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                     <td style="padding: 10px; text-align: right; font-family: monospace; font-weight: 700; color: #34d399;">$${factMonto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                     <td style="padding: 10px; text-align: center; font-weight: 700; color: #38bdf8;">${avanceObraPct.toFixed(1)}%</td>
                     <td style="padding: 10px; text-align: center;">${badgeEst}</td>
                     <td style="padding: 10px; text-align: center;">
-                        <button type="button" class="btn btn-sm" onclick="abrirModalRegistrarFactura('${p.id}')" style="background: #10b981; color: #ffffff; border: 1px solid #059669; font-weight: bold; padding: 3px 8px; border-radius: 6px; font-size: 11px;" title="Registrar Factura">
-                            <i class="fa-solid fa-file-invoice"></i> Cargar
-                        </button>
+                        <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center;">
+                            <button type="button" class="btn btn-sm" onclick="verDetallePedido('${p.id}', 'ver')" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: bold; padding: 3px 6px; border-radius: 6px; font-size: 11px;" title="Ver Comprobante">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm" onclick="abrirModalRegistrarFactura('${p.id}')" style="background: #10b981; color: #ffffff; border: 1px solid #059669; font-weight: bold; padding: 3px 8px; border-radius: 6px; font-size: 11px;" title="Registrar Factura">
+                                <i class="fa-solid fa-file-invoice"></i> Cargar
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;

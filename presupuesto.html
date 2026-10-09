@@ -1422,7 +1422,7 @@
             </div>
             
             <!-- Selector y Badge de Rubro para cambiar entre Eléctrico y Mecánico -->
-            <div id="assignments-rubro-badge-container" style="display: flex; align-items: center; gap: 8px;">
+            <div id="assignments-rubro-badge-container" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <span id="assignments-tipo-presupuesto-badge" class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-size: 12px; padding: 6px 14px; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; font-weight: 700;">
                     ⚡ Presupuesto Eléctrico
                 </span>
@@ -1434,12 +1434,12 @@
             <div class="assignments-filters">
                 <div class="filter-group" id="date-filters" style="display: flex; align-items: center; gap: 5px;">
                     <select id="preset-date-filter" class="search-input" style="height: 34px; width: auto; min-width: 135px; padding: 4px 8px; font-size: 11.5px; background: rgba(30, 41, 59, 0.7); color: white; border: 1px solid var(--glass-border); border-radius: 8px; cursor: pointer;" onchange="applyPresetDateFilter(this.value)">
-                        <option value="last30" selected>📅 Últimos 30 días</option>
+                        <option value="all" selected>📅 Todos (Histórico)</option>
+                        <option value="last30">📅 Últimos 30 días</option>
                         <option value="thisMonth">📅 Este Mes</option>
                         <option value="last7">📅 Últimos 7 días</option>
                         <option value="today">📅 Hoy</option>
                         <option value="lastMonth">📅 Mes Anterior</option>
-                        <option value="all">📅 Todos (Histórico)</option>
                         <option value="custom">✏️ Personalizado</option>
                     </select>
                     <label style="font-size: 0.8rem; margin:0;">Desde:</label>
@@ -1849,12 +1849,23 @@
     <!-- Template: Módulo de Facturación -->
     <template id="tpl-facturacion">
         <div class="assignments-panel" style="max-width: 1300px; margin: 0 auto; height: calc(100vh - 120px); display: flex; flex-direction: column;">
-            <div class="view-header" style="margin-bottom: 20px;">
-                <h3 style="display: flex; align-items: center; gap: 10px; font-size: 22px; color: var(--warning);">
-                    <i class="fa-solid fa-file-invoice-dollar"></i> Registros de Facturación
-                </h3>
-                <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 12px 16px; border-radius: 8px; margin-top: 12px; color: var(--text-main); font-size: 13px;">
-                    💡 Controle y consulte los registros de facturación parcial o total de los comprobantes y presupuestos aprobados con Orden de Compra (OC).
+            <div class="view-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h3 style="display: flex; align-items: center; gap: 10px; font-size: 22px; color: var(--warning); margin: 0 0 6px 0;">
+                        <i class="fa-solid fa-file-invoice-dollar"></i> Registros de Facturación
+                    </h3>
+                    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px 14px; border-radius: 8px; color: var(--text-main); font-size: 13px;">
+                        💡 Controle y consulte los registros de facturación parcial o total de los comprobantes y presupuestos aprobados con Orden de Compra (OC).
+                    </div>
+                </div>
+                <!-- Selector y Badge de Rubro para Facturación -->
+                <div id="facturacion-rubro-badge-container" style="display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap;">
+                    <span id="facturacion-tipo-presupuesto-badge" class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-size: 12px; padding: 6px 14px; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; font-weight: 700;">
+                        ⚡ Presupuesto Eléctrico
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="abrirModalTipoPresupuesto()" style="font-size: 11px; padding: 5px 12px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;" title="Cambiar rubro entre Eléctrico y Mecánico">
+                        <i class="fa-solid fa-arrows-rotate"></i> Cambiar Rubro
+                    </button>
                 </div>
             </div>
 
@@ -1902,14 +1913,22 @@
                            style="width: 100%; padding: 10px 10px 10px 35px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #f8fafc;"
                            onkeyup="if(window.renderFacturacionTable) window.renderFacturacionTable()">
                 </div>
+                <select id="facturacion-aprobacion-filter" onchange="if(window.renderFacturacionTable) window.renderFacturacionTable()"
+                        style="padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #f8fafc; min-width: 195px;">
+                    <option value="">📋 Todos (Con OC y Sin OC)</option>
+                    <option value="Aprobado con OC">✅ Aprobado con OC</option>
+                    <option value="Aprobado sin OC">⏳ Aprobado sin OC</option>
+                </select>
                 <select id="facturacion-estado-filter" onchange="if(window.renderFacturacionTable) window.renderFacturacionTable()"
-                        style="padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #f8fafc; min-width: 200px;">
-                    <option value="">Todos los Estados</option>
+                        style="padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #f8fafc; min-width: 185px;">
+                    <option value="">🧾 Facturación: Todos</option>
                     <option value="Pendiente">Pendiente de Facturar</option>
                     <option value="Parcial">Facturación Parcial</option>
                     <option value="Total">Facturación Total</option>
+                    <option value="Aprobado con OC">✅ Aprobado con OC</option>
+                    <option value="Aprobado sin OC">⏳ Aprobado sin OC</option>
                 </select>
-                <button onclick="document.getElementById('facturacion-estado-filter').value=''; document.getElementById('facturacion-search-input').value=''; if(window.renderFacturacionTable) window.renderFacturacionTable();"
+                <button onclick="if(document.getElementById('facturacion-aprobacion-filter')) document.getElementById('facturacion-aprobacion-filter').value=''; document.getElementById('facturacion-estado-filter').value=''; document.getElementById('facturacion-search-input').value=''; if(window.renderFacturacionTable) window.renderFacturacionTable();"
                         style="padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #94a3b8; cursor: pointer; font-size: 12px; font-weight: 600;">
                     <i class="fa-solid fa-filter-circle-xmark"></i> Limpiar
                 </button>
@@ -1920,13 +1939,14 @@
                     <thead>
                         <tr>
                             <th style="width: 100px;">N° Presup.</th>
-                            <th style="width: 150px;">Cliente</th>
+                            <th style="width: 140px;">Cliente</th>
                             <th>Detalle / Obra</th>
-                            <th style="text-align: right; width: 120px;">Total a Cobrar</th>
-                            <th style="text-align: right; width: 120px;">Ya Facturado</th>
-                            <th style="text-align: center; width: 120px;">Progreso Obra</th>
-                            <th style="text-align: center; width: 140px;">Estado Fact.</th>
-                            <th style="text-align: center; width: 130px;">Acciones</th>
+                            <th style="text-align: center; width: 140px;">Estado Presup.</th>
+                            <th style="text-align: right; width: 110px;">Total a Cobrar</th>
+                            <th style="text-align: right; width: 110px;">Ya Facturado</th>
+                            <th style="text-align: center; width: 105px;">Progreso Obra</th>
+                            <th style="text-align: center; width: 120px;">Estado Fact.</th>
+                            <th style="text-align: center; width: 110px;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="facturacion-table-tbody">
@@ -3139,7 +3159,7 @@
             }
         } catch(e) {}
     </script>
-    <script src="app.js?v=537"></script>
+    <script src="app.js?v=545"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

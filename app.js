@@ -526,6 +526,26 @@ window.resolveClienteCompleto = function(pOrNameOrCode, optionalPlanta) {
     return null;
 };
 
+window.resolveRubroPresupuesto = function(p) {
+    if (!p) return 'Eléctrico';
+    const idStr = String(p.id || '').toUpperCase().trim();
+    const tipoStr = String(p.tipo_presupuesto || '').toLowerCase().trim();
+
+    if (idStr.startsWith('102') || idStr.includes('ELEC') || tipoStr.includes('elec')) {
+        return 'Eléctrico';
+    }
+    if (idStr.startsWith('101') || idStr.includes('MEC') || tipoStr.includes('mec')) {
+        return 'Mecánico';
+    }
+    if (Array.isArray(p.items) && p.items.length > 0) {
+        const hasElec = p.items.some(it => it && String(it.codigo || '').toUpperCase().startsWith('ELE-'));
+        const hasMec = p.items.some(it => it && String(it.codigo || '').toUpperCase().startsWith('MEC-'));
+        if (hasElec && !hasMec) return 'Eléctrico';
+        if (hasMec && !hasElec) return 'Mecánico';
+    }
+    return 'Eléctrico';
+};
+
 function normalizePresupuestosRubro(pedidos) {
     if (!Array.isArray(pedidos)) return [];
     // Descartar de raíz cualquier presupuesto fantasma eliminado del 21 de septiembre
@@ -538,18 +558,16 @@ function normalizePresupuestosRubro(pedidos) {
         if (typeof p.items === 'string') {
             try { p.items = JSON.parse(p.items); } catch(e) { p.items = []; }
         }
-        const idStr = String(p.id || '').toUpperCase();
-        const tipoStr = (p.tipo_presupuesto || '').toLowerCase();
-        if (idStr.startsWith('101') || tipoStr.includes('mec')) {
-            p.tipo_presupuesto = 'Mecánico';
+        const rubro = window.resolveRubroPresupuesto(p);
+        p.tipo_presupuesto = rubro;
+        const idStr = String(p.id || '').toUpperCase().trim();
+        const num = idStr.replace(/\D/g, '') || '0001';
+        if (rubro === 'Mecánico') {
             if (!idStr.startsWith('101-MEC-')) {
-                const num = idStr.replace(/\D/g, '') || '0001';
                 p.id = `101-MEC-${String(num.slice(-4)).padStart(4, '0')}`;
             }
         } else {
-            p.tipo_presupuesto = 'Eléctrico';
             if (!idStr.startsWith('102-ELEC-')) {
-                const num = idStr.replace(/\D/g, '') || '0001';
                 p.id = `102-ELEC-${String(num.slice(-4)).padStart(4, '0')}`;
             }
         }
@@ -627,6 +645,7 @@ function normalizePresupuestosRubro(pedidos) {
         }
 
         const ocVal = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+        const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
         const estStr = String(p.estado || '').trim();
         const estLower = estStr.toLowerCase();
         const factPct = parseFloat(p.facturado_porcentaje || 0);
@@ -643,23 +662,23 @@ function normalizePresupuestosRubro(pedidos) {
             p.estado_facturacion = 'Parcial';
             if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
             if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
+        } else if (estLower === 'aprobado sin oc' || (estLower.includes('sin oc') && estLower.includes('aprobado'))) {
+            p.estado = 'Aprobado sin OC';
         } else if (
             estLower === 'aprobado con oc' ||
             estLower.includes('con oc') ||
             estLower.includes('con orden') ||
-            estLower === 'cargado con orden de compra' ||
-            estLower === 'autorizado' ||
-            estLower === 'aprobado' ||
-            (ocVal !== '' && ocVal !== '-' && !estLower.includes('sin oc') && estLower !== 'rechazado')
+            estLower === 'cargado con orden de compra'
         ) {
-            if (!p.estado_facturacion) {
-                p.estado_facturacion = (parseFloat(p.facturado_porcentaje || 0) >= 100) ? 'Total' : (parseFloat(p.facturado_porcentaje || 0) > 0 ? 'Parcial' : 'Pendiente');
-            }
             p.estado = 'Aprobado con OC';
             if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
             if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
-        } else if (estLower === 'aprobado sin oc' || (estLower.includes('sin oc') && estLower.includes('aprobado'))) {
-            p.estado = 'Aprobado sin OC';
+        } else if (estLower === 'aprobado' || estLower === 'autorizado') {
+            p.estado = hasFormalOc ? 'Aprobado con OC' : 'Aprobado sin OC';
+            if (ocVal && !p.meca_nro_oc) p.meca_nro_oc = ocVal;
+            if (ocVal && !p.nro_oc) p.nro_oc = ocVal;
+        } else if (hasFormalOc && !estLower.includes('sin oc') && estLower !== 'rechazado') {
+            p.estado = 'Aprobado con OC';
         } else if (estLower === 'pendiente' || estLower === 'enviado sin oc' || estLower === 'cargado sin orden de compra') {
             p.estado = 'Enviado sin OC';
         } else if (p.estado) {
@@ -3664,6 +3683,29 @@ function renderContent(templateId) {
     mainContent.innerHTML = '';
     mainContent.appendChild(template.content.cloneNode(true));
 }
+window.renderContent = renderContent;
+
+window.showView = function(viewIdOrTpl) {
+    if (!viewIdOrTpl) return;
+    const tplName = viewIdOrTpl.startsWith('tpl-') ? viewIdOrTpl : `tpl-${viewIdOrTpl}`;
+    const module = (typeof allAvailableModules !== 'undefined' && Array.isArray(allAvailableModules))
+        ? allAvailableModules.find(m => m.tpl === tplName || m.id === viewIdOrTpl)
+        : null;
+
+    document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+
+    if (module) {
+        const menuBtn = document.querySelector(`.menu-item[data-id="${module.id}"]`) || document.getElementById(module.id);
+        if (menuBtn) menuBtn.classList.add('active');
+        window._sidebarActiveMenuId = module.id;
+        renderContent(module.tpl);
+        if (typeof module.action === 'function') {
+            module.action();
+        }
+    } else {
+        renderContent(tplName);
+    }
+};
 
 // --- LÓGICA DE ROLES, PERMISOS Y MENÚ ---
 const defaultMenuPermissions = {
@@ -3678,7 +3720,7 @@ const allAvailableModules = [
     { id: 'menu-all', label: 'Seguimiento', icon: 'fa-solid fa-clock-rotate-left', tpl: 'tpl-assignments', action: () => initAssignmentsView('Modificacion') },
     { id: 'menu-estado-presupuesto', label: 'Estado del Presupuesto', icon: 'fa-solid fa-list-check', tpl: 'tpl-assignments', action: () => initAssignmentsView('EstadoPresupuesto') },
     { id: 'menu-rechazados', label: 'Rechazo de Presupuesto', icon: 'fa-solid fa-ban', tpl: 'tpl-assignments', action: () => initAssignmentsView('Rechazados') },
-    { id: 'menu-facturacion', label: 'Registros de Facturación', icon: 'fa-solid fa-file-invoice-dollar', tpl: 'tpl-facturacion', action: () => { showView('tpl-facturacion'); if (window.renderFacturacionTable) window.renderFacturacionTable(); } },
+    { id: 'menu-facturacion', label: 'Registros de Facturación', icon: 'fa-solid fa-file-invoice-dollar', tpl: 'tpl-facturacion', action: () => { if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable(); } },
     { id: 'menu-metrics', label: 'Estadísticas y BI', icon: 'fa-solid fa-chart-pie', tpl: 'tpl-metrics', action: initMetricsView },
     { id: 'menu-admin', label: 'Configuración', icon: 'fa-solid fa-gear', tpl: 'tpl-admin', action: initAdminView },
 ];
@@ -4123,7 +4165,13 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
 var pedidoActivo = null;
 window.pedidoActivo = null;
 var pedidoEdicionTemp = null;
-var reqTipoPresupuesto = null;
+var reqTipoPresupuesto = (function() {
+    try {
+        const saved = localStorage.getItem('sg_active_rubro');
+        if (saved) return saved;
+    } catch(e) {}
+    return null;
+})();
 
 function openModal(templateId) {
     const overlay = document.getElementById('modal-overlay');
@@ -4161,11 +4209,20 @@ function closeModal() {
     window.pedidoActivo = null;
     pedidoEdicionTemp = null;
 
+    try {
+        const savedRubro = localStorage.getItem('sg_active_rubro');
+        if (savedRubro) reqTipoPresupuesto = savedRubro;
+    } catch(e) {}
+
     // Sincronizar tema con la vista activa según reqTipoPresupuesto
-    if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') {
-        document.body.classList.add('theme-electrico');
+    if (typeof updateTipoPresupuestoBadge === 'function') {
+        updateTipoPresupuestoBadge();
     } else {
-        document.body.classList.remove('theme-electrico');
+        if (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') {
+            document.body.classList.add('theme-electrico');
+        } else {
+            document.body.classList.remove('theme-electrico');
+        }
     }
 
     document.title = 'Gestión de Presupuestos';
@@ -6416,6 +6473,9 @@ function getElectricalDefaultQty(code) {
 
 window.seleccionarTipoPresupuesto = function(tipo) {
     reqTipoPresupuesto = tipo;
+    try {
+        localStorage.setItem('sg_active_rubro', tipo);
+    } catch(e) {}
     pedidoItems = []; // Limpieza total de ítems acumulados para evitar arrastrar ítems de otro rubro
     if (typeof actualizarTablaItemsRequerimiento === 'function') {
         actualizarTablaItemsRequerimiento();
@@ -6448,17 +6508,30 @@ window.seleccionarTipoPresupuesto = function(tipo) {
     if (typeof renderAssignmentsTable === 'function') {
         renderAssignmentsTable();
     }
+    if (typeof renderFacturacionTable === 'function') {
+        renderFacturacionTable();
+    }
 
-    showToast(`Rubro seleccionado: Presupuesto ${tipo}`, 'success');
+    const toastMsg = tipo === 'Todos' ? 'Rubro seleccionado: Todos los Rubros' : `Rubro seleccionado: Presupuesto ${tipo}`;
+    showToast(toastMsg, 'success');
 };
 
 function updateTipoPresupuestoBadge() {
+    if (!reqTipoPresupuesto) {
+        try {
+            reqTipoPresupuesto = localStorage.getItem('sg_active_rubro');
+        } catch(e) {}
+        if (!reqTipoPresupuesto) {
+            reqTipoPresupuesto = (typeof getCurrentUser === 'function' && getCurrentUser() && getCurrentUser().rubro_defecto) || 'Eléctrico';
+        }
+    }
     const badge = document.getElementById('tipo-presupuesto-badge');
     const assignBadge = document.getElementById('assignments-tipo-presupuesto-badge');
     const summaryTipo = document.getElementById('summary-tipo-presupuesto');
     const mecaFields = document.getElementById('req-mecanico-fields');
     const standardFields = document.getElementById('req-standard-fields');
     const isElec = reqTipoPresupuesto === 'Eléctrico';
+    const isTodos = reqTipoPresupuesto === 'Todos';
 
     // Cambiar tema global: fondo amarillo y letras azules en Eléctrico, original en Mecánico
     if (isElec) {
@@ -6473,8 +6546,7 @@ function updateTipoPresupuestoBadge() {
         lblMecaDenom.innerHTML = 'i. <u>Título:</u>';
     }
 
-    // Ocultar botón de gestionar plantas (listas) si es eléctrico, pero dejar la planta visible
-    // (Ahora me pidieron que el botón de ABM de Plantas sea visible en ambos rubros)
+    // ABM de Plantas
     const btnPlantas = document.getElementById('btn-gestionar-plantas');
     if (btnPlantas) {
         btnPlantas.style.display = 'block';
@@ -6485,25 +6557,33 @@ function updateTipoPresupuestoBadge() {
     if (reqMecaPropuestaBox) {
         reqMecaPropuestaBox.style.display = 'flex';
     }
-    const icon = isElec ? '⚡' : '⚙️';
-    const bgColor = isElec ? 'rgba(234, 179, 8, 0.2)' : 'rgba(6, 182, 212, 0.2)';
-    const textColor = isElec ? '#fde047' : '#22d3ee';
-    const borderColor = isElec ? 'rgba(234, 179, 8, 0.4)' : 'rgba(6, 182, 212, 0.4)';
+    const icon = isElec ? '⚡' : (isTodos ? '📋' : '⚙️');
+    const bgColor = isElec ? 'rgba(234, 179, 8, 0.2)' : (isTodos ? 'rgba(56, 189, 248, 0.2)' : 'rgba(6, 182, 212, 0.2)');
+    const textColor = isElec ? '#fde047' : (isTodos ? '#38bdf8' : '#22d3ee');
+    const borderColor = isElec ? 'rgba(234, 179, 8, 0.4)' : (isTodos ? 'rgba(56, 189, 248, 0.4)' : 'rgba(6, 182, 212, 0.4)');
+    const labelText = isTodos ? 'Todos los Rubros' : `Presupuesto ${reqTipoPresupuesto || 'Eléctrico'}`;
 
     if (badge) {
-        badge.innerHTML = `${icon} Presupuesto ${reqTipoPresupuesto || 'Eléctrico'}`;
+        badge.innerHTML = `${icon} ${labelText}`;
         badge.style.background = bgColor;
         badge.style.color = textColor;
         badge.style.borderColor = borderColor;
     }
     if (assignBadge) {
-        assignBadge.innerHTML = `${icon} Presupuesto ${reqTipoPresupuesto || 'Eléctrico'}`;
+        assignBadge.innerHTML = `${icon} ${labelText}`;
         assignBadge.style.background = bgColor;
         assignBadge.style.color = textColor;
         assignBadge.style.borderColor = borderColor;
     }
+    const factBadge = document.getElementById('facturacion-tipo-presupuesto-badge');
+    if (factBadge) {
+        factBadge.innerHTML = `${icon} ${labelText}`;
+        factBadge.style.background = bgColor;
+        factBadge.style.color = textColor;
+        factBadge.style.borderColor = borderColor;
+    }
     if (summaryTipo) {
-        summaryTipo.innerHTML = `${icon} Presupuesto ${reqTipoPresupuesto || 'Eléctrico'}`;
+        summaryTipo.innerHTML = `${icon} ${labelText}`;
         summaryTipo.style.color = textColor;
     }
     if (mecaFields) {
@@ -9671,17 +9751,16 @@ function initAssignmentsView(mode) {
         }
     }
 
-    // Configurar fechas filtro por defecto (últimos 30 días con selector)
+    // Configurar fechas filtro por defecto ('all' por defecto para que ningún presupuesto histórico o eléctrico quede oculto)
     const dtTo = document.getElementById('filter-date-to');
     const dtFrom = document.getElementById('filter-date-from');
     const presetSelect = document.getElementById('preset-date-filter');
 
-    const today = getLocalDateStr(new Date());
-    const past30 = getLocalDateStr(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
-
-    if (dtTo && !dtTo.value) dtTo.value = today;
-    if (dtFrom && !dtFrom.value) dtFrom.value = past30;
-    if (presetSelect && !presetSelect.value) presetSelect.value = 'last30';
+    if (presetSelect && (!presetSelect.value || presetSelect.value === 'all')) {
+        presetSelect.value = 'all';
+        if (dtFrom) dtFrom.value = '';
+        if (dtTo) dtTo.value = '';
+    }
 
     const filterHandler = () => {
         if (presetSelect) presetSelect.value = 'custom';
@@ -9696,14 +9775,20 @@ function initAssignmentsView(mode) {
     renderAssignmentsTable();
 }
 
-window.getBudgetStatusBadgeHtml = function(estado, fechaAlerta = '') {
+window.getBudgetStatusBadgeHtml = function(estado, fechaAlerta = '', p = null) {
     let est = estado || 'Enviado sin OC';
+    const ocVal = p ? String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim() : '';
+    const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
 
     // Normalizar estados legacy o equivalentes
     if (est === 'Cargado sin orden de compra' || est === 'Pendiente de Autorización' || est === 'Pendiente') {
         est = 'Enviado sin OC';
-    } else if (est === 'Cargado con orden de compra' || est === 'Autorizado' || est === 'Aprobado') {
+    } else if (est === 'Aprobado sin OC') {
+        est = 'Aprobado sin OC';
+    } else if (est === 'Aprobado con OC') {
         est = 'Aprobado con OC';
+    } else if (est === 'Cargado con orden de compra' || est === 'Autorizado' || est === 'Aprobado') {
+        est = (p && hasFormalOc) ? 'Aprobado con OC' : 'Aprobado sin OC';
     }
 
     switch (est) {
@@ -9740,6 +9825,7 @@ window.getBudgetStatusBadgeHtml = function(estado, fechaAlerta = '') {
 function getEstadoLevel(estadoStr) {
     let est = estadoStr || 'Enviado sin OC';
     if (est === 'Cargado sin orden de compra' || est === 'Pendiente de Autorización' || est === 'Pendiente') est = 'Enviado sin OC';
+    else if (est === 'Aprobado sin OC') est = 'Aprobado sin OC';
     else if (est === 'Cargado con orden de compra' || est === 'Autorizado' || est === 'Aprobado' || est === 'Facturado Parcial' || est === 'Facturado Total') est = 'Aprobado con OC';
 
     switch (est) {
@@ -9753,13 +9839,26 @@ function getEstadoLevel(estadoStr) {
 window.getEstadoLevel = getEstadoLevel;
 
 window.renderEditableStatusDropdown = function(p) {
+    const ocVal = String(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+    const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
     let currentEst = p.estado || 'Enviado sin OC';
-    if (currentEst === 'Cargado sin orden de compra' || currentEst === 'Pendiente de Autorización' || currentEst === 'Pendiente') currentEst = 'Enviado sin OC';
-    else if (currentEst === 'Cargado con orden de compra' || currentEst === 'Autorizado' || currentEst === 'Aprobado' || currentEst === 'Facturado Parcial' || currentEst === 'Facturado Total') currentEst = 'Aprobado con OC';
+    const estLower = currentEst.toLowerCase();
 
-    const currentLevel = getEstadoLevel(currentEst);
+    if (estLower === 'cargado sin orden de compra' || estLower === 'pendiente de autorización' || estLower === 'pendiente' || estLower === 'enviado sin oc') {
+        currentEst = 'Enviado sin OC';
+    } else if (estLower === 'aprobado sin oc') {
+        currentEst = 'Aprobado sin OC';
+    } else if (estLower === 'aprobado con oc') {
+        currentEst = 'Aprobado con OC';
+    } else if (estLower === 'autorizado' || estLower === 'aprobado' || estLower === 'cargado con orden de compra') {
+        currentEst = hasFormalOc ? 'Aprobado con OC' : 'Aprobado sin OC';
+    } else if (estLower === 'facturado parcial' || estLower === 'facturado total') {
+        currentEst = 'Aprobado con OC';
+    } else if (estLower === 'rechazado' || estLower === 'anulado') {
+        currentEst = 'Rechazado';
+    }
 
-    // Los únicos 4 estados del presupuesto: Enviado sin OC, Aprobado sin OC, Aprobado con OC, Rechazado
+    // Los 4 estados del presupuesto: Enviado sin OC, Aprobado sin OC, Aprobado con OC, Rechazado
     const options = [
         { val: 'Enviado sin OC', label: '📤 Enviado sin OC', color: '#38bdf8', bg: 'rgba(56,189,248,0.25)', border: 'rgba(56,189,248,0.6)' },
         { val: 'Aprobado sin OC', label: '⏳ Aprobado sin OC', color: '#fef08a', bg: 'rgba(234,179,8,0.25)', border: 'rgba(234,179,8,0.6)' },
@@ -9769,9 +9868,7 @@ window.renderEditableStatusDropdown = function(p) {
 
     const matched = options.find(o => o.val === currentEst) || options[0];
     const optsHtml = options.map(o => {
-        const oLevel = getEstadoLevel(o.val);
-        const isDisabled = (currentEst !== 'Rechazado' && o.val !== 'Rechazado' && oLevel < currentLevel);
-        return `<option value="${o.val}" ${o.val === currentEst ? 'selected' : ''} ${isDisabled ? 'disabled style="color: #64748b; background: #1e293b;"' : 'style="background: #0f172a; color: white;"'}>${o.label}${isDisabled ? ' 🚫' : ''}</option>`;
+        return `<option value="${o.val}" ${o.val === currentEst ? 'selected' : ''} style="background: #0f172a; color: white;">${o.label}</option>`;
     }).join('');
 
     const facturadoPct = parseFloat(p.facturado_porcentaje || 0);
@@ -10479,31 +10576,9 @@ window.cambiarEstadoPresupuesto = async function(id, nuevoEstado) {
     }
 
     const pTarget = appData.pedidos[orderIdx];
-    const currentEstNorm = pTarget.estado || 'Enviado sin OC';
-    const currentLevel = getEstadoLevel(currentEstNorm);
-    const targetLevel = getEstadoLevel(nuevoEstado);
+    const previousEst = pTarget.estado || 'Enviado sin OC';
 
-    // Prohibición de volver atrás de estado excepto si es Rechazado
-    if (nuevoEstado !== pTarget.estado && nuevoEstado !== 'Rechazado' && currentEstNorm !== 'Rechazado') {
-        if (targetLevel < currentLevel) {
-            showToast(`No se permite retroceder el estado comercial de un presupuesto (${currentEstNorm} ➔ ${nuevoEstado}).`, 'error');
-            if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-            return;
-        }
-    }
-
-    if (nuevoEstado === 'Aprobado con OC') {
-        const ok = await window.editarOrdenesDeCompra(pTarget.id);
-        if (!ok) {
-            // Si canceló o no completó, restaurar el selector al estado anterior
-            if (typeof pedidoActivo !== 'undefined' && pedidoActivo && String(pedidoActivo.id) === String(pTarget.id)) {
-                const statusSelect = document.getElementById('modal-change-status-select');
-                if (statusSelect) statusSelect.value = currentEstNorm;
-            }
-            if (typeof renderAssignmentsTable === 'function') renderAssignmentsTable();
-        }
-        return;
-    } else if (nuevoEstado === 'Rechazado' && !pTarget.motivo_rechazo) {
+    if (nuevoEstado === 'Rechazado' && !pTarget.motivo_rechazo) {
         let reason;
         if (typeof Swal !== 'undefined') {
             const { value, isDismissed } = await Swal.fire({
@@ -10604,11 +10679,9 @@ window.cambiarEstadoPresupuesto = async function(id, nuevoEstado) {
     }
 
     if (nuevoEstado === 'Aprobado con OC') {
-        const codPresupuesto = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(pTarget) : (pTarget.id || id);
-        const ocNumero = pTarget ? (pTarget.meca_nro_oc || pTarget.nro_oc || '') : '';
-        const ocDesc = ocNumero ? ` con OC <strong>${ocNumero}</strong>` : '';
-        if (typeof showToast !== 'undefined') {
-            showToast(`Guardado. Presupuesto ${codPresupuesto} actualizado a ${nuevoEstado}.`, 'success');
+        const hasExistingOc = Boolean(pTarget.meca_nro_oc || pTarget.nro_oc || pTarget.oc_mano_obra || pTarget.oc_materiales);
+        if (!hasExistingOc && typeof window.editarOrdenesDeCompra === 'function') {
+            await window.editarOrdenesDeCompra(pTarget.id);
         }
     }
 };
@@ -11814,11 +11887,10 @@ function renderAssignmentsTable() {
     listBody.innerHTML = '';
 
     let filtered = (appData.pedidos || []).filter(p => {
-        // 1. Filtro estricto por Rubro activo (Eléctrico / Mecánico)
+        // 1. Filtro por Rubro activo (Eléctrico / Mecánico / Todos)
         const curRubro = reqTipoPresupuesto || (typeof getCurrentUser === 'function' && getCurrentUser() && getCurrentUser().rubro_defecto) || 'Eléctrico';
-        const isItemMec = (p.tipo_presupuesto === 'Mecánico' || (p.id && (String(p.id).startsWith('101') || String(p.id).toUpperCase().includes('MEC'))));
-        const pTipo = isItemMec ? 'Mecánico' : 'Eléctrico';
-        if (pTipo !== curRubro) return false;
+        const pRubro = window.resolveRubroPresupuesto ? window.resolveRubroPresupuesto(p) : (p.tipo_presupuesto || 'Eléctrico');
+        if (curRubro && curRubro !== 'Todos' && pRubro !== curRubro) return false;
 
         if (viewMode === 'Rechazados') {
             if (p.estado !== 'Rechazado') return false;
@@ -11827,9 +11899,24 @@ function renderAssignmentsTable() {
         }
 
         if (statusVal) {
-            let pEstNorm = p.estado;
-            if (pEstNorm === 'Cargado sin orden de compra' || pEstNorm === 'Pendiente de Autorización' || pEstNorm === 'Pendiente') pEstNorm = 'Enviado sin OC';
-            else if (pEstNorm === 'Cargado con orden de compra' || pEstNorm === 'Autorizado' || pEstNorm === 'Aprobado') pEstNorm = 'Aprobado con OC';
+            let pEstNorm = p.estado || 'Enviado sin OC';
+            const estLower = pEstNorm.toLowerCase();
+
+            if (estLower === 'cargado sin orden de compra' || estLower === 'pendiente de autorización' || estLower === 'pendiente' || estLower === 'enviado sin oc') {
+                pEstNorm = 'Enviado sin OC';
+            } else if (estLower === 'aprobado sin oc') {
+                pEstNorm = 'Aprobado sin OC';
+            } else if (estLower === 'aprobado con oc' || estLower === 'cargado con orden de compra') {
+                pEstNorm = 'Aprobado con OC';
+            } else if (estLower === 'autorizado' || estLower === 'aprobado') {
+                const ocVal = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+                const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
+                pEstNorm = hasFormalOc ? 'Aprobado con OC' : 'Aprobado sin OC';
+            } else if (estLower === 'facturado parcial' || estLower === 'facturado total') {
+                pEstNorm = 'Aprobado con OC';
+            } else if (estLower === 'rechazado' || estLower === 'anulado') {
+                pEstNorm = 'Rechazado';
+            }
             if (pEstNorm !== statusVal) return false;
         }
 
@@ -11861,9 +11948,23 @@ function renderAssignmentsTable() {
     const activeCustomView = (typeof getAllTableViews === 'function') ? getAllTableViews().find(v => v.id === currentActiveViewId) : null;
     if (activeCustomView && activeCustomView.statusFilter) {
         filtered = filtered.filter(p => {
-            let pEstNorm = p.estado;
-            if (pEstNorm === 'Cargado sin orden de compra' || pEstNorm === 'Pendiente de Autorización' || pEstNorm === 'Pendiente') pEstNorm = 'Enviado sin OC';
-            else if (pEstNorm === 'Cargado con orden de compra' || pEstNorm === 'Autorizado' || pEstNorm === 'Aprobado') pEstNorm = 'Aprobado con OC';
+            let pEstNorm = p.estado || 'Enviado sin OC';
+            const estLower = pEstNorm.toLowerCase();
+            if (estLower === 'cargado sin orden de compra' || estLower === 'pendiente de autorización' || estLower === 'pendiente' || estLower === 'enviado sin oc') {
+                pEstNorm = 'Enviado sin OC';
+            } else if (estLower === 'aprobado sin oc') {
+                pEstNorm = 'Aprobado sin OC';
+            } else if (estLower === 'aprobado con oc' || estLower === 'cargado con orden de compra') {
+                pEstNorm = 'Aprobado con OC';
+            } else if (estLower === 'autorizado' || estLower === 'aprobado') {
+                const ocVal = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+                const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
+                pEstNorm = hasFormalOc ? 'Aprobado con OC' : 'Aprobado sin OC';
+            } else if (estLower === 'facturado parcial' || estLower === 'facturado total') {
+                pEstNorm = 'Aprobado con OC';
+            } else if (estLower === 'rechazado' || estLower === 'anulado') {
+                pEstNorm = 'Rechazado';
+            }
             return pEstNorm === activeCustomView.statusFilter;
         });
     }
@@ -11931,17 +12032,24 @@ function renderAssignmentsTable() {
         const activeCols = tableColumnOrder;
 
         let statusBadge = '';
-        if (p.estado === 'Aprobado con OC' || p.estado === 'Cargado con orden de compra' || p.estado === 'Autorizado' || p.estado === 'Aprobado') {
-            statusBadge = `<span class="badge badge-success" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">Aprobado con OC</span>`;
-        } else if (p.estado === 'Enviado sin OC' || p.estado === 'Cargado sin orden de compra' || p.estado === 'Pendiente de Autorización' || p.estado === 'Pendiente') {
+        const ocVal = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+        const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
+        const estRaw = String(p.estado || '').trim();
+        const estLow = estRaw.toLowerCase();
+
+        if (estLow === 'aprobado sin oc' || ((estLow === 'aprobado con oc' || estLow === 'aprobado' || estLow === 'autorizado') && !hasFormalOc)) {
+            statusBadge = `<span class="badge" style="font-size: 11px; padding: 3px 8px; font-weight: 700; background: rgba(234,179,8,0.25); color: #fef08a; border: 1px solid rgba(234,179,8,0.6);"><i class="fas fa-check-double"></i> Aprobado sin OC</span>`;
+        } else if (estLow === 'aprobado con oc' || (hasFormalOc && (estLow === 'aprobado' || estLow === 'autorizado' || estLow === 'cargado con orden de compra'))) {
+            statusBadge = `<span class="badge badge-success" style="font-size: 11px; padding: 3px 8px; font-weight: 700;"><i class="fas fa-check-circle"></i> Aprobado con OC</span>`;
+        } else if (estLow === 'enviado sin oc' || estLow === 'cargado sin orden de compra' || estLow === 'pendiente de autorización' || estLow === 'pendiente') {
             statusBadge = `<span class="badge" style="font-size: 11px; padding: 3px 8px; font-weight: 700; background: rgba(56,189,248,0.25); color: #38bdf8; border: 1px solid rgba(56,189,248,0.6);">Enviado sin OC</span>`;
-        } else if (p.estado === 'Facturado Total') {
+        } else if (estLow === 'facturado total') {
             statusBadge = `<span class="badge" style="background: rgba(16, 185, 129, 0.25); color: #34d399; border: 1px solid #10b981; font-size: 11px; padding: 3px 8px; font-weight: 800;">100% Facturado</span>`;
-        } else if (p.estado === 'Facturado Parcial') {
+        } else if (estLow === 'facturado parcial') {
             statusBadge = `<span class="badge" style="background: rgba(14, 165, 233, 0.25); color: #38bdf8; border: 1px solid #0284c7; font-size: 11px; padding: 3px 8px; font-weight: 800;">Facturado Parcial</span>`;
-        } else if (p.estado === 'Cancelado') {
+        } else if (estLow === 'cancelado') {
             statusBadge = `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; font-size: 11px; padding: 3px 8px; font-weight: 700;">Cancelado</span>`;
-        } else if (p.estado === 'Rechazado') {
+        } else if (estLow === 'rechazado') {
             statusBadge = `<span class="badge badge-danger" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">Rechazado</span>`;
         } else {
             statusBadge = `<span class="badge badge-secondary" style="font-size: 11px; padding: 3px 8px; font-weight: 700;">${p.estado || 'Pendiente'}</span>`;
@@ -11951,7 +12059,7 @@ function renderAssignmentsTable() {
         if (viewMode === 'Autorizador') {
             actionBtnHtml = `
                 <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: nowrap;">
-                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Revisar: Ver comprobante completo para autorizar o rechazar">
+                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}', 'ver')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Revisar: Ver comprobante completo para autorizar o rechazar">
                         <i class="fas fa-eye"></i> Ver
                     </button>
                     <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); autorizarPedidoRapido('${p.id}')" style="background: #10b981; color: #fff; border: 1px solid #10b981; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Autorizar Presupuesto">
@@ -11965,7 +12073,7 @@ function renderAssignmentsTable() {
         } else if (viewMode === 'Rechazados' || p.estado === 'Rechazado') {
             actionBtnHtml = `
                 <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: nowrap;">
-                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
+                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}', 'ver')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
                         <i class="fas fa-eye"></i> Ver
                     </button>
                     <button class="btn btn-sm" onclick="event.stopPropagation(); revivirPedido('${p.id}')" style="background: #059669; color: #fff; border: 1px solid #059669; font-weight: bold; padding: 2px 7px; height: 26px; font-size: 11px; border-radius: 6px; white-space: nowrap;" title="Revivir Presupuesto: Volver a activar este presupuesto rechazado">
@@ -11979,7 +12087,7 @@ function renderAssignmentsTable() {
         } else if (viewMode === 'EstadoPresupuesto') {
             actionBtnHtml = `
                 <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center; flex-wrap: nowrap;">
-                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
+                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}', 'ver')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 7px; font-size: 11px; height: 26px; border-radius: 6px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
                         <i class="fas fa-eye"></i> Ver
                     </button>
                 </div>
@@ -12023,7 +12131,7 @@ function renderAssignmentsTable() {
         } else {
             actionBtnHtml = `
                 <div style="display: inline-flex; gap: 3px; align-items: center; justify-content: center; flex-wrap: nowrap;">
-                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 5px; font-size: 10px; height: 22px; border-radius: 4px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
+                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); verDetallePedido('${p.id}', 'ver')" style="background: #0284c7; color: #fff; border-color: #0284c7; font-weight: bold; padding: 2px 5px; font-size: 10px; height: 22px; border-radius: 4px; white-space: nowrap;" title="Ver Planilla: Consultar el comprobante completo del presupuesto">
                         <i class="fas fa-eye"></i> Ver
                     </button>
                     <button class="btn btn-sm" onclick="event.stopPropagation(); abrirModalAvanceObra('${p.id}')" style="background: #0d9488; color: #fff; border: 1px solid #0d9488; font-weight: bold; padding: 2px 5px; height: 22px; font-size: 10px; border-radius: 4px; white-space: nowrap;" title="Avance de Obra: Registrar nuevo certificado / porcentaje de avance y notificar facturación">
@@ -12169,10 +12277,7 @@ function renderAssignmentsTable() {
                             <span style="font-size: 12px; font-weight: 700; color: #f8fafc; letter-spacing: 0.3px;">${(p.cliente_nombre || p.cliente || 'CLIENTE').toUpperCase()}</span>
                         </td>`;
                 case 'estado':
-                    if (viewMode === 'EstadoPresupuesto') {
-                        return `<td style="text-align: center; padding: 6px 6px; white-space: nowrap; width: 135px; min-width: 135px;">${renderEditableStatusDropdown(p)}</td>`;
-                    }
-                    return `<td style="text-align: center; padding: 6px 6px; white-space: nowrap; width: 135px; min-width: 135px;">${statusBadge}</td>`;
+                    return `<td style="text-align: center; padding: 6px 6px; white-space: nowrap; width: 135px; min-width: 135px;">${renderEditableStatusDropdown(p)}</td>`;
                 case 'importe':
                     return `<td style="text-align: right; font-family: monospace; font-size: 12px; white-space: nowrap; width: 115px; min-width: 105px; padding: 6px 8px;">${window.formatPresupuestoImporte(p)}</td>`;
                 case 'accion':
@@ -13935,12 +14040,38 @@ window.verDetallePedido = function(id, explicitMode) {
                 <button type="button" class="btn btn-sm" onclick="closeModal(); if(window.showView){ showView('tpl-facturacion'); if(window.renderFacturacionTable) window.renderFacturacionTable(); }" style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-left: 10px;" title="Pasar a Registrar Facturación para este comprobante">
                     <i class="fa-solid fa-file-invoice-dollar"></i> Ir a Registrar Facturación
                 </button>
-                <button type="button" class="btn btn-sm" onclick="window.editarOrdenesDeCompra(pedidoActivo.id)" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-left: 6px;" title="Modificar Orden de Compra de Mano de Obra o Materiales">
-                    <i class="fa-solid fa-pen"></i> Editar OC
-                </button>
             `;
+            if (isEditingAllowed) {
+                factBtnHtml += `
+                    <button type="button" class="btn btn-sm" onclick="window.editarOrdenesDeCompra(pedidoActivo.id)" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-left: 6px;" title="Modificar Orden de Compra de Mano de Obra o Materiales">
+                        <i class="fa-solid fa-pen"></i> Editar OC
+                    </button>
+                `;
+            }
         }
-        badgeContainer.innerHTML = `<div style="display: flex; align-items: center; gap: 8px;">${getBudgetStatusBadgeHtml(p.estado, p.oc_limite_fecha)}${factBtnHtml}</div>`;
+
+        let statusElementHtml = '';
+        if (isEditingAllowed) {
+            const curEst = p.estado || 'Enviado sin OC';
+            statusElementHtml = `
+                <select id="modal-change-status-select" onchange="cambiarEstadoPresupuesto('${p.id}', this.value)"
+                        style="padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; background: #0f172a; color: #ffffff; border: 1.5px solid #0284c7; cursor: pointer; outline: none; box-shadow: 0 0 8px rgba(0,0,0,0.3);">
+                    <option value="Enviado sin OC" ${curEst === 'Enviado sin OC' ? 'selected' : ''}>📤 Enviado sin OC</option>
+                    <option value="Aprobado sin OC" ${curEst === 'Aprobado sin OC' ? 'selected' : ''}>⏳ Aprobado sin OC</option>
+                    <option value="Aprobado con OC" ${curEst === 'Aprobado con OC' ? 'selected' : ''}>✅ Aprobado con OC</option>
+                    <option value="Rechazado" ${curEst === 'Rechazado' ? 'selected' : ''}>❌ Rechazado</option>
+                </select>
+            `;
+        } else {
+            // MODO CONSULTA / VER: NO dar la opción de editar el estado
+            if (typeof window.getBudgetStatusBadgeHtml === 'function') {
+                statusElementHtml = window.getBudgetStatusBadgeHtml(p.estado, p.oc_limite_fecha, p);
+            } else {
+                statusElementHtml = `<span class="badge" style="padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 800; background: rgba(56,189,248,0.25); color: #38bdf8; border: 1.5px solid rgba(56,189,248,0.6);">${p.estado || 'Enviado sin OC'}</span>`;
+            }
+        }
+
+        badgeContainer.innerHTML = `<div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">${statusElementHtml}${factBtnHtml}</div>`;
     }
 
     const resolvedPanel = document.getElementById('auth-resolved-panel');
@@ -21771,32 +21902,61 @@ window.renderFacturacionTable = function() {
     const tbody = document.getElementById('facturacion-table-tbody');
     if (!tbody) return;
 
+    if (typeof updateTipoPresupuestoBadge === 'function') {
+        updateTipoPresupuestoBadge();
+    }
+
     const searchVal = (document.getElementById('facturacion-search-input')?.value || '').toLowerCase().trim();
     const estadoFilter = (document.getElementById('facturacion-estado-filter')?.value || '').trim();
+    const aprobFilter = (document.getElementById('facturacion-aprobacion-filter')?.value || '').trim();
 
     const allPedidos = (window.appData && Array.isArray(window.appData.pedidos)) ? window.appData.pedidos : [];
-    // Una vez que los comprobantes estén aprobados con OC pasan a registrar facturación
+
+    function resolveAprobacionEstado(p) {
+        if (!p) return 'Aprobado sin OC';
+        const ocVal = String(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+        const hasFormalOc = Boolean(ocVal && ocVal !== '-' && ocVal !== 's/n' && ocVal !== 'S/N');
+        const estLow = String(p.estado || '').trim().toLowerCase();
+
+        if (estLow === 'aprobado sin oc' || ((estLow === 'aprobado con oc' || estLow === 'aprobado' || estLow === 'autorizado') && !hasFormalOc)) {
+            return 'Aprobado sin OC';
+        }
+        if (estLow === 'aprobado con oc' || (hasFormalOc && (estLow === 'aprobado' || estLow === 'autorizado' || estLow === 'cargado con orden de compra'))) {
+            return 'Aprobado con OC';
+        }
+        if (hasFormalOc) return 'Aprobado con OC';
+        return 'Aprobado sin OC';
+    }
+
+    // Una vez que los comprobantes estén aprobados (con o sin OC) pasan a registrar facturación
     const validOrders = allPedidos.filter(p => {
         if (!p) return false;
         const est = String(p.estado || '').trim().toLowerCase();
-        const oc = String(p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+        const oc = String(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
 
-        // Descartar rechazados, anulados o cancelados
+        // 1. Filtro por Rubro activo (Eléctrico / Mecánico / Todos)
+        const curRubro = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto) || (typeof getCurrentUser === 'function' && getCurrentUser() && getCurrentUser().rubro_defecto) || 'Eléctrico';
+        const pRubro = window.resolveRubroPresupuesto ? window.resolveRubroPresupuesto(p) : (p.tipo_presupuesto || 'Eléctrico');
+        if (curRubro && curRubro !== 'Todos' && pRubro !== curRubro) return false;
+
+        // Descartar rechazados, anulados, cancelados o no aprobados aún (Enviado sin OC, Pendiente)
         if (est === 'rechazado' || est === 'anulado' || est === 'cancelado') return false;
+        if (est === 'enviado sin oc' || est === 'cargado sin orden de compra' || est === 'pendiente' || est === 'pendiente de autorización') return false;
 
         const avancePct = parseFloat(p.avance_porcentaje_acumulado || p.avance_obra_porcentaje || 0);
         const hasAvances = (Array.isArray(p.avances) && p.avances.length > 0) || avancePct > 0;
         const factPct = parseFloat(p.facturado_porcentaje || 0);
         const factMonto = parseFloat(p.monto_facturado || 0);
         const hasFacturacion = factPct > 0 || factMonto > 0 || (Array.isArray(p.historial_facturacion) && p.historial_facturacion.length > 0) || est === 'facturado parcial' || est === 'facturado total';
-        const hasOc = (oc !== '' && oc !== '-');
+        const hasOc = (oc !== '' && oc !== '-' && oc !== 's/n' && oc !== 'S/N');
         const isApprovedConOc = est === 'aprobado con oc' || est.includes('con oc') || est.includes('con orden') || est === 'cargado con orden de compra';
+        const isApproved = est === 'aprobado' || est === 'aprobado sin oc' || est === 'autorizado' || (est.includes('aprobado') && !est.includes('rechazado'));
 
         // Pasan a facturación:
-        // 1. Aprobados con OC (o con número de OC cargado)
+        // 1. Aprobados (con o sin OC), autorizados
         // 2. Comprobantes que tienen Avance de Obra registrado
-        // 3. Comprobantes con facturación iniciada
-        return isApprovedConOc || hasOc || hasAvances || hasFacturacion;
+        // 3. Comprobantes con facturación iniciada o número de OC
+        return isApprovedConOc || isApproved || hasOc || hasAvances || hasFacturacion;
     });
 
     let countPendiente = 0, sumPendiente = 0;
@@ -21840,18 +22000,35 @@ window.renderFacturacionTable = function() {
         const detStr = (p.meca_denominacion || p.motivo || p.denominacion || '').toLowerCase();
         const matchesSearch = !searchVal || nroStr.includes(searchVal) || cliStr.includes(searchVal) || detStr.includes(searchVal);
 
+        const estAprob = resolveAprobacionEstado(p);
+
+        // 1. Filtro por aprobación (Con OC / Sin OC)
+        let matchesAprob = true;
+        if (aprobFilter) {
+            matchesAprob = (estAprob === aprobFilter);
+        }
+
+        // 2. Filtro por estado facturación / aprobación
         const factPct = parseFloat(p.facturado_porcentaje || 0);
         let estFact = 'Pendiente';
         if (factPct >= 100 || p.estado === 'Facturado Total') estFact = 'Total';
         else if (factPct > 0 || p.estado === 'Facturado Parcial') estFact = 'Parcial';
 
-        const matchesEstado = !estadoFilter || estFact === estadoFilter;
-        return matchesSearch && matchesEstado;
+        let matchesEstado = true;
+        if (estadoFilter) {
+            if (estadoFilter === 'Aprobado con OC' || estadoFilter === 'Aprobado sin OC') {
+                matchesEstado = (estAprob === estadoFilter);
+            } else {
+                matchesEstado = (estFact === estadoFilter);
+            }
+        }
+
+        return matchesSearch && matchesAprob && matchesEstado;
     });
 
     let html = '';
     if (filtered.length === 0) {
-        html = `<tr><td colspan="8" style="text-align: center; padding: 20px; color: #94a3b8;">No se encontraron registros de facturación.</td></tr>`;
+        html = `<tr><td colspan="9" style="text-align: center; padding: 20px; color: #94a3b8;">No se encontraron registros de facturación.</td></tr>`;
     } else {
         filtered.forEach(p => {
             const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
@@ -21862,6 +22039,14 @@ window.renderFacturacionTable = function() {
             const factMonto = parseFloat(p.monto_facturado || 0) || (total * factPct / 100);
             const avanceObraPct = parseFloat(p.avance_obra_porcentaje || p.avance_porcentaje_acumulado || 0);
 
+            const estAprob = resolveAprobacionEstado(p);
+            let badgeAprob = `<span class="badge" style="background: rgba(234,179,8,0.2); color: #fef08a; border: 1px solid rgba(234,179,8,0.6); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-check-double"></i> Aprobado sin OC</span>`;
+            if (estAprob === 'Aprobado con OC') {
+                const ocNum = String(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
+                const ocExtra = (ocNum && ocNum !== '-' && ocNum.toLowerCase() !== 's/n') ? `<span style="font-size: 9.5px; opacity: 0.85; font-family: monospace;">(${ocNum})</span>` : '';
+                badgeAprob = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.6); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-check-circle"></i> Aprobado con OC ${ocExtra}</span>`;
+            }
+
             let badgeEst = `<span class="badge" style="background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Pendiente</span>`;
             if (factPct >= 100 || p.estado === 'Facturado Total') {
                 badgeEst = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid #10b981; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Total</span>`;
@@ -21871,17 +22056,25 @@ window.renderFacturacionTable = function() {
 
             html += `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                    <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">${nro}</td>
+                    <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">
+                        <span style="cursor: pointer; text-decoration: underline;" onclick="verDetallePedido('${p.id}', 'ver')" title="Ver Comprobante">${nro}</span>
+                    </td>
                     <td style="padding: 10px; font-weight: 600; color: #ffffff;">${cli}</td>
                     <td style="padding: 10px; color: #cbd5e1;">${det}</td>
+                    <td style="padding: 10px; text-align: center;">${badgeAprob}</td>
                     <td style="padding: 10px; text-align: right; font-family: monospace; font-weight: 700; color: #ffffff;">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                     <td style="padding: 10px; text-align: right; font-family: monospace; font-weight: 700; color: #34d399;">$${factMonto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
                     <td style="padding: 10px; text-align: center; font-weight: 700; color: #38bdf8;">${avanceObraPct.toFixed(1)}%</td>
                     <td style="padding: 10px; text-align: center;">${badgeEst}</td>
                     <td style="padding: 10px; text-align: center;">
-                        <button type="button" class="btn btn-sm" onclick="abrirModalRegistrarFactura('${p.id}')" style="background: #10b981; color: #ffffff; border: 1px solid #059669; font-weight: bold; padding: 3px 8px; border-radius: 6px; font-size: 11px;" title="Registrar Factura">
-                            <i class="fa-solid fa-file-invoice"></i> Cargar
-                        </button>
+                        <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center;">
+                            <button type="button" class="btn btn-sm" onclick="verDetallePedido('${p.id}', 'ver')" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: bold; padding: 3px 6px; border-radius: 6px; font-size: 11px;" title="Ver Comprobante">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm" onclick="abrirModalRegistrarFactura('${p.id}')" style="background: #10b981; color: #ffffff; border: 1px solid #059669; font-weight: bold; padding: 3px 8px; border-radius: 6px; font-size: 11px;" title="Registrar Factura">
+                                <i class="fa-solid fa-file-invoice"></i> Cargar
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -24295,7 +24488,7 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '537';
+window.CURRENT_APP_VERSION = '544';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
 
