@@ -2435,13 +2435,9 @@ function initSupabaseSync(callback) {
                     }, function(payload) {
                         if (payload.new) {
                             const data = payload.new;
-                            // Chequear si viene señal de recarga remota en app_state
-                            if (data.updated_at && window._lastAppUpdateTs && data.updated_at > window._lastAppUpdateTs) {
+                            // app_state se utiliza para sincronizar datos globales (notificaciones, permisos), no para forzar recargas
+                            if (data.updated_at) {
                                 window._lastAppUpdateTs = data.updated_at;
-                                const diff = Date.now() - new Date(data.updated_at).getTime();
-                                if (diff >= 0 && diff < 30000 && typeof window.handleRemoteReloadRequest === 'function') {
-                                    window.handleRemoteReloadRequest({ source: 'app_state_realtime', timestamp: data.updated_at });
-                                }
                             }
                             appData.notifications = data.notifications || [];
                             if (data.user_permissions && typeof data.user_permissions === 'object' && Object.keys(data.user_permissions).length > 0) {
@@ -24488,9 +24484,10 @@ window.recalcularPreciosPorPlanta = function() {
 // versiones y datos automáticamente, incluso si nunca recargan la página.
 // ====================================================================
 
-window.CURRENT_APP_VERSION = '544';
+window.CURRENT_APP_VERSION = '546';
 window.PAGE_LOADED_AT = Date.now();
 window._lastAppUpdateTs = new Date().toISOString();
+window._updateBannerDismissedUntil = 0;
 
 // 1. Manejador de señal de recarga / actualización
 window.handleRemoteReloadRequest = function(payload) {
@@ -24500,61 +24497,37 @@ window.handleRemoteReloadRequest = function(payload) {
         if (Date.now() - t > 180000) return;
     }
 
-    // Verificar si el usuario está tipeando activamente o tiene un modal de edición abierto
-    const isUserTyping = (function() {
-        try {
-            const active = document.activeElement;
-            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
-                return true;
-            }
-            const modal = document.getElementById('modal-overlay');
-            if (modal && modal.style.display !== 'none' && modal.style.display !== '') {
-                return true;
-            }
-            if (window.pedidoActivo || window.pedidoEnEdicionId) {
-                return true;
-            }
-        } catch(e) {}
-        return false;
-    })();
-
-    if (!isUserTyping) {
-        console.log("🔄 Recargando terminal limpiamente por actualización de sistema...");
-        if (typeof Swal !== 'undefined' && typeof Swal.fire === 'function') {
-            Swal.fire({
-                title: '⚡ Actualizando Sistema',
-                text: 'Se aplicaron mejoras en el sistema. Actualizando terminal...',
-                icon: 'info',
-                timer: 2000,
-                showConfirmButton: false,
-                allowOutsideClick: false
-            }).then(() => {
-                window.location.reload(true);
-            });
-        } else {
-            window.location.reload(true);
-        }
-    } else {
-        // El usuario está redactando algo: mostrar banner flotante para que no pierda lo que hace
-        window.showSystemUpdateBanner();
-    }
+    // NUNCA recargar automáticamente la página para evitar que el usuario pierda su trabajo.
+    // En su lugar, mostrar el banner no intrusivo para que actualice cuando él decida.
+    window.showSystemUpdateBanner();
 };
 
-// 2. Banner flotante para cuando el usuario está redactando o con un modal abierto
+// 2. Banner flotante para cuando hay una nueva versión disponible (no interrumpe el trabajo)
 window.showSystemUpdateBanner = function() {
+    // Si el usuario lo cerró recientemente, no molestarlo por 1 hora
+    if (Date.now() < window._updateBannerDismissedUntil) return;
     if (document.getElementById('sg-system-update-banner')) return;
+
     const banner = document.createElement('div');
     banner.id = 'sg-system-update-banner';
-    banner.style.cssText = 'position: fixed; top: 18px; right: 20px; z-index: 9999999; background: #0f172a; border: 1px solid #0ea5e9; border-left: 5px solid #0ea5e9; padding: 12px 18px; border-radius: 8px; box-shadow: 0 10px 35px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 14px; color: #fff; font-family: inherit; animation: slideInDown 0.3s ease;';
+    banner.style.cssText = 'position: fixed; bottom: 20px; right: 20px; z-index: 9999999; background: #0f172a; border: 1px solid #38bdf8; border-left: 5px solid #0ea5e9; padding: 12px 18px; border-radius: 10px; box-shadow: 0 10px 35px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 14px; color: #fff; font-family: inherit; animation: slideInUp 0.3s ease; max-width: 440px;';
     banner.innerHTML = `
-        <span style="font-size: 22px;">🚀</span>
-        <div>
-            <div style="font-weight: 700; font-size: 13px; color: #38bdf8;">Nueva versión del sistema disponible</div>
-            <div style="font-size: 11px; color: #94a3b8;">Guarda tu trabajo actual y haz clic en actualizar para aplicar los últimos cambios.</div>
+        <span style="font-size: 24px;">🚀</span>
+        <div style="flex: 1;">
+            <div style="font-weight: 700; font-size: 13px; color: #38bdf8;">Nueva versión disponible</div>
+            <div style="font-size: 11px; color: #94a3b8; line-height: 1.3;">Guardá tu trabajo actual y actualizá cuando estés listo.</div>
         </div>
-        <button type="button" onclick="window.location.reload(true)" style="background: #0ea5e9; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 12px; cursor: pointer; transition: all 0.2s ease;">Actualizar ahora</button>
+        <button type="button" onclick="window.location.reload(true)" style="background: #0ea5e9; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 12px; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;">Actualizar</button>
+        <button type="button" onclick="window.dismissSystemUpdateBanner()" title="Cerrar aviso" style="background: transparent; border: none; color: #64748b; font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1;">&times;</button>
     `;
     document.body.appendChild(banner);
+};
+
+window.dismissSystemUpdateBanner = function() {
+    const b = document.getElementById('sg-system-update-banner');
+    if (b) b.remove();
+    // No volver a mostrar por 60 minutos
+    window._updateBannerDismissedUntil = Date.now() + (60 * 60 * 1000);
 };
 
 // 3. Botón de Administrador para forzar actualización de todas las terminales
@@ -24600,18 +24573,23 @@ window.forzarRecargaRemotaTerminales = async function() {
     }
 
     if (typeof showToast === 'function') {
-        showToast("🚀 Señal enviada con éxito. Las pantallas se actualizarán en segundos.", "success");
+        showToast("🚀 Aviso enviado con éxito.", "success");
     } else {
-        alert("🚀 Señal enviada con éxito. Las pantallas se actualizarán en segundos.");
+        alert("🚀 Aviso enviado con éxito.");
     }
-
-    setTimeout(() => {
-        window.location.reload(true);
-    }, 1200);
 };
 
-// 4. Verificación periódica silenciosa de nueva versión en el servidor (cada 3 minutos)
+// 4. Verificación silenciosa de versión (cada 15 minutos, sin recarga automática)
 setInterval(function() {
+    // Si el usuario tiene un presupuesto en edición o modal abierto, no molestar
+    if (window.pedidoActivo || window.pedidoEnEdicionId || (window.pedidoItems && window.pedidoItems.length > 0)) {
+        return;
+    }
+    const modal = document.getElementById('modal-overlay');
+    if (modal && modal.style.display !== 'none' && modal.style.display !== '') {
+        return;
+    }
+
     fetch(`index.html?t=${Date.now()}`, { cache: 'no-store' })
         .then(r => r.text())
         .then(html => {
@@ -24619,13 +24597,13 @@ setInterval(function() {
             if (match && match[1]) {
                 const serverVer = match[1];
                 if (serverVer !== window.CURRENT_APP_VERSION) {
-                    console.log(`🚀 [AUTO-UPDATE] Nueva versión detectada en servidor: v=${serverVer} (local: v=${window.CURRENT_APP_VERSION})`);
-                    if (typeof window.handleRemoteReloadRequest === 'function') {
-                        window.handleRemoteReloadRequest({ source: 'version_checker', version: serverVer, timestamp: Date.now() });
+                    console.log(`🚀 [VERSION-CHECK] Versión del servidor: v=${serverVer} (local: v=${window.CURRENT_APP_VERSION})`);
+                    if (typeof window.showSystemUpdateBanner === 'function') {
+                        window.showSystemUpdateBanner();
                     }
                 }
             }
         })
         .catch(() => {});
-}, 180000); // Chequea cada 3 minutos
+}, 900000); // Chequea cada 15 minutos, NUNCA recarga solo
 
