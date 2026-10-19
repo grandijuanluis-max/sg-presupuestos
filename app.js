@@ -419,6 +419,22 @@ window.isItemUSD = function(it, parentPresupuesto) {
         return false;
     }
 
+    // 1.2 Si en el formulario activo la moneda está seleccionada en Pesos (ARS = 1)
+    if (typeof document !== 'undefined') {
+        const curEl = document.getElementById('req-currency');
+        if (curEl && parseInt(curEl.value, 10) === 1 && (!mon || mon === 'ARS')) {
+            return false;
+        }
+    }
+
+    // 1.5 Mano de Obra: siempre se cotiza en PESOS (ARS) por defecto en Argentina
+    const subr = String(it.subrubro || '').toUpperCase();
+    const isLabor = subr.includes('MANO DE OBRA') || subr.includes('TALLER') || subr.includes('MANTENIMIENTO') || subr.includes('PARADA') || subr.includes('EMERGENCIA') ||
+                    ['HS', 'HORA', 'HORAS'].includes(String(it.unidad || it.udm || '').toUpperCase().trim());
+    if (isLabor && (!mon || mon === 'ARS')) {
+        return false;
+    }
+
     // 2. Si el usuario fijó explícitamente la moneda para este código en la sesión / storage
     const cd = String(it.codigo || '').trim();
     if (cd && window._itemExplicitCurrency && window._itemExplicitCurrency[cd]) {
@@ -886,15 +902,17 @@ window.appData = appData;
 // Cargar datos desde localStorage si existen
 try {
     const local = JSON.parse(localStorage.getItem(LOCAL_STATE_KEY));
-    if (local && local.users && local.users.length > 0) {
+    if (local) {
         // Cargar pedidos desde localStorage para visualización inmediata mientras sincroniza Supabase
         if (Array.isArray(local.pedidos) && local.pedidos.length > 0) {
             appData.pedidos = local.pedidos;
         }
 
         // Filtrar usuarios removidos (admin, aut, sol)
-        appData.users = (local.users || defaultData.users).filter(u => !['admin', 'aut', 'sol'].includes(String(u.username).trim().toLowerCase()));
-        if (appData.users.length === 0) appData.users = defaultData.users.slice();
+        if (Array.isArray(local.users) && local.users.length > 0) {
+            appData.users = local.users.filter(u => !['admin', 'aut', 'sol'].includes(String(u.username).trim().toLowerCase()));
+            if (appData.users.length === 0) appData.users = defaultData.users.slice();
+        }
         appData.notifications = Array.isArray(local.notifications) ? local.notifications : [];
         if (local.userPermissions && typeof local.userPermissions === 'object' && Object.keys(local.userPermissions).length > 0) {
             appData.userPermissions = Object.assign({}, defaultUserPermissions, local.userPermissions);
@@ -1189,39 +1207,73 @@ function initSupabaseSync(callback) {
             // Reconstruir catálogo Eléctrico (toma el precio personalizado o actualizado disponible)
             // LOS ÍTEMS BASE DEL STOCK ELÉCTRICO NUNCA SE FILTRAN NI ELIMINAN
             if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined') {
+                const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
                 window.presupuestosCatalogDB = PRESUPUESTO_ELECTRICO_STOCK
                     .map(baseItem => {
                         const rows = dbByCode[baseItem.codigo] || [];
-                        // Priorizar fila con is_custom y precio > 0, o con id terminado en _ARS/_USD, o con precio > 0
-                        const row = rows.find(r => r.is_custom && parseFloat(r.precio) > 0) ||
-                                    rows.find(r => r.id && (String(r.id).endsWith('_ARS') || String(r.id).endsWith('_USD')) && parseFloat(r.precio) > 0) ||
-                                    rows.find(r => (!r.planta || r.planta.trim() === '') && parseFloat(r.precio) > 0) ||
-                                    rows.find(r => parseFloat(r.precio) > 0) ||
-                                    rows.find(r => !r.planta || r.planta.trim() === '') ||
-                                    rows[0] || null;
+                        const arsRow = rows.find(r => r.moneda === 'ARS' || String(r.id).endsWith('_ARS')) ||
+                                       rows.find(r => r.moneda !== 'USD' && !String(r.id).endsWith('_USD')) ||
+                                       null;
+                        const usdRow = rows.find(r => r.moneda === 'USD' || String(r.id).endsWith('_USD')) || null;
 
-                        const dbPrice = row ? parseFloat(row.precio) : NaN;
-                        let finalPrice = (!isNaN(dbPrice) && dbPrice > 0) ? dbPrice : (baseItem.precio || 0);
+                        const isLabor = (
+                            (baseItem.subrubro && (
+                                baseItem.subrubro.toUpperCase().includes('MANO DE OBRA') ||
+                                baseItem.subrubro.toUpperCase().includes('TALLER') ||
+                                baseItem.subrubro.toUpperCase().includes('MANTENIMIENTO') ||
+                                baseItem.subrubro.toUpperCase().includes('PARADA') ||
+                                baseItem.subrubro.toUpperCase().includes('EMERGENCIA')
+                            )) ||
+                            (baseItem.codigo && /^(ELE|MEC)-0*([1-9]\d|\d{3,})/i.test(baseItem.codigo)) ||
+                            (baseItem.udm && (baseItem.udm.toLowerCase() === 'hs' || baseItem.udm.toLowerCase() === 'horas'))
+                        );
 
-                        // Consultar también customPrices locales si tienen precio registrado > 0
+                        // Precio ARS: tomar de arsRow, customPrices, o baseItem
+                        let pArs = arsRow ? (parseFloat(arsRow.precio) || 0) : 0;
                         const cpArs = customPrices[baseItem.codigo] || customPrices[`${baseItem.codigo}_ARS`];
-                        if (cpArs !== undefined && parseFloat(cpArs) > 0) {
-                            finalPrice = parseFloat(cpArs);
-                        }
+                        if (cpArs !== undefined && parseFloat(cpArs) > 0) pArs = parseFloat(cpArs);
+                        if (pArs <= 0 && baseItem.precio > 0) pArs = parseFloat(baseItem.precio);
+                        if (pArs <= 0 && usdRow && parseFloat(usdRow.precio) > 0) pArs = Math.round((parseFloat(usdRow.precio) || 0) * cotizMat);
 
-                        const cleanDet = (row && row.detalle && row.detalle.trim() !== baseItem.codigo) ? row.detalle.trim() : baseItem.detalle;
+                        // Precio USD: tomar de usdRow, customPrices, o conversión
+                        let pUsd = usdRow ? (parseFloat(usdRow.precio) || 0) : 0;
+                        const cpUsd = customPrices[`${baseItem.codigo}_USD`];
+                        if (cpUsd !== undefined && parseFloat(cpUsd) > 0) pUsd = parseFloat(cpUsd);
+                        if (pUsd <= 0 && pArs > 0) pUsd = Math.round((pArs / cotizMat) * 100) / 100;
+
+                        // Moneda por defecto:
+                        // Si es mano de obra -> SIEMPRE ARS
+                        // Si es material con usdRow pero sin arsRow -> USD
+                        // En cualquier otro caso -> ARS (Pesos argentinos por defecto)
+                        const explicitUsd = !isLabor && (
+                            (window._itemExplicitCurrency && window._itemExplicitCurrency[baseItem.codigo] === 'USD') ||
+                            (baseItem.moneda === 'USD' || baseItem.moneda === 'U$D') ||
+                            Boolean(usdRow && !arsRow && parseFloat(usdRow.precio) > 0 && (!arsRow || parseFloat(arsRow.precio) <= 0))
+                        );
+
+                        const activePrice = explicitUsd ? pUsd : pArs;
+                        const cleanDet = (arsRow && arsRow.detalle && arsRow.detalle.trim() !== baseItem.codigo) ? arsRow.detalle.trim() : (baseItem.detalle || (usdRow ? usdRow.detalle : baseItem.codigo));
                         const isOfficialMaterial = baseItem.subrubro && (baseItem.subrubro.includes('Material') || baseItem.subrubro.includes('Equipo'));
-                        const cleanSubrubro = isOfficialMaterial ? 'Materiales y Equipos' : ((row && row.subrubro) ? row.subrubro : baseItem.subrubro);
+                        const cleanSubrubro = isOfficialMaterial ? 'Materiales y Equipos' : ((arsRow && arsRow.subrubro) ? arsRow.subrubro : baseItem.subrubro);
+
+                        // Sincronizar también en baseItem por referencia para máxima compatibilidad
+                        baseItem.precio = activePrice;
+                        baseItem.precio_unitario = activePrice;
+                        baseItem.precio_ars = pArs;
+                        baseItem.precio_usd = pUsd;
+                        baseItem.moneda = explicitUsd ? 'USD' : 'ARS';
+
                         return {
                             ...baseItem,
-                            precio: finalPrice,
-                            precio_unitario: finalPrice,
-                            precio_ars: finalPrice,
-                            moneda: (row && row.moneda) || baseItem.moneda || 'ARS',
+                            precio: activePrice,
+                            precio_unitario: activePrice,
+                            precio_ars: pArs,
+                            precio_usd: pUsd,
+                            moneda: explicitUsd ? 'USD' : 'ARS',
                             detalle: cleanDet,
                             descripcion: cleanDet,
                             subrubro: cleanSubrubro,
-                            is_custom: Boolean(row && row.is_custom)
+                            is_custom: Boolean(arsRow && arsRow.is_custom)
                         };
                     });
             }
@@ -1381,41 +1433,76 @@ function initSupabaseSync(callback) {
             // Agregar items totalmente nuevos que no estaban en los arrays por defecto ni en Mecánico
             Object.keys(dbByCode).forEach(codigo => {
                 if (!processedCodes.has(codigo)) {
-                    dbByCode[codigo].forEach(row => {
-                        const isElecCode = String(row.codigo || '').toUpperCase().startsWith('ELE-');
-                        const finalRubro = row.rubro || (isElecCode ? 'Eléctrico' : 'Mecánico');
-                        const isMat = (
-                            (row.subrubro && (row.subrubro.toLowerCase().includes('material') || row.subrubro.toLowerCase().includes('equipo'))) ||
-                            row.moneda === 'USD' ||
-                            (!['hs', 'hora', 'horas'].includes(String(row.unidad || '').toLowerCase().trim()) && !String(row.subrubro || '').toLowerCase().includes('mano de obra'))
-                        );
+                    const rows = dbByCode[codigo] || [];
+                    if (rows.length === 0) return;
+                    const sample = rows[0];
+                    const isElecCode = String(codigo || '').toUpperCase().startsWith('ELE-');
+                    const finalRubro = sample.rubro || (isElecCode ? 'Eléctrico' : 'Mecánico');
+                    const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
 
-                        const newItem = {
-                            codigo: row.codigo,
-                            detalle: (row.detalle && row.detalle.trim() !== row.codigo) ? row.detalle.trim() : (row.detalle || ''),
-                            descripcion: (row.detalle && row.detalle.trim() !== row.codigo) ? row.detalle.trim() : (row.detalle || ''),
-                            rubro: finalRubro,
-                            subrubro: row.subrubro || (isMat ? 'Materiales y Equipos' : 'Mano de Obra MANTENIMIENTO'),
-                            udm: row.unidad || (isMat ? 'c/u' : 'Hs'),
-                            precio: parseFloat(row.precio) || 0,
-                            precio_unitario: parseFloat(row.precio) || 0,
-                            stock: parseFloat(row.stock) || 999,
-                            estado: row.estado || 'ACTIVOS',
-                            planta: row.planta ? row.planta.trim().toUpperCase() : null,
-                            moneda: row.moneda || (isMat ? 'USD' : 'ARS'),
-                            is_custom: true
-                        };
+                    const arsRow = rows.find(r => r.moneda === 'ARS' || String(r.id).endsWith('_ARS')) ||
+                                   rows.find(r => r.moneda !== 'USD' && !String(r.id).endsWith('_USD')) ||
+                                   null;
+                    const usdRow = rows.find(r => r.moneda === 'USD' || String(r.id).endsWith('_USD')) || null;
 
-                        if (finalRubro === 'Eléctrico') {
-                            if (window.presupuestosCatalogDB && !window.presupuestosCatalogDB.some(x => x.codigo === row.codigo)) {
-                                window.presupuestosCatalogDB.push(newItem);
-                            }
-                        } else {
-                            if (window.presupuestoMecanicoDB && !window.presupuestoMecanicoDB.some(x => x.codigo === row.codigo && (x.planta || '') === (newItem.planta || ''))) {
-                                window.presupuestoMecanicoDB.push(newItem);
-                            }
+                    const isLabor = (
+                        (sample.subrubro && (
+                            sample.subrubro.toUpperCase().includes('MANO DE OBRA') ||
+                            sample.subrubro.toUpperCase().includes('TALLER') ||
+                            sample.subrubro.toUpperCase().includes('MANTENIMIENTO') ||
+                            sample.subrubro.toUpperCase().includes('PARADA') ||
+                            sample.subrubro.toUpperCase().includes('EMERGENCIA')
+                        )) ||
+                        (sample.unidad && ['hs', 'hora', 'horas'].includes(sample.unidad.toLowerCase().trim()))
+                    );
+
+                    let pArs = arsRow ? (parseFloat(arsRow.precio) || 0) : 0;
+                    const cpArs = customPrices[codigo] || customPrices[`${codigo}_ARS`];
+                    if (cpArs !== undefined && parseFloat(cpArs) > 0) pArs = parseFloat(cpArs);
+                    if (pArs <= 0 && usdRow && parseFloat(usdRow.precio) > 0) pArs = Math.round((parseFloat(usdRow.precio) || 0) * cotizMat);
+
+                    let pUsd = usdRow ? (parseFloat(usdRow.precio) || 0) : 0;
+                    const cpUsd = customPrices[`${codigo}_USD`];
+                    if (cpUsd !== undefined && parseFloat(cpUsd) > 0) pUsd = parseFloat(cpUsd);
+                    if (pUsd <= 0 && pArs > 0) pUsd = Math.round((pArs / cotizMat) * 100) / 100;
+
+                    const explicitUsd = !isLabor && (
+                        (window._itemExplicitCurrency && window._itemExplicitCurrency[codigo] === 'USD') ||
+                        (sample.moneda === 'USD' || sample.moneda === 'U$D') ||
+                        Boolean(usdRow && !arsRow && parseFloat(usdRow.precio) > 0 && (!arsRow || parseFloat(arsRow.precio) <= 0))
+                    );
+
+                    const activePrice = explicitUsd ? pUsd : pArs;
+                    const activeRow = (explicitUsd ? usdRow : arsRow) || sample;
+                    const cleanDet = (activeRow.detalle && activeRow.detalle.trim() !== codigo) ? activeRow.detalle.trim() : (sample.detalle || codigo);
+
+                    const newItem = {
+                        codigo: codigo,
+                        detalle: cleanDet,
+                        descripcion: cleanDet,
+                        rubro: finalRubro,
+                        subrubro: activeRow.subrubro || (isLabor ? 'Mano de Obra MANTENIMIENTO' : 'Materiales y Equipos'),
+                        udm: activeRow.unidad || (isLabor ? 'Hs' : 'c/u'),
+                        precio: activePrice,
+                        precio_unitario: activePrice,
+                        precio_ars: pArs,
+                        precio_usd: pUsd,
+                        stock: parseFloat(activeRow.stock) || 999,
+                        estado: activeRow.estado || 'ACTIVOS',
+                        planta: activeRow.planta ? activeRow.planta.trim().toUpperCase() : null,
+                        moneda: explicitUsd ? 'USD' : 'ARS',
+                        is_custom: true
+                    };
+
+                    if (finalRubro === 'Eléctrico') {
+                        if (window.presupuestosCatalogDB && !window.presupuestosCatalogDB.some(x => x.codigo === codigo)) {
+                            window.presupuestosCatalogDB.push(newItem);
                         }
-                    });
+                    } else {
+                        if (window.presupuestoMecanicoDB && !window.presupuestoMecanicoDB.some(x => x.codigo === codigo && (x.planta || '') === (newItem.planta || ''))) {
+                            window.presupuestoMecanicoDB.push(newItem);
+                        }
+                    }
                 }
             });
 
@@ -4853,11 +4940,24 @@ window.getItemPriceFor = function(codigo, planta, moneda) {
         // Fallback a base de datos en memoria o stock base para Eléctrico
         if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
             const catE = window.presupuestosCatalogDB.find(x => x && x.codigo === codigo);
-            if (catE && catE.precio > 0) return catE.precio;
+            if (catE) {
+                if (m === 'ARS') {
+                    if (catE.precio_ars !== undefined && catE.precio_ars !== null && catE.precio_ars > 0) return catE.precio_ars;
+                    if (catE.moneda === 'ARS' && catE.precio > 0) return catE.precio;
+                    if (catE.precio > 500) return catE.precio;
+                } else if (m === 'USD') {
+                    if (catE.precio_usd !== undefined && catE.precio_usd !== null && catE.precio_usd > 0) return catE.precio_usd;
+                    if (catE.moneda === 'USD' && catE.precio > 0) return catE.precio;
+                    if (catE.precio_ars > 0) return Math.round((catE.precio_ars / cotizMat) * 100) / 100;
+                }
+            }
         }
         if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
             const baseE = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === codigo);
-            if (baseE && baseE.precio > 0) return baseE.precio;
+            if (baseE && baseE.precio > 0) {
+                if (m === 'ARS') return baseE.precio;
+                if (m === 'USD') return Math.round((baseE.precio / cotizMat) * 100) / 100;
+            }
         }
     }
 
@@ -4917,6 +5017,18 @@ window.getItemPriceFor = function(codigo, planta, moneda) {
         if (genItem) {
             baseRefArs = parseFloat(genItem.precio_ars || genItem.precio || genItem.precio_unitario || 0) || 0;
         }
+    }
+    if (!baseRefArs && typeof window.presupuestoMecanicoDB !== 'undefined' && Array.isArray(window.presupuestoMecanicoDB)) {
+        const pmItem = p ? window.presupuestoMecanicoDB.find(x => x && x.codigo === codigo && (x.planta || '').trim().toUpperCase() === p) : null;
+        if (pmItem && (pmItem.precio_ars > 0 || pmItem.precio > 0)) baseRefArs = pmItem.precio_ars || pmItem.precio;
+        if (!baseRefArs) {
+            const gmItem = window.presupuestoMecanicoDB.find(x => x && x.codigo === codigo);
+            if (gmItem && (gmItem.precio_ars > 0 || gmItem.precio > 0)) baseRefArs = gmItem.precio_ars || gmItem.precio;
+        }
+    }
+    if (!baseRefArs && typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+        const peItem = window.presupuestosCatalogDB.find(x => x && x.codigo === codigo);
+        if (peItem && (peItem.precio_ars > 0 || peItem.precio > 0)) baseRefArs = peItem.precio_ars || peItem.precio;
     }
     if (!baseRefArs && typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined') {
         const stockMec = PRESUPUESTO_MECANICO_STOCK.find(x => x && x.codigo === codigo);
@@ -9268,8 +9380,11 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
             const q = window.parseArgNumber ? window.parseArgNumber(item.cantidad) : (parseFloat(String(item.cantidad || '0').replace(',', '.')) || 0);
             const isUSD = (typeof window.isItemUSD === 'function') ? window.isItemUSD(item, parentPresupuesto) : (item.moneda === 'USD' || item.moneda === 'U$D');
             if (isUSD) {
-                const prUSD = parseFloat(item.precio_usd !== undefined && item.precio_usd !== null ? item.precio_usd : (item.precio || item.precio_unitario || 0)) || 0;
-                const sUSD = parseFloat(item.subtotal_usd !== undefined && item.subtotal_usd !== null ? item.subtotal_usd : (q * prUSD)) || 0;
+                let prUSD = parseFloat(item.precio_usd !== undefined && item.precio_usd !== null ? item.precio_usd : (item.precio || item.precio_unitario || 0)) || 0;
+                if (prUSD <= 0 && typeof window.getItemPriceFor === 'function') {
+                    prUSD = window.getItemPriceFor(item.codigo, curInputPlanta, 'USD');
+                }
+                const sUSD = parseFloat(item.subtotal_usd !== undefined && item.subtotal_usd !== null && parseFloat(item.subtotal_usd) > 0 ? item.subtotal_usd : (q * prUSD)) || (q * prUSD);
                 item.moneda = 'USD';
                 item.is_material = true;
                 const realU = (item.unidad && item.unidad !== 'USD' && item.unidad !== 'U$D') ? item.unidad : ((item.udm && item.udm !== 'USD' && item.udm !== 'U$D') ? item.udm : 'u');
@@ -9285,8 +9400,15 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
                 sumMatUSD += sUSD;
                 sumTotalPesos += (sUSD * cotizMat);
             } else {
-                const prARS = parseFloat(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)) || 0;
-                const sARS = parseFloat(item.subtotal !== undefined && item.subtotal !== null ? item.subtotal : (q * prARS)) || 0;
+                let prARS = parseFloat(item.precio !== undefined ? item.precio : (item.precio_unitario || 0)) || 0;
+                if (prARS <= 0) {
+                    if (item.precio_ars && parseFloat(item.precio_ars) > 0) {
+                        prARS = parseFloat(item.precio_ars);
+                    } else if (typeof window.getItemPriceFor === 'function') {
+                        prARS = window.getItemPriceFor(item.codigo, curInputPlanta, 'ARS');
+                    }
+                }
+                const sARS = parseFloat(item.subtotal !== undefined && item.subtotal !== null && parseFloat(item.subtotal) > 0 ? item.subtotal : (q * prARS)) || (q * prARS);
                 const subStr = String(item.subrubro || '').toLowerCase();
                 const codeUp = String(item.codigo || '').toUpperCase();
                 const isMatMec = codeUp.startsWith('MEC-') && parseInt(codeUp.replace(/^MEC-0*/, ''), 10) <= 9;
@@ -19205,25 +19327,39 @@ window.recalcMecaExcelRow = function(input) {
         }
         const itemCurrency = isUSD ? 'USD' : 'ARS';
         let price = priceInput ? window.parseArgNumber(priceInput.value) : (input.hasAttribute('data-price') ? window.parseArgNumber(input.getAttribute('data-price')) : 0);
-        const isElecItem = String(code || '').toUpperCase().trim().startsWith('ELE-') || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico');
-        if (price <= 0 && isElecItem && !isUSD) {
-            if (typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+        let curPlanta = '';
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (reqPlantaSelect && reqPlantaSelect.value) {
+            curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+        }
+        if (price <= 0 && !isUSD) {
+            if (typeof window.getItemPriceFor === 'function') {
+                const pArs = window.getItemPriceFor(code, curPlanta, 'ARS');
+                if (pArs > 0) price = pArs;
+            }
+            if (price <= 0 && typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
                 const catE = window.presupuestosCatalogDB.find(x => x && x.codigo === code);
-                if (catE && catE.precio > 0) {
-                    price = catE.precio;
-                    if (priceInput && document.activeElement !== priceInput) {
-                        priceInput.value = price.toString().replace(/\./g, ',');
-                    }
-                }
+                if (catE && (catE.precio_ars > 0 || catE.precio > 0)) price = catE.precio_ars || catE.precio;
             }
             if (price <= 0 && typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
                 const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === code);
-                if (b && b.precio > 0) {
-                    price = b.precio;
-                    if (priceInput && document.activeElement !== priceInput) {
-                        priceInput.value = price.toString().replace(/\./g, ',');
-                    }
-                }
+                if (b && b.precio > 0) price = b.precio;
+            }
+            if (price <= 0 && typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) {
+                const b = PRESUPUESTO_MECANICO_STOCK.find(x => x && x.codigo === code);
+                if (b && b.precio > 0) price = b.precio;
+            }
+            if (price > 0 && priceInput && document.activeElement !== priceInput) {
+                priceInput.value = Number.isInteger(price) ? price.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) : price.toString().replace(/\./g, ',');
+            }
+        } else if (price <= 0 && isUSD) {
+            if (typeof window.getItemPriceFor === 'function') {
+                const pUsd = window.getItemPriceFor(code, curPlanta, 'USD');
+                if (pUsd > 0) price = pUsd;
+            }
+            if (price > 0 && priceInput && document.activeElement !== priceInput) {
+                priceInput.value = price.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             }
         }
         const qty = qtyInput ? (parseInt(qtyInput.value.replace(/[^0-9]/g, ''), 10) || 0) : 0;
@@ -19347,14 +19483,43 @@ if (curPlanta === 'APA') curPlanta = 'APS';
         let price = priceInput ? window.parseArgNumber(priceInput.value) : window.parseArgNumber(input.getAttribute('data-price'));
         const qty = parseInt(input.value.replace(/[^0-9]/g, ''), 10) || 0;
 
-        const isItemElec = String(code || '').toUpperCase().startsWith('ELE-') || isElecBudget;
-        if (price <= 0 && isItemElec && !isUSD) {
-            if (typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
+        let curPlanta = '';
+        const reqPlantaSelect = document.getElementById('req-meca-planta');
+        if (reqPlantaSelect && reqPlantaSelect.value) {
+            curPlanta = reqPlantaSelect.value.trim().toUpperCase();
+            if (curPlanta === 'PPA' || curPlanta === 'APA') curPlanta = 'APS';
+        }
+        if (price <= 0 && !isUSD) {
+            if (typeof window.getItemPriceFor === 'function') {
+                const pArs = window.getItemPriceFor(code, curPlanta, 'ARS');
+                if (pArs > 0) price = pArs;
+            }
+            if (price <= 0 && typeof window.presupuestosCatalogDB !== 'undefined' && Array.isArray(window.presupuestosCatalogDB)) {
+                const catE = window.presupuestosCatalogDB.find(x => x && x.codigo === code);
+                if (catE && (catE.precio_ars > 0 || catE.precio > 0)) price = catE.precio_ars || catE.precio;
+            }
+            if (price <= 0 && typeof catalog !== 'undefined' && Array.isArray(catalog)) {
+                const cItem = catalog.find(x => x && x.codigo === code);
+                if (cItem && (cItem.precio_ars > 0 || cItem.precio > 0)) price = cItem.precio_ars || cItem.precio;
+            }
+            if (price <= 0 && typeof PRESUPUESTO_ELECTRICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_ELECTRICO_STOCK)) {
                 const b = PRESUPUESTO_ELECTRICO_STOCK.find(x => x && x.codigo === code);
-                if (b && b.precio > 0) {
-                    price = b.precio;
-                    if (priceInput && document.activeElement !== priceInput) priceInput.value = price.toString().replace(/\./g, ',');
-                }
+                if (b && b.precio > 0) price = b.precio;
+            }
+            if (price <= 0 && typeof PRESUPUESTO_MECANICO_STOCK !== 'undefined' && Array.isArray(PRESUPUESTO_MECANICO_STOCK)) {
+                const b = PRESUPUESTO_MECANICO_STOCK.find(x => x && x.codigo === code);
+                if (b && b.precio > 0) price = b.precio;
+            }
+            if (price > 0 && priceInput && document.activeElement !== priceInput) {
+                priceInput.value = Number.isInteger(price) ? price.toLocaleString('es-AR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) : price.toString().replace(/\./g, ',');
+            }
+        } else if (price <= 0 && isUSD) {
+            if (typeof window.getItemPriceFor === 'function') {
+                const pUsd = window.getItemPriceFor(code, curPlanta, 'USD');
+                if (pUsd > 0) price = pUsd;
+            }
+            if (price > 0 && priceInput && document.activeElement !== priceInput) {
+                priceInput.value = price.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             }
         }
 
