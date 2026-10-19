@@ -3146,20 +3146,12 @@
     
     <!-- Script principal de lógica de negocio -->
     <script>
-        // Limpiar basura vieja y garantizar sincronización limpia directamente con Supabase
+        // Limpieza de claves obsoletas
         try {
             localStorage.removeItem('sg_plantas');
-            var _lsRaw = localStorage.getItem('solicitudes_pedidos_local_state');
-            if (_lsRaw) {
-                var _lsObj = JSON.parse(_lsRaw);
-                if (_lsObj && _lsObj.pedidos) {
-                    delete _lsObj.pedidos;
-                    localStorage.setItem('solicitudes_pedidos_local_state', JSON.stringify(_lsObj));
-                }
-            }
         } catch(e) {}
     </script>
-    <script src="app.js?v=548"></script>
+    <script src="app.js?v=550"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
     <script src="chat_system.js?v=7"></script>

@@ -887,12 +887,9 @@ window.appData = appData;
 try {
     const local = JSON.parse(localStorage.getItem(LOCAL_STATE_KEY));
     if (local && local.users && local.users.length > 0) {
-        // NOTA: Supabase es la ÚNICA fuente de verdad para presupuestos.
-        // No cargamos pedidos desde localStorage para evitar que reaparezcan presupuestos borrados en Supabase.
-        appData.pedidos = [];
-        if (local.pedidos) {
-            delete local.pedidos;
-            try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(local)); } catch(e) {}
+        // Cargar pedidos desde localStorage para visualización inmediata mientras sincroniza Supabase
+        if (Array.isArray(local.pedidos) && local.pedidos.length > 0) {
+            appData.pedidos = local.pedidos;
         }
 
         // Filtrar usuarios removidos (admin, aut, sol)
@@ -1049,7 +1046,19 @@ function initSupabaseSync(callback) {
                                 p.items = cached;
                             }
                         });
-                        appData.pedidos = normalizePresupuestosRubro(data);
+                        const remoteIds = new Set(data.map(p => String(p.id).trim()));
+                        const mergedList = [...data];
+                        if (Array.isArray(appData.pedidos)) {
+                            appData.pedidos.forEach(localP => {
+                                if (localP && localP.id && !remoteIds.has(String(localP.id).trim())) {
+                                    mergedList.push(localP);
+                                    if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+                                        window.guardarPresupuestoEnSupabase(localP).catch(() => {});
+                                    }
+                                }
+                            });
+                        }
+                        appData.pedidos = normalizePresupuestosRubro(mergedList);
                         appData.pedidos.forEach(p => {
                             const pid = String(p.id).trim();
                             const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
@@ -2325,8 +2334,21 @@ function initSupabaseSync(callback) {
                     }
                 });
 
-                // Supabase es la ÚNICA fuente de verdad: se descartan los que fueron borrados en Supabase
-                appData.pedidos = normalizePresupuestosRubro(pRes.data);
+                // Merge: Preservar presupuestos locales que aún no hayan bajado de Supabase
+                const remoteIds = new Set((pRes.data || []).map(p => String(p.id).trim()));
+                const mergedPedidos = [...(pRes.data || [])];
+                Object.keys(existingPedidosMap).forEach(localId => {
+                    if (!remoteIds.has(localId)) {
+                        const localP = existingPedidosMap[localId];
+                        if (localP) {
+                            mergedPedidos.push(localP);
+                            if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+                                window.guardarPresupuestoEnSupabase(localP).catch(() => {});
+                            }
+                        }
+                    }
+                });
+                appData.pedidos = normalizePresupuestosRubro(mergedPedidos);
                 appData.pedidos.forEach(p => {
                     const pid = String(p.id).trim();
                     const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
@@ -2915,7 +2937,7 @@ function generateId() {
 
 window.buildPresupuestoSupabaseRow = function(p) {
     if (!p) return null;
-    const amt = parseFloat(p.importe !== undefined && p.importe !== null ? p.importe : (p.importe_neto || p.importe_total || 0)) || 0;
+    const amt = parseFloat(p.importe_neto !== undefined && p.importe_neto !== null ? p.importe_neto : (p.importe || p.importe_total || 0)) || 0;
     const clientResolved = (typeof window.resolveClienteCompleto === 'function')
         ? window.resolveClienteCompleto(p)
         : null;
@@ -2928,7 +2950,6 @@ window.buildPresupuestoSupabaseRow = function(p) {
         tipo_presupuesto: p.tipo_presupuesto || (String(p.id).startsWith('101') ? 'Mecánico' : 'Eléctrico'),
         cliente_id: String(finalCliId).trim(),
         cliente_nombre: String(finalCliNom).trim(),
-        importe: amt,
         importe_neto: amt,
         estado: p.estado || 'Enviado sin OC',
         nro_oc: String(p.nro_oc || p.meca_nro_oc || '').trim(),
@@ -2948,19 +2969,7 @@ window.buildPresupuestoSupabaseRow = function(p) {
         fecha_fin: p.fecha_fin || p.meca_fecha_fin || '',
         propuesta: p.propuesta || p.meca_propuesta || '',
         personal: p.personal || p.meca_personal || '',
-        exclusiones: p.exclusiones || p.meca_exclusiones || '',
-        condicion_id: String(p.condicion_id || '3').trim(),
-        condicion_nombre: String(p.condicion_nombre || p.condicion_venta || '30 DIAS').trim(),
-        condicion_venta: String(p.condicion_venta || p.condicion_nombre || '30 DIAS').trim(),
-        moneda: p.moneda || (p.moneda_id === 2 ? 'USD' : 'ARS'),
-        moneda_id: parseInt(p.moneda_id || (p.moneda === 'USD' ? 2 : 1), 10) || 1,
-        cotizacion: parseFloat(p.cotizacion || p.cotizacion_materiales || 1450) || 1450,
-        cotizacion_materiales: parseFloat(p.cotizacion_materiales || p.cotizacion || 1450) || 1450,
-        domicilio: String(p.domicilio || (clientResolved ? clientResolved.domicilio : '') || '').trim(),
-        localidad: String(p.localidad || (clientResolved ? clientResolved.localidad : '') || '').trim(),
-        cuit: String(p.cuit || (clientResolved ? clientResolved.cuit : '') || '').trim(),
-        tipo_reporte: p.tipo_reporte || 'detallado',
-        items: Array.isArray(p.items) ? p.items : []
+        exclusiones: p.exclusiones || p.meca_exclusiones || ''
     };
 };
 
@@ -3133,7 +3142,6 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                         tipo_presupuesto: row.tipo_presupuesto,
                         cliente_id: row.cliente_id,
                         cliente_nombre: row.cliente_nombre,
-                        importe: row.importe,
                         importe_neto: row.importe_neto,
                         estado: row.estado,
                         nro_oc: row.nro_oc,
@@ -3194,7 +3202,6 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                     tipo_presupuesto: row.tipo_presupuesto,
                     cliente_id: row.cliente_id,
                     cliente_nombre: row.cliente_nombre,
-                    importe: row.importe,
                     importe_neto: row.importe_neto,
                     estado: row.estado,
                     nro_oc: row.nro_oc,
@@ -3297,7 +3304,6 @@ window.sincronizarEstadoPresupuestoEnSupabase = async function(p) {
                 facturado_porcentaje: parseFloat(p.facturado_porcentaje || 0) || 0,
                 monto_facturado: parseFloat(p.monto_facturado || 0) || 0
             };
-            if (fechaResVal) updatePayload.fecha_resolucion = fechaResVal;
 
             const { data, error: updErr } = await client.from('presupuestos').update(updatePayload).eq('id', pid);
             if (updErr) {
@@ -9484,6 +9490,7 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
                 operador_vendedor_nombre: userVendedorNombre,
                 tipo_reporte: tipoReporte || 'detallado',
                 importe: amount,
+                importe_neto: amount,
                 importe_original: amount,
                 condicion_id: condCode,
                 condicion_nombre: finalCondNombre,
