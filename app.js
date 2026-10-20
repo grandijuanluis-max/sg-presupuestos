@@ -1053,7 +1053,7 @@ function initSupabaseSync(callback) {
         try {
             const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
             const rHeaders = { 'apikey': config.anonKey, 'Authorization': `Bearer ${config.anonKey}` };
-            fetch(`${config.url}/rest/v1/presupuestos?select=*&order=id.desc`, { headers: rHeaders, cache: 'no-store' })
+            fetch(`${config.url}/rest/v1/presupuestos?select=*&order=id.desc&limit=5000`, { headers: rHeaders, cache: 'no-store' })
                 .then(r => r.json())
                 .then(data => {
                     if (Array.isArray(data)) {
@@ -2111,7 +2111,7 @@ function initSupabaseSync(callback) {
     const syncPresupuestoItemsFromSupabase = function() {
         if (!client) return Promise.resolve();
         window.syncPresupuestoItemsFromSupabase = syncPresupuestoItemsFromSupabase;
-        return client.from('presupuesto_items').select('*').order('id', { ascending: true }).limit(5000).then(function(itemsRes) {
+        return client.from('presupuesto_items').select('*').order('id', { ascending: true }).limit(100000).then(function(itemsRes) {
             if (itemsRes.data && itemsRes.data.length > 0 && Array.isArray(appData.pedidos)) {
                 const itemsMap = {};
                 const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
@@ -2374,6 +2374,7 @@ function initSupabaseSync(callback) {
         .from('presupuestos')
         .select('*')
         .order('id', { ascending: false })
+        .limit(100000)
         .then(function(pRes) {
             if (pRes.error) {
                 console.warn("Aviso al leer tabla presupuestos en Supabase:", pRes.error);
@@ -2421,16 +2422,24 @@ function initSupabaseSync(callback) {
                     }
                 });
 
-                // Merge: Preservar presupuestos locales que aún no hayan bajado de Supabase
+                // Merge: Preservar y subir automáticamente presupuestos locales que aún no estén en Supabase
                 const remoteIds = new Set((pRes.data || []).map(p => String(p.id).trim()));
                 const mergedPedidos = [...(pRes.data || [])];
                 Object.keys(existingPedidosMap).forEach(localId => {
                     if (!remoteIds.has(localId)) {
                         const localP = existingPedidosMap[localId];
                         if (localP) {
+                            if (!Array.isArray(localP.items) || localP.items.length === 0) {
+                                const cached = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(localId) : null;
+                                if (cached && Array.isArray(cached) && cached.length > 0) {
+                                    localP.items = cached;
+                                }
+                            }
                             mergedPedidos.push(localP);
                             if (typeof window.guardarPresupuestoEnSupabase === 'function') {
-                                window.guardarPresupuestoEnSupabase(localP).catch(() => {});
+                                window.guardarPresupuestoEnSupabase(localP).then(res => {
+                                    if (res && res.success) console.log("☁️ Presupuesto pendiente " + localId + " subido con éxito a Supabase.");
+                                }).catch(e => console.warn("Aviso auto-subida presupuesto:", e));
                             }
                         }
                     }
@@ -3235,7 +3244,8 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                         nro_ot: row.nro_ot,
                         denominacion: row.denominacion,
                         planta: row.planta,
-                        proveedor: row.proveedor
+                        proveedor: row.proveedor,
+                        operador: row.operador || 'admin'
                     };
                     const { error: retryError } = await client.from('presupuestos').upsert([basicRow], { onConflict: 'id' });
                     if (!retryError) {
@@ -3295,7 +3305,8 @@ window.guardarPresupuestoEnSupabase = async function(p) {
                     nro_ot: row.nro_ot,
                     denominacion: row.denominacion,
                     planta: row.planta,
-                    proveedor: row.proveedor
+                    proveedor: row.proveedor,
+                    operador: row.operador || 'admin'
                 };
                 let retryRes = await fetch(`${config.url}/rest/v1/presupuestos`, {
                     method: 'POST',
@@ -3449,7 +3460,7 @@ window.forzarSincronizacionSupabase = async function() {
     if (!client) return;
 
     try {
-        const { data: allRemote, error: aErr } = await client.from('presupuestos').select('*').order('id', { ascending: false });
+        const { data: allRemote, error: aErr } = await client.from('presupuestos').select('*').order('id', { ascending: false }).limit(5000);
         if (!aErr && allRemote) {
             const existingItemsMap = {};
             if (Array.isArray(appData.pedidos)) {
@@ -3466,7 +3477,22 @@ window.forzarSincronizacionSupabase = async function() {
                     p.items = existingItemsMap[pid];
                 }
             });
-            appData.pedidos = normalizePresupuestosRubro(allRemote);
+
+            // Merge seguro: nunca descartar presupuestos locales que aún no figuren en allRemote
+            const remoteIds = new Set(allRemote.map(p => String(p.id).trim()));
+            const mergedList = [...allRemote];
+            if (Array.isArray(appData.pedidos)) {
+                appData.pedidos.forEach(localP => {
+                    if (localP && localP.id && !remoteIds.has(String(localP.id).trim())) {
+                        mergedList.push(localP);
+                        if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+                            window.guardarPresupuestoEnSupabase(localP).catch(() => {});
+                        }
+                    }
+                });
+            }
+
+            appData.pedidos = normalizePresupuestosRubro(mergedList);
             appData.pedidos.forEach(p => {
                 const pid = String(p.id).trim();
                 const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
@@ -3494,12 +3520,98 @@ window.forzarSincronizacionSupabase = async function() {
     }
 };
 
+window.rescatarYSubirPresupuestosPendientes = async function() {
+    try {
+        const rawLocal = localStorage.getItem(LOCAL_STATE_KEY);
+        let parsed = rawLocal ? JSON.parse(rawLocal) : null;
+        if (!parsed || typeof parsed !== 'object') parsed = { pedidos: [] };
+        if (!Array.isArray(parsed.pedidos)) parsed.pedidos = [];
+
+        // RECONSTRUCCIÓN DE EMERGENCIA: Buscar también en PRESUPUESTOS_ITEMS_CACHE_V4
+        try {
+            const itemsCacheRaw = localStorage.getItem('PRESUPUESTOS_ITEMS_CACHE_V4');
+            if (itemsCacheRaw) {
+                const itemsCache = JSON.parse(itemsCacheRaw);
+                for (const [cachedPid, cachedItems] of Object.entries(itemsCache)) {
+                    if (!cachedPid || !Array.isArray(cachedItems) || cachedItems.length === 0) continue;
+                    const existsInPedidos = parsed.pedidos.some(p => p && String(p.id).trim() === cachedPid.trim());
+                    if (!existsInPedidos) {
+                        // Reconstruir presupuesto a partir de los ítems en caché
+                        const isMec = cachedPid.includes('MEC');
+                        const sumTotal = cachedItems.reduce((acc, it) => acc + (parseFloat(it.subtotal) || (parseFloat(it.cantidad || 1) * parseFloat(it.precio || 0)) || 0), 0);
+                        const reconstructed = {
+                            id: cachedPid.trim(),
+                            fecha: getLocalCurrentDateTimeStr(),
+                            tipo_presupuesto: isMec ? 'Mecánico' : 'Eléctrico',
+                            cliente_id: '18',
+                            cliente_nombre: 'LA NUEVA VICENTIN',
+                            planta: 'LA NUEVA VICENTIN',
+                            importe: sumTotal,
+                            importe_neto: sumTotal,
+                            estado: 'Enviado sin OC',
+                            operador: 'alexis',
+                            items: cachedItems
+                        };
+                        parsed.pedidos.push(reconstructed);
+                        console.log("[RESCATE] Reconstruido " + cachedPid + " desde items cache");
+                    }
+                }
+            }
+        } catch(eCache) {
+            console.warn('Error escaneando cache de items:', eCache);
+        }
+
+        if (parsed.pedidos.length === 0) return;
+
+        const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
+        const headers = { 'apikey': config.anonKey, 'Authorization': `Bearer ${config.anonKey}` };
+
+        const res = await fetch(`${config.url}/rest/v1/presupuestos?select=id&limit=100000`, { headers });
+        if (!res.ok) return;
+        const remoteList = await res.json();
+        const remoteIds = new Set((Array.isArray(remoteList) ? remoteList : []).map(r => String(r.id).trim()));
+
+        const pendientes = parsed.pedidos.filter(p => p && p.id && !remoteIds.has(String(p.id).trim()));
+        if (pendientes.length === 0) return;
+
+        console.log(`🚨 Se detectaron ${pendientes.length} presupuestos locales que NO están en la nube. Subiéndolos ahora...`);
+        if (typeof showToast === 'function') {
+            showToast(`☁️ Subiendo ${pendientes.length} presupuestos pendientes a la nube...`, 'info');
+        }
+
+        for (const p of pendientes) {
+            if (!Array.isArray(p.items) || p.items.length === 0) {
+                const cached = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(p.id) : null;
+                if (cached && Array.isArray(cached) && cached.length > 0) {
+                    p.items = cached;
+                }
+            }
+            if (typeof window.guardarPresupuestoEnSupabase === 'function') {
+                await window.guardarPresupuestoEnSupabase(p);
+                console.log(`✅ Presupuesto pendiente ${p.id} subido a Supabase.`);
+            }
+        }
+
+        if (typeof showToast === 'function') {
+            showToast(`✅ ${pendientes.length} presupuestos pendientes sincronizados con éxito.`, 'success');
+        }
+        if (typeof window.forzarSincronizacionSupabase === 'function') {
+            await window.forzarSincronizacionSupabase();
+        }
+    } catch(e) {
+        console.warn("Aviso en rescatarYSubirPresupuestosPendientes:", e);
+    }
+};
+
 // Auto-sincronización periódica y al regresar a la pestaña (para no depender de que el usuario recargue)
 let lastSilentPresupuestosSync = 0;
 function triggerSilentPresupuestosSync() {
     const now = Date.now();
     if (now - lastSilentPresupuestosSync < 15000) return; // Máximo una vez cada 15 seg
     lastSilentPresupuestosSync = now;
+    if (typeof window.rescatarYSubirPresupuestosPendientes === 'function') {
+        window.rescatarYSubirPresupuestosPendientes().catch(() => {});
+    }
     if (typeof window.forzarSincronizacionSupabase === 'function') {
         window.forzarSincronizacionSupabase();
     }
@@ -9345,6 +9457,9 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
     closeModal();
 
     try {
+        const curInputPlanta = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value) ||
+                               (document.getElementById('req-planta') && document.getElementById('req-planta').value) || 'APS';
+
         if (typeof window.recalcMecaExcelAll === 'function') {
             try { window.recalcMecaExcelAll(); } catch(e) {}
         }
@@ -9442,7 +9557,7 @@ window.confirmarConTipoReporte = async function(tipoReporte) {
         const depositoObj = depositoSeleccionado;
         const transporteObj = transporteSeleccionado;
 
-        const curInputPlanta = (document.getElementById('req-meca-planta') && document.getElementById('req-meca-planta').value) || 'APS';
+        // curInputPlanta ya fue obtenida al inicio de la función
         if (!clienteSeleccionado) {
             const clientVal = (document.getElementById('req-meca-cliente') && document.getElementById('req-meca-cliente').value) ||
                               (document.getElementById('req-client') && document.getElementById('req-client').value) ||
