@@ -41,7 +41,7 @@ window.findPedidoIndex = function(id) {
 };
 
 // --- ESTADO INICIAL Y ALMACENAMIENTO (SUPABASE DIRECT SYNC) ---
-console.warn('✅✅✅ APP.JS v555 - FUENTE DE DATOS EXCLUSIVA: SUPABASE ✅✅✅');
+console.warn('✅✅✅ APP.JS v556 - FUENTE DE DATOS EXCLUSIVA: SUPABASE ✅✅✅');
 try {
     localStorage.removeItem('PRESUPUESTOS_ITEMS_CACHE_V3');
 } catch(e) {}
@@ -19457,7 +19457,6 @@ window.onMecaPriceInputBlur = function(input) {
 
     // Guardar en Supabase y DB local de forma segura solo al perder el foco (blur)
     let curPlanta = '';
-    const isElecItem = String(code || '').toUpperCase().trim().startsWith('ELE-') || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico');
     if (!isElecItem) {
         const reqPlantaSelect = document.getElementById('req-meca-planta');
         if (reqPlantaSelect && reqPlantaSelect.value) {
