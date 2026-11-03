@@ -41,7 +41,7 @@ window.findPedidoIndex = function(id) {
 };
 
 // --- ESTADO INICIAL Y ALMACENAMIENTO (SUPABASE DIRECT SYNC) ---
-console.warn('✅✅✅ APP.JS v500 - FUENTE DE DATOS EXCLUSIVA: SUPABASE ✅✅✅');
+console.warn('✅✅✅ APP.JS v555 - FUENTE DE DATOS EXCLUSIVA: SUPABASE ✅✅✅');
 try {
     localStorage.removeItem('PRESUPUESTOS_ITEMS_CACHE_V3');
 } catch(e) {}
@@ -435,8 +435,19 @@ window.isItemUSD = function(it, parentPresupuesto) {
         return false;
     }
 
-    // 2. Si el usuario fijó explícitamente la moneda para este código en la sesión / storage
+    // 1.6 Ítems de Presupuesto Eléctrico (ELE- o rubro Eléctrico): SIEMPRE ARS por defecto en SG Montajes
     const cd = String(it.codigo || '').trim();
+    const isElecItem = cd.toUpperCase().startsWith('ELE-') ||
+                       (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') ||
+                       (it.rubro && String(it.rubro).toUpperCase().includes('ELÉCTRICO'));
+    if (isElecItem) {
+        if (cd && window._itemExplicitCurrency && window._itemExplicitCurrency[cd]) {
+            return window._itemExplicitCurrency[cd] === 'USD';
+        }
+        return false;
+    }
+
+    // 2. Si el usuario fijó explícitamente la moneda para este código en la sesión / storage
     if (cd && window._itemExplicitCurrency && window._itemExplicitCurrency[cd]) {
         return window._itemExplicitCurrency[cd] === 'USD';
     }
@@ -1233,23 +1244,30 @@ function initSupabaseSync(callback) {
                         const cpArs = customPrices[baseItem.codigo] || customPrices[`${baseItem.codigo}_ARS`];
                         if (cpArs !== undefined && parseFloat(cpArs) > 0) pArs = parseFloat(cpArs);
                         if (pArs <= 0 && baseItem.precio > 0) pArs = parseFloat(baseItem.precio);
-                        if (pArs <= 0 && usdRow && parseFloat(usdRow.precio) > 0) pArs = Math.round((parseFloat(usdRow.precio) || 0) * cotizMat);
+                        
+                        // Sanear explosión: si usdRow tiene un valor > 500, en realidad fueron pesos guardados erróneamente en columna USD
+                        if (usdRow && parseFloat(usdRow.precio) > 0) {
+                            const valUsd = parseFloat(usdRow.precio);
+                            if (pArs <= 0) {
+                                pArs = (valUsd > 500) ? valUsd : Math.round(valUsd * cotizMat);
+                            }
+                        }
 
-                        // Precio USD: tomar de usdRow, customPrices, o conversión
+                        // Sanear recursión multiplicativa de 1450 si pArs es exorbitante (> 2 millones)
+                        while (pArs > 2000000) {
+                            pArs = Math.round(pArs / cotizMat);
+                        }
+
+                        // Precio USD: si pUsd es > 500, convertirlo desde pArs real
                         let pUsd = usdRow ? (parseFloat(usdRow.precio) || 0) : 0;
                         const cpUsd = customPrices[`${baseItem.codigo}_USD`];
                         if (cpUsd !== undefined && parseFloat(cpUsd) > 0) pUsd = parseFloat(cpUsd);
-                        if (pUsd <= 0 && pArs > 0) pUsd = Math.round((pArs / cotizMat) * 100) / 100;
+                        if (pUsd > 500 || pUsd <= 0) {
+                            pUsd = pArs > 0 ? (Math.round((pArs / cotizMat) * 100) / 100) : 0;
+                        }
 
-                        // Moneda por defecto:
-                        // Si es mano de obra -> SIEMPRE ARS
-                        // Si es material con usdRow pero sin arsRow -> USD
-                        // En cualquier otro caso -> ARS (Pesos argentinos por defecto)
-                        const explicitUsd = !isLabor && (
-                            (window._itemExplicitCurrency && window._itemExplicitCurrency[baseItem.codigo] === 'USD') ||
-                            (baseItem.moneda === 'USD' || baseItem.moneda === 'U$D') ||
-                            Boolean(usdRow && !arsRow && parseFloat(usdRow.precio) > 0 && (!arsRow || parseFloat(arsRow.precio) <= 0))
-                        );
+                        // Moneda por defecto para Eléctrico: SIEMPRE ARS a menos que el usuario lo haya cambiado explícitamente a USD
+                        const explicitUsd = Boolean(window._itemExplicitCurrency && window._itemExplicitCurrency[baseItem.codigo] === 'USD');
 
                         const activePrice = explicitUsd ? pUsd : pArs;
                         const cleanDet = (arsRow && arsRow.detalle && arsRow.detalle.trim() !== baseItem.codigo) ? arsRow.detalle.trim() : (baseItem.detalle || (usdRow ? usdRow.detalle : baseItem.codigo));
@@ -5202,7 +5220,13 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
     const isElec = String(codigo || '').toUpperCase().trim().startsWith('ELE-') ||
                    (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico' && !String(codigo || '').toUpperCase().trim().startsWith('MEC-'));
     let p = isElec ? '' : (planta || '').trim().toUpperCase();
-    const m = (moneda || 'ARS').trim().toUpperCase();
+    let m = (moneda || 'ARS').trim().toUpperCase();
+
+    // Protección anti-inflación: en Eléctrico si se ingresa un importe > 500, corresponde a PESOS (ARS)
+    if (isElec && m === 'USD' && numPrice > 500) {
+        m = 'ARS';
+    }
+
     if (p && p !== 'APS' && p !== 'APG' && window.appData && window.appData.plantasRules && window.appData.plantasRules[p]) {
         p = window.appData.plantasRules[p].trim().toUpperCase();
     }
@@ -5377,9 +5401,27 @@ window.saveItemPriceFor = function(codigo, planta, moneda, price, originalSubrub
             };
             const upsertRows = [upsertRow];
             if (isElec) {
+                const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1450;
+                const usdEquiv = (m === 'USD') ? numPrice : (numPrice > 0 ? Math.round((numPrice / cotizMat) * 100) / 100 : 0);
+                const arsEquiv = (m === 'ARS') ? numPrice : Math.round(numPrice * cotizMat);
+
                 upsertRows.push({
                     ...upsertRow,
-                    id: codigo
+                    id: `${codigo}_ARS`,
+                    moneda: 'ARS',
+                    precio: arsEquiv
+                });
+                upsertRows.push({
+                    ...upsertRow,
+                    id: `${codigo}_USD`,
+                    moneda: 'USD',
+                    precio: usdEquiv
+                });
+                upsertRows.push({
+                    ...upsertRow,
+                    id: codigo,
+                    moneda: m,
+                    precio: numPrice
                 });
             }
             client.from('tarifario').upsert(upsertRows, { onConflict: 'id' }).then(function(res) {
@@ -18916,20 +18958,29 @@ if (curPlanta === 'APA') curPlanta = 'APS';
 
             // Moneda individual de este ítem (USD o ARS)
             let isUSD = false;
-            if (existing && existing.moneda) {
-                // 1. PRIORIDAD SUPREMA: Moneda del ítem ya registrado en este presupuesto
-                isUSD = (String(existing.moneda).toUpperCase() === 'USD' || String(existing.moneda).toUpperCase() === 'U$D');
-            } else if (existing && existing.precio_usd !== undefined && existing.precio_usd !== null && parseFloat(existing.precio_usd) > 0 && (!existing.precio_ars || existing.precio_ars === existing.precio_usd)) {
-                isUSD = true;
-            } else if (window._itemExplicitCurrency && window._itemExplicitCurrency[item.codigo]) {
-                // 2. Modificación explícita en esta sesión
-                isUSD = (window._itemExplicitCurrency[item.codigo] === 'USD');
-            } else if (typeof window.isItemUSD === 'function' && window.isItemUSD(item, null)) {
-                isUSD = true;
-            } else if (item.moneda && (item.moneda === 'USD' || item.moneda === 'U$D')) {
-                isUSD = true;
+            const isElecItem = (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico') || String(item.codigo || '').toUpperCase().startsWith('ELE-');
+            if (isElecItem) {
+                if (window._itemExplicitCurrency && window._itemExplicitCurrency[item.codigo]) {
+                    isUSD = (window._itemExplicitCurrency[item.codigo] === 'USD');
+                } else if (existing && existing.moneda) {
+                    isUSD = (String(existing.moneda).toUpperCase() === 'USD' || String(existing.moneda).toUpperCase() === 'U$D');
+                } else {
+                    isUSD = false;
+                }
             } else {
-                isUSD = false;
+                if (existing && existing.moneda) {
+                    isUSD = (String(existing.moneda).toUpperCase() === 'USD' || String(existing.moneda).toUpperCase() === 'U$D');
+                } else if (existing && existing.precio_usd !== undefined && existing.precio_usd !== null && parseFloat(existing.precio_usd) > 0 && (!existing.precio_ars || existing.precio_ars === existing.precio_usd)) {
+                    isUSD = true;
+                } else if (window._itemExplicitCurrency && window._itemExplicitCurrency[item.codigo]) {
+                    isUSD = (window._itemExplicitCurrency[item.codigo] === 'USD');
+                } else if (typeof window.isItemUSD === 'function' && window.isItemUSD(item, null)) {
+                    isUSD = true;
+                } else if (item.moneda && (item.moneda === 'USD' || item.moneda === 'U$D')) {
+                    isUSD = true;
+                } else {
+                    isUSD = false;
+                }
             }
             const itemCurrency = isUSD ? 'USD' : 'ARS';
 
@@ -19283,7 +19334,21 @@ window.onMecaPriceInputChange = function(input) {
 
     // Buscar detalles del item original y actualizar pedidoItems inmediatamente
     let subr = null, det = null, u = null;
-    const itemCurrency = (input.getAttribute('data-currency') || 'ARS').toUpperCase();
+    let itemCurrency = (input.getAttribute('data-currency') || 'ARS').toUpperCase();
+    const isElecItem = String(code || '').toUpperCase().trim().startsWith('ELE-') || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico');
+    if (isElecItem) {
+        if (!window._itemExplicitCurrency || window._itemExplicitCurrency[code] !== 'USD' || newPrice > 500) {
+            itemCurrency = 'ARS';
+            input.setAttribute('data-currency', 'ARS');
+            const btn = document.querySelector(`.meca-currency-toggle-btn[data-code="${code}"]`);
+            if (btn) {
+                btn.innerText = '$';
+                btn.style.color = '#34d399';
+                btn.style.borderColor = '#10b981';
+                btn.style.background = 'rgba(16, 185, 129, 0.22)';
+            }
+        }
+    }
     const cotizMat = (window.getCotizacionMateriales ? window.getCotizacionMateriales() : 1450) || 1;
 
     if (typeof pedidoItems !== 'undefined' && Array.isArray(pedidoItems)) {
@@ -19367,7 +19432,15 @@ window.onMecaPriceInputBlur = function(input) {
     if (!input) return;
     const rawVal = input.value.trim();
     const newPrice = window.parseArgNumber(rawVal);
-    const itemCurrency = (input.getAttribute('data-currency') || 'ARS').toUpperCase();
+    const code = input.getAttribute('data-code');
+    const isElecItem = String(code || '').toUpperCase().trim().startsWith('ELE-') || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico');
+    let itemCurrency = (input.getAttribute('data-currency') || 'ARS').toUpperCase();
+    if (isElecItem) {
+        if (!window._itemExplicitCurrency || window._itemExplicitCurrency[code] !== 'USD' || newPrice > 500) {
+            itemCurrency = 'ARS';
+            input.setAttribute('data-currency', 'ARS');
+        }
+    }
     const isUSD = (itemCurrency === 'USD');
 
     // Formatear visualmente el campo:
@@ -19383,7 +19456,6 @@ window.onMecaPriceInputBlur = function(input) {
     }
 
     // Guardar en Supabase y DB local de forma segura solo al perder el foco (blur)
-    const code = input.getAttribute('data-code');
     let curPlanta = '';
     const isElecItem = String(code || '').toUpperCase().trim().startsWith('ELE-') || (typeof reqTipoPresupuesto !== 'undefined' && reqTipoPresupuesto === 'Eléctrico');
     if (!isElecItem) {
