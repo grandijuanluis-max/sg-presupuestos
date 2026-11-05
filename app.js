@@ -904,6 +904,67 @@ window.getPresupuestoItemsCache = function(pid) {
     } catch(e) { return null; }
 };
 
+// Persistencia local robusta de facturación para evitar que se borren al refrescar la página
+window.savePresupuestoFacturacionCache = function(pid, factData) {
+    if (!pid || !factData) return;
+    try {
+        const cache = JSON.parse(localStorage.getItem('PRESUPUESTOS_FACTURACION_CACHE_V1') || '{}');
+        const key = String(pid).trim();
+        cache[key] = {
+            facturado_porcentaje: parseFloat(factData.facturado_porcentaje || 0),
+            monto_facturado: parseFloat(factData.monto_facturado || 0),
+            estado_facturacion: factData.estado_facturacion || 'Pendiente',
+            estado: factData.estado,
+            historial_facturacion: Array.isArray(factData.historial_facturacion) ? factData.historial_facturacion : []
+        };
+        localStorage.setItem('PRESUPUESTOS_FACTURACION_CACHE_V1', JSON.stringify(cache));
+    } catch(e) {}
+};
+
+window.getPresupuestoFacturacionCache = function(pid) {
+    if (!pid) return null;
+    try {
+        const cache = JSON.parse(localStorage.getItem('PRESUPUESTOS_FACTURACION_CACHE_V1') || '{}');
+        return cache[String(pid).trim()] || null;
+    } catch(e) { return null; }
+};
+
+window.preservarYRestaurarFacturacionPedido = function(p, existingP) {
+    if (!p || !p.id) return;
+    const pid = String(p.id).trim();
+    const fCache = (typeof window.getPresupuestoFacturacionCache === 'function') ? window.getPresupuestoFacturacionCache(pid) : null;
+    const existing = existingP || {};
+
+    const hist = (Array.isArray(p.historial_facturacion) && p.historial_facturacion.length > 0)
+        ? p.historial_facturacion
+        : ((fCache && Array.isArray(fCache.historial_facturacion) && fCache.historial_facturacion.length > 0)
+            ? fCache.historial_facturacion
+            : (Array.isArray(existing.historial_facturacion) ? existing.historial_facturacion : []));
+    if (hist.length > 0) {
+        p.historial_facturacion = hist;
+    }
+
+    const bestPct = Math.max(
+        parseFloat(p.facturado_porcentaje || 0),
+        parseFloat(fCache ? fCache.facturado_porcentaje : 0),
+        parseFloat(existing.facturado_porcentaje || 0)
+    );
+    if (bestPct > 0) {
+        p.facturado_porcentaje = bestPct;
+        const totAmt = parseFloat(p.importe || p.importe_neto || 0);
+        p.monto_facturado = Math.max(
+            parseFloat(p.monto_facturado || 0),
+            parseFloat(fCache ? fCache.monto_facturado : 0),
+            parseFloat(existing.monto_facturado || 0),
+            (totAmt * bestPct / 100)
+        );
+        p.estado_facturacion = (bestPct >= 99.99) ? 'Total' : 'Parcial';
+        if (p.estado !== 'Rechazado' && p.estado !== 'Anulado') {
+            p.estado = (bestPct >= 99.99) ? 'Facturado Total' : 'Facturado Parcial';
+        }
+    }
+};
+
 // Mantener la sesión localmente y sincronizada
 let appData = JSON.parse(JSON.stringify(defaultData));
 appData.pedidos = [];
@@ -1068,11 +1129,20 @@ function initSupabaseSync(callback) {
                 .then(r => r.json())
                 .then(data => {
                     if (Array.isArray(data)) {
+                        const existingPedidosMap = {};
+                        if (Array.isArray(appData.pedidos)) {
+                            appData.pedidos.forEach(oldP => {
+                                if (oldP && oldP.id) existingPedidosMap[String(oldP.id).trim()] = oldP;
+                            });
+                        }
                         data.forEach(p => {
                             const pid = String(p.id).trim();
                             const cached = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
                             if (cached && Array.isArray(cached) && cached.length > 0) {
                                 p.items = cached;
+                            }
+                            if (typeof window.preservarYRestaurarFacturacionPedido === 'function') {
+                                window.preservarYRestaurarFacturacionPedido(p, existingPedidosMap[pid]);
                             }
                         });
                         const remoteIds = new Set(data.map(p => String(p.id).trim()));
@@ -1093,6 +1163,9 @@ function initSupabaseSync(callback) {
                             const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
                             if (cachedItems && Array.isArray(cachedItems) && cachedItems.length > 0) {
                                 p.items = cachedItems;
+                            }
+                            if (typeof window.preservarYRestaurarFacturacionPedido === 'function') {
+                                window.preservarYRestaurarFacturacionPedido(p, existingPedidosMap[pid]);
                             }
                         });
                         try { localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(appData)); } catch(e) {}
@@ -2438,6 +2511,9 @@ function initSupabaseSync(callback) {
                             p.cotizacion = savedMapCotiz;
                         }
                     }
+                    if (typeof window.preservarYRestaurarFacturacionPedido === 'function') {
+                        window.preservarYRestaurarFacturacionPedido(p, existingPedidosMap[pid]);
+                    }
                 });
 
                 // Merge: Preservar y subir automáticamente presupuestos locales que aún no estén en Supabase
@@ -2470,6 +2546,9 @@ function initSupabaseSync(callback) {
                         p.items = cachedItems;
                     } else if ((!Array.isArray(p.items) || p.items.length === 0) && existingPedidosMap[pid] && Array.isArray(existingPedidosMap[pid].items)) {
                         p.items = existingPedidosMap[pid].items;
+                    }
+                    if (typeof window.preservarYRestaurarFacturacionPedido === 'function') {
+                        window.preservarYRestaurarFacturacionPedido(p, existingPedidosMap[pid]);
                     }
                 });
 
@@ -3070,8 +3149,8 @@ window.buildPresupuestoSupabaseRow = function(p) {
         motivo_rechazo: p.motivo_rechazo || '',
         operador: p.operador || 'admin',
         avance_porcentaje_acumulado: parseFloat(p.avance_porcentaje_acumulado) || 0,
-        facturado_porcentaje: parseFloat(p.facturado_porcentaje || p.avance_porcentaje_acumulado) || 0,
-        monto_facturado: parseFloat(p.monto_facturado || p.monto_facturado_total) || 0,
+        facturado_porcentaje: (p.facturado_porcentaje !== undefined && p.facturado_porcentaje !== null && !isNaN(parseFloat(p.facturado_porcentaje))) ? parseFloat(p.facturado_porcentaje) : 0,
+        monto_facturado: (p.monto_facturado !== undefined && p.monto_facturado !== null && !isNaN(parseFloat(p.monto_facturado))) ? parseFloat(p.monto_facturado) : 0,
         nro_ot: String(p.nro_ot || p.meca_nro_ot || '').trim(),
         denominacion: String(p.meca_denominacion || p.denominacion || p.motivo || '').trim(),
         planta: String(p.planta || p.meca_planta || 'VGG').trim().toUpperCase(),
@@ -3481,9 +3560,14 @@ window.forzarSincronizacionSupabase = async function() {
         const { data: allRemote, error: aErr } = await client.from('presupuestos').select('*').order('id', { ascending: false }).limit(5000);
         if (!aErr && allRemote) {
             const existingItemsMap = {};
+            const existingPedidosMap = {};
             if (Array.isArray(appData.pedidos)) {
                 appData.pedidos.forEach(p => {
-                    if (Array.isArray(p.items) && p.items.length > 0) existingItemsMap[String(p.id)] = p.items;
+                    if (p && p.id) {
+                        const pid = String(p.id).trim();
+                        existingPedidosMap[pid] = p;
+                        if (Array.isArray(p.items) && p.items.length > 0) existingItemsMap[pid] = p.items;
+                    }
                 });
             }
             allRemote.forEach(p => {
@@ -3493,6 +3577,9 @@ window.forzarSincronizacionSupabase = async function() {
                     p.items = cached;
                 } else if (existingItemsMap[pid] && Array.isArray(existingItemsMap[pid]) && existingItemsMap[pid].length > 0) {
                     p.items = existingItemsMap[pid];
+                }
+                if (typeof window.preservarYRestaurarFacturacionPedido === 'function') {
+                    window.preservarYRestaurarFacturacionPedido(p, existingPedidosMap[pid]);
                 }
             });
 
@@ -3518,6 +3605,9 @@ window.forzarSincronizacionSupabase = async function() {
                     p.items = cachedItems;
                 } else if ((!Array.isArray(p.items) || p.items.length === 0) && existingItemsMap[pid]) {
                     p.items = existingItemsMap[pid];
+                }
+                if (typeof window.preservarYRestaurarFacturacionPedido === 'function') {
+                    window.preservarYRestaurarFacturacionPedido(p, existingPedidosMap[pid]);
                 }
             });
 
@@ -3649,6 +3739,11 @@ function saveData() {
             appData.pedidos.forEach(p => {
                 if (p && p.id && Array.isArray(p.items) && p.items.length > 0 && typeof window.savePresupuestoItemsCache === 'function') {
                     window.savePresupuestoItemsCache(p.id, p.items);
+                }
+                if (p && p.id && (parseFloat(p.facturado_porcentaje || 0) > 0 || (Array.isArray(p.historial_facturacion) && p.historial_facturacion.length > 0))) {
+                    if (typeof window.savePresupuestoFacturacionCache === 'function') {
+                        window.savePresupuestoFacturacionCache(p.id, p);
+                    }
                 }
             });
         }
@@ -4030,7 +4125,7 @@ const allAvailableModules = [
     { id: 'menu-all', label: 'Seguimiento', icon: 'fa-solid fa-clock-rotate-left', tpl: 'tpl-assignments', action: () => initAssignmentsView('Modificacion') },
     { id: 'menu-estado-presupuesto', label: 'Estado del Presupuesto', icon: 'fa-solid fa-list-check', tpl: 'tpl-assignments', action: () => initAssignmentsView('EstadoPresupuesto') },
     { id: 'menu-rechazados', label: 'Rechazo de Presupuesto', icon: 'fa-solid fa-ban', tpl: 'tpl-assignments', action: () => initAssignmentsView('Rechazados') },
-    { id: 'menu-facturacion', label: 'Registros de Facturación', icon: 'fa-solid fa-file-invoice-dollar', tpl: 'tpl-facturacion', action: () => { if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable(); } },
+    { id: 'menu-facturacion', label: 'Registros de Facturación', icon: 'fa-solid fa-file-invoice-dollar', tpl: 'tpl-facturacion', action: () => { viewMode = 'Facturacion'; window.currentAssignmentsViewMode = 'Facturacion'; if (typeof window.renderFacturacionTable === 'function') window.renderFacturacionTable(); } },
     { id: 'menu-metrics', label: 'Estadísticas y BI', icon: 'fa-solid fa-chart-pie', tpl: 'tpl-metrics', action: initMetricsView },
     { id: 'menu-admin', label: 'Configuración', icon: 'fa-solid fa-gear', tpl: 'tpl-admin', action: initAdminView },
 ];
@@ -11355,11 +11450,14 @@ window.guardarAvanceObra = function() {
             console.error("Error insertando avance en Supabase:", err);
         });
 
-        client.from('presupuestos').update({
-            avance_porcentaje_acumulado: parseFloat(p.avance_porcentaje_acumulado) || 0,
-            facturado_porcentaje: parseFloat(p.avance_porcentaje_acumulado) || 0,
-            monto_facturado: parseFloat(p.monto_facturado_total) || 0
-        }).eq('id', String(p.id)).then(function(res) {
+        const updatePresupuestoObj = {
+            avance_porcentaje_acumulado: parseFloat(p.avance_porcentaje_acumulado) || 0
+        };
+        if (p.facturado_porcentaje !== undefined && p.facturado_porcentaje !== null) {
+            updatePresupuestoObj.facturado_porcentaje = parseFloat(p.facturado_porcentaje) || 0;
+            updatePresupuestoObj.monto_facturado = parseFloat(p.monto_facturado) || 0;
+        }
+        client.from('presupuestos').update(updatePresupuestoObj).eq('id', String(p.id)).then(function(res) {
             if (res && res.error) console.warn("⚠️ Error actualizando porcentaje en presupuestos:", res.error);
             else console.log("☁️ Supabase: Porcentaje de avance actualizado en tabla presupuestos.");
         }).catch(function() {});
@@ -13893,7 +13991,7 @@ window.verDetallePedido = function(id, explicitMode) {
     const isElectrical = tipoStr.includes('eléctrico') || tipoStr.includes('electrico') || (!tipoStr.includes('mecánico') && !tipoStr.includes('mecanico'));
     const isExcelFlow = true;
 
-    const isRejectedOrder = (p.estado === 'Rechazado' || p.estado === 'Anulado' || viewMode === 'Rechazados');
+    const isRejectedOrder = Boolean(p && (p.estado === 'Rechazado' || p.estado === 'Anulado' || String(p.estado || '').toLowerCase().trim() === 'rechazado' || String(p.estado || '').toLowerCase().trim() === 'anulado'));
     const canEditControls = (!isRejectedOrder && isEditingAllowed);
 
     if (mecaHeaderBox) {
@@ -14094,7 +14192,7 @@ window.verDetallePedido = function(id, explicitMode) {
 
     window.renderModalReportTable = function(p, currentMode) {
         if (!p) return;
-        const isRejectedOrder = (p.estado === 'Rechazado' || p.estado === 'Anulado' || viewMode === 'Rechazados');
+        const isRejectedOrder = Boolean(p && (p.estado === 'Rechazado' || p.estado === 'Anulado' || String(p.estado || '').toLowerCase().trim() === 'rechazado' || String(p.estado || '').toLowerCase().trim() === 'anulado'));
         const isEditMode = (currentMode === 'detallado_edit' || (currentMode === 'editar' && isEditingAllowed));
         const activeMode = (currentMode === 'resumido' || currentMode === 'detallado' || currentMode === 'proyecto')
             ? currentMode
@@ -14432,7 +14530,7 @@ window.verDetallePedido = function(id, explicitMode) {
         }
     };
 
-    const isRejected = (p.estado === 'Rechazado' || p.estado === 'Anulado' || viewMode === 'Rechazados');
+    const isRejected = isRejectedOrder;
     const toggleContainer = document.getElementById('auth-report-type-toggle-container');
     if (toggleContainer) {
         toggleContainer.style.display = 'inline-flex';
@@ -22438,6 +22536,8 @@ window.abrirPDFPresupuesto = async function(id = null, format = null) {
 // MÓDULO DE REGISTRO Y SEGUIMIENTO DE FACTURACIÓN
 // ====================================================================
 window.renderFacturacionTable = function() {
+    viewMode = 'Facturacion';
+    window.currentAssignmentsViewMode = 'Facturacion';
     const tbody = document.getElementById('facturacion-table-tbody');
     if (!tbody) return;
 
@@ -22596,7 +22696,7 @@ window.renderFacturacionTable = function() {
             html += `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
                     <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">
-                        <span style="cursor: pointer; text-decoration: underline;" onclick="verDetallePedido('${p.id}', 'ver')" title="Ver Comprobante">${nro}</span>
+                        <span style="cursor: pointer; text-decoration: underline;" onclick="viewMode = 'Facturacion'; verDetallePedido('${p.id}', 'ver')" title="Ver Comprobante">${nro}</span>
                     </td>
                     <td style="padding: 10px; font-weight: 600; color: #ffffff;">${cli}</td>
                     <td style="padding: 10px; color: #cbd5e1;">${det}</td>
@@ -22607,7 +22707,7 @@ window.renderFacturacionTable = function() {
                     <td style="padding: 10px; text-align: center;">${badgeEst}</td>
                     <td style="padding: 10px; text-align: center;">
                         <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center;">
-                            <button type="button" class="btn btn-sm" onclick="verDetallePedido('${p.id}', 'ver')" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: bold; padding: 3px 6px; border-radius: 6px; font-size: 11px;" title="Ver Comprobante">
+                            <button type="button" class="btn btn-sm" onclick="viewMode = 'Facturacion'; verDetallePedido('${p.id}', 'ver')" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: bold; padding: 3px 6px; border-radius: 6px; font-size: 11px;" title="Ver Comprobante">
                                 <i class="fas fa-eye"></i>
                             </button>
                             <button type="button" class="btn btn-sm" onclick="abrirModalRegistrarFactura('${p.id}')" style="background: #10b981; color: #ffffff; border: 1px solid #059669; font-weight: bold; padding: 3px 8px; border-radius: 6px; font-size: 11px;" title="Registrar Factura">
@@ -22789,7 +22889,24 @@ window.guardarFacturaModal = function() {
         p.estado = isTotal ? 'Facturado Total' : 'Facturado Parcial';
     }
 
+    // 1. Guardar en la caché local dedicada de Facturación
+    if (typeof window.savePresupuestoFacturacionCache === 'function') {
+        window.savePresupuestoFacturacionCache(p.id, {
+            facturado_porcentaje: finalFactPct,
+            monto_facturado: p.monto_facturado,
+            estado_facturacion: estadoFact,
+            estado: p.estado,
+            historial_facturacion: p.historial_facturacion
+        });
+    }
+
     saveData();
+
+    // 2. Sincronizar en Supabase (tabla presupuestos)
+    if (typeof window.sincronizarEstadoPresupuestoEnSupabase === 'function') {
+        window.sincronizarEstadoPresupuestoEnSupabase(p);
+    }
+
     showToast(`✅ Factura registrada exitosamente: ${pct.toFixed(1)}% ($${monto.toLocaleString('es-AR', {minimumFractionDigits: 2})}) — Estado: ${estadoFact}`, 'success');
 
     const modalEl = document.getElementById('modal-registrar-factura');
