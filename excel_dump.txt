@@ -1,0 +1,99 @@
+Row 2: TARIFARIO DE COTIZACION |  |  |  |  |  |  |  |  | 
+Row 3:  |  |  |  |  |  |  |  | 
+Row 4:  | COMPLETAR CAMPOS |  |  | FECHA LÍMITE PARA ENVÍO DE OFERTAS: |  |  |  | 45393
+Row 5:  |  |  |  |  |  |  |  | 
+Row 6: 1 | Identificación de la Oferta: |  |  |  |  |  |  | 
+Row 7:  | Denominación del Servicio: según PD |  |  |  |  |  |  | 
+Row 8:  |  |  | NUEVA POSICION LECTORAS Y BARREAS VOL 5 / 6 |  |  |  |  | 
+Row 9:  |  |  |  |  |  |  |  | 
+Row 10: ii.  | Nombre del Proveedor: |  | SG Montajes S.R.L |  |  |  |  | 
+Row 11: iii.  | Fecha de Oferta:  |  |  |  |  |  |  | 
+Row 12: iv.  | Validez de la Oferta: |  | 5 dias |  |  |  |  | 
+Row 13: v.  | Planta de Cargill |  | Complejo APS- PGSM |  |  |  |  | 
+Row 14: vi.  | Fecha de Inicio: |  |  |  |  |  |  | 
+Row 15: vii.  | Numeros de OT:  |  |  |  |  |  |  | 
+Row 16: viii.  | Plazo Máximo de Finalización: |  |  |  |  |  |  | 
+Row 17:  |  |  |  |  |  |  |  | 
+Row 18: 2 | Tarifario |  |  |  |  |  |  | 
+Row 19:  |  |  |  |  |  |  |  | 
+Row 20: # | Tarifario |  |  |  | Cantidades  Estimadas | U.D.M. | Precio unitario | Precio Total
+Row 21:  |  |  |  |  |  |  | U$D | 
+Row 22:  |  |  |  |  |  |  |  | 0
+Row 23: 1 | CAJA ALUMINIO 200X200X100 |  |  |  | 8 | c/u |  | 0
+Row 24: 2 | CAJA ALUMINIO 300X300X100 |  |  |  | 2 | c/u |  | 0
+Row 25: 3 | CONDULET ( L ) 1" 1/2 |  |  |  | 7 | c/u |  | 0
+Row 26: 4 | CONDULET DE PASO 1"1/2 |  |  |  | 4 | c/u |  | 0
+Row 27: 5 | UNION DOBLE 1" 1/2 |  |  |  | 8 | c/u |  | 0
+Row 28: 6 | CUPLAS 1" 1/2 |  |  |  | 10 | c/u |  | 0
+Row 29: 7 | GRAMPAS U-BOLT 1" 1/2 |  |  |  | 100 | c/u |  | 0
+Row 30: 8 | FLEXIBLE ZOLODA 1" 1/2 |  |  |  | 3 | mts |  | 0
+Row 31: 9 | CONECTOR ZOLODA CON TUERCA 1" 1/2 |  |  |  | 10 | c/u |  | 0
+Row 32: 10 | CAÑO ACERO GALVANIZADO SEMIPESADO 1" 1/2 |  |  |  | 33 | c/u |  | 0
+Row 33: 11 | CINTA PROTECCION SE CAÑOS POLIGUARD |  |  |  | 30 | c/u |  | 0
+Row 34: 12 | BARRA UPN 80 MM X 6 MTS |  |  |  | 2 | c/u |  | 0
+Row 35: 13 | BARRA ANGULO 1" 1/2 X 3,16 X 6 MTS |  |  |  | 5 | c/u |  | 0
+Row 36: 14 | LLAVE SELECTORA 0.1.2 |  |  |  | 2 | c/u |  | 0
+Row 37: 15 | CABLE 485 |  |  |  | 135 | mts |  | 0
+Row 38: 16 | CABLE SINTENAX 7X1,5 MM |  |  |  | 135 | mts |  | 
+Row 39: 17 | CABLE SINTENAX 3X1,5 MM  |  |  |  | 210 | mts |  | 
+Row 40: 18 | CABLE SINTENAX 3X2,5 MM  |  |  |  | 210 | mts |  | 0
+Row 41: 19 | BROCA 10 MM |  |  |  | 45 | c/u |  | 
+Row 42: 20 | BULON 1/4X1"1/2CON DOBLE ARANDELA PLANA + TUERCA |  |  |  | 50 | c/u |  | 
+Row 43: 21 | BULON 5/16X 1"1/2 CON DOBLE ARANDELA PLANA Y TUERCA  |  |  |  | 100 | c/u |  | 
+Row 44: 22 | PINTURA AMARILLA |  |  |  | 4 | LTS |  | 
+Row 45: 23 | PINTURA NEGRO |  |  |  | 4 | LTS |  | 
+Row 46: 24 | CINTA REFLECTIVA ROJO/NEGRO ADHESIVA |  |  |  | 4 | mts |  | 
+Row 47: 25 | TUERCA 1" 1/2 PARA CAÑOS |  |  |  | 40 | c/u |  | 
+Row 48: 26 | BOQUILLA 1" 1/2 ALUMINIO  |  |  |  | 25 | c/u |  | 
+Row 49: 27 | RIEL DIN  |  |  |  | 2 | c/u |  | 
+Row 50: 28 |  |  |  |  |  | c/u |  | 
+Row 51: 29 |  |  |  |  |  |  |  | 
+Row 52: 30 |  |  |  | Sub Total |  |  |  | 0
+Row 53: 27 | ACUERDO POR HS DE MANTENIMIENTO  |  |  |  |  |  |  | 
+Row 54:  |  |  |  |  |  |  |  | 0
+Row 55: 40 | Mano de obra por Hs al 76%  |  |  |  |  |  |  | 
+Row 56: 41 | Tecnico en seguridad |  |  |  |  | horas | 10023 | 0
+Row 57: 42 | Oficial Esp |  |  |  |  | horas | 20616 | 0
+Row 58: 43 | Ayudante |  |  |  |  | horas | 17577 | 0
+Row 59: 44 | Supervisor  |  |  |  |  | horas | 16363 | 0
+Row 60: 45 | Hidro elevador  |  |  |  |  |  | 24028 | 
+Row 61: 46 |  |  |  |  |  |  |  | 
+Row 62: 47 |  |  |  |  |  |  |  | 
+Row 63: 48 | Mano de Obra por Hs al 36% |  |  |  |  |  |  | 0
+Row 64: 49 | Tecnico en seguridad |  |  |  |  | horas | 5695 | 
+Row 65: 50 | Oficial Esp |  |  |  |  | horas | 11712 | 
+Row 66: 51 | Ayudante |  |  |  |  | horas | 9992 | 
+Row 67: 52 | Supervisor  |  |  |  |  | horas | 12072 | 
+Row 68: 53 | Hidro elevador  |  |  |  |  |  | 24028 | 
+Row 69: 54 |  x |  |  |  |  |  |  | 
+Row 70: 55 | Mano de Obra por hs Normales  |  |  |  |  |  |  | 1230700
+Row 71: 56 | Técnico en Seguridad |  |  |  | 20 | horas | 5695 | 113900
+Row 72: 57 | Oficial Esp |  |  |  | 20 | horas | 11712 | 234240
+Row 73: 58 | Ayudante |  |  |  | 40 | horas | 9992 | 399680
+Row 74: 59 | Supervisor  |  |  |  | 40 | horas | 12072 | 482880
+Row 75: 60 | Camion Hidro elevador  |  |  |  |  | horas | 24028 | 0
+Row 76:  |  |  |  |  |  |  |  | 
+Row 77:  |  |  |  |  |  |  |  | 
+Row 78: 60 | MANO DE OBRA POR EMERGENCIA EN PLANTA SEGUN ACUERDO FIRMADO CON CARGILL |  |  |  |  |  |  | 0
+Row 79: 61 | Técnico en Seguridad |  |  |  | 0 | horas | 28468 | 0
+Row 80: 62 | Oficial Esp |  |  |  | 0 | horas | 59347 | 0
+Row 81: 63 | Ayudante |  |  |  | 0 | horas | 50649 | 0
+Row 82: 64 | Supervisor  |  |  |  | 0 |  | 61144 | 0
+Row 83: 65 | Camion Hidro elevador  |  |  |  |  |  | 24028 | 
+Row 84:  |  |  |  |  |  |  |  | 
+Row 85: 66 | ACUERDO POR HS EN PARADA DE PLANTA  |  |  |  |  |  |  | 
+Row 86:  |  |  |  |  |  |  |  | 
+Row 87: 67 | Mano de obra por Hs al 76% en parada de planta |  |  |  |  |  |  | 
+Row 88: 68 | Tecnico en seguridad |  |  |  |  | horas | 7720 | 0
+Row 89: 69 | Oficial Esp |  |  |  |  | horas | 20889 | 0
+Row 90: 70 | Ayudante |  |  |  |  | horas | 17830 | 0
+Row 91: 71 | Supervisor  |  |  |  |  | horas | 21521 | 0
+Row 92: 72 | Hidro elevador  |  |  |  |  |  | 24028 | 
+Row 93: 73 |  |  |  |  |  |  |  | 
+Row 94: 74 |  |  |  |  |  |  |  | 
+Row 95: 75 | Mano de Obra por Hs al 36% en parada de planta |  |  |  |  |  |  | 
+Row 96: 76 | Tecnico en seguridad |  |  |  | 0 | horas | 5964 | 
+Row 97: 77 | Oficial Esp |  |  |  | 0 | horas | 16141 | 
+Row 98: 78 | Ayudante |  |  |  | 0 | horas | 10128 | 
+Row 99: 79 | Supervisor  |  |  |  | 0 | horas | 16141 | 
+Row 100: 80 | Hidro elevador  |  |  |  |  |  | 24028 | 

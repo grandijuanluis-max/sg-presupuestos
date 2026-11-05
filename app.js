@@ -1146,18 +1146,7 @@ function initSupabaseSync(callback) {
                             }
                         });
                         const remoteIds = new Set(data.map(p => String(p.id).trim()));
-                        const mergedList = [...data];
-                        if (Array.isArray(appData.pedidos)) {
-                            appData.pedidos.forEach(localP => {
-                                if (localP && localP.id && !remoteIds.has(String(localP.id).trim())) {
-                                    mergedList.push(localP);
-                                    if (typeof window.guardarPresupuestoEnSupabase === 'function') {
-                                        window.guardarPresupuestoEnSupabase(localP).catch(() => {});
-                                    }
-                                }
-                            });
-                        }
-                        appData.pedidos = normalizePresupuestosRubro(mergedList);
+                        appData.pedidos = normalizePresupuestosRubro(data || []);
                         appData.pedidos.forEach(p => {
                             const pid = String(p.id).trim();
                             const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
@@ -2516,29 +2505,39 @@ function initSupabaseSync(callback) {
                     }
                 });
 
-                // Merge: Preservar y subir automáticamente presupuestos locales que aún no estén en Supabase
                 const remoteIds = new Set((pRes.data || []).map(p => String(p.id).trim()));
-                const mergedPedidos = [...(pRes.data || [])];
-                Object.keys(existingPedidosMap).forEach(localId => {
-                    if (!remoteIds.has(localId)) {
-                        const localP = existingPedidosMap[localId];
-                        if (localP) {
-                            if (!Array.isArray(localP.items) || localP.items.length === 0) {
-                                const cached = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(localId) : null;
-                                if (cached && Array.isArray(cached) && cached.length > 0) {
-                                    localP.items = cached;
-                                }
+
+                // Limpiar de cachés locales los presupuestos que hayan sido eliminados en Supabase
+                try {
+                    const rawItemsCache = localStorage.getItem('PRESUPUESTOS_ITEMS_CACHE_V4');
+                    if (rawItemsCache) {
+                        const iCache = JSON.parse(rawItemsCache);
+                        let mod = false;
+                        Object.keys(iCache).forEach(k => {
+                            if (!remoteIds.has(String(k).trim())) {
+                                delete iCache[k];
+                                mod = true;
                             }
-                            mergedPedidos.push(localP);
-                            if (typeof window.guardarPresupuestoEnSupabase === 'function') {
-                                window.guardarPresupuestoEnSupabase(localP).then(res => {
-                                    if (res && res.success) console.log("☁️ Presupuesto pendiente " + localId + " subido con éxito a Supabase.");
-                                }).catch(e => console.warn("Aviso auto-subida presupuesto:", e));
-                            }
-                        }
+                        });
+                        if (mod) localStorage.setItem('PRESUPUESTOS_ITEMS_CACHE_V4', JSON.stringify(iCache));
                     }
-                });
-                appData.pedidos = normalizePresupuestosRubro(mergedPedidos);
+                } catch(e) {}
+                try {
+                    const rawFactCache = localStorage.getItem('PRESUPUESTOS_FACTURACION_CACHE_V1');
+                    if (rawFactCache) {
+                        const fCache = JSON.parse(rawFactCache);
+                        let mod = false;
+                        Object.keys(fCache).forEach(k => {
+                            if (!remoteIds.has(String(k).trim())) {
+                                delete fCache[k];
+                                mod = true;
+                            }
+                        });
+                        if (mod) localStorage.setItem('PRESUPUESTOS_FACTURACION_CACHE_V1', JSON.stringify(fCache));
+                    }
+                } catch(e) {}
+
+                appData.pedidos = normalizePresupuestosRubro(pRes.data || []);
                 appData.pedidos.forEach(p => {
                     const pid = String(p.id).trim();
                     const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
@@ -3583,21 +3582,8 @@ window.forzarSincronizacionSupabase = async function() {
                 }
             });
 
-            // Merge seguro: nunca descartar presupuestos locales que aún no figuren en allRemote
             const remoteIds = new Set(allRemote.map(p => String(p.id).trim()));
-            const mergedList = [...allRemote];
-            if (Array.isArray(appData.pedidos)) {
-                appData.pedidos.forEach(localP => {
-                    if (localP && localP.id && !remoteIds.has(String(localP.id).trim())) {
-                        mergedList.push(localP);
-                        if (typeof window.guardarPresupuestoEnSupabase === 'function') {
-                            window.guardarPresupuestoEnSupabase(localP).catch(() => {});
-                        }
-                    }
-                });
-            }
-
-            appData.pedidos = normalizePresupuestosRubro(mergedList);
+            appData.pedidos = normalizePresupuestosRubro(allRemote || []);
             appData.pedidos.forEach(p => {
                 const pid = String(p.id).trim();
                 const cachedItems = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(pid) : null;
@@ -3629,97 +3615,16 @@ window.forzarSincronizacionSupabase = async function() {
 };
 
 window.rescatarYSubirPresupuestosPendientes = async function() {
-    try {
-        const rawLocal = localStorage.getItem(LOCAL_STATE_KEY);
-        let parsed = rawLocal ? JSON.parse(rawLocal) : null;
-        if (!parsed || typeof parsed !== 'object') parsed = { pedidos: [] };
-        if (!Array.isArray(parsed.pedidos)) parsed.pedidos = [];
-
-        // RECONSTRUCCIÓN DE EMERGENCIA: Buscar también en PRESUPUESTOS_ITEMS_CACHE_V4
-        try {
-            const itemsCacheRaw = localStorage.getItem('PRESUPUESTOS_ITEMS_CACHE_V4');
-            if (itemsCacheRaw) {
-                const itemsCache = JSON.parse(itemsCacheRaw);
-                for (const [cachedPid, cachedItems] of Object.entries(itemsCache)) {
-                    if (!cachedPid || !Array.isArray(cachedItems) || cachedItems.length === 0) continue;
-                    const existsInPedidos = parsed.pedidos.some(p => p && String(p.id).trim() === cachedPid.trim());
-                    if (!existsInPedidos) {
-                        // Reconstruir presupuesto a partir de los ítems en caché
-                        const isMec = cachedPid.includes('MEC');
-                        const sumTotal = cachedItems.reduce((acc, it) => acc + (parseFloat(it.subtotal) || (parseFloat(it.cantidad || 1) * parseFloat(it.precio || 0)) || 0), 0);
-                        const reconstructed = {
-                            id: cachedPid.trim(),
-                            fecha: getLocalCurrentDateTimeStr(),
-                            tipo_presupuesto: isMec ? 'Mecánico' : 'Eléctrico',
-                            cliente_id: '18',
-                            cliente_nombre: 'LA NUEVA VICENTIN',
-                            planta: 'LA NUEVA VICENTIN',
-                            importe: sumTotal,
-                            importe_neto: sumTotal,
-                            estado: 'Enviado sin OC',
-                            operador: 'alexis',
-                            items: cachedItems
-                        };
-                        parsed.pedidos.push(reconstructed);
-                        console.log("[RESCATE] Reconstruido " + cachedPid + " desde items cache");
-                    }
-                }
-            }
-        } catch(eCache) {
-            console.warn('Error escaneando cache de items:', eCache);
-        }
-
-        if (parsed.pedidos.length === 0) return;
-
-        const config = (typeof getSupabaseConfig === 'function') ? getSupabaseConfig() : { url: 'https://amkkuwgatjcbiyrykuoy.supabase.co', anonKey: 'sb_publishable_I5bemh3YRuiTNkMzWyCA3A_D_aqFlNJ' };
-        const headers = { 'apikey': config.anonKey, 'Authorization': `Bearer ${config.anonKey}` };
-
-        const res = await fetch(`${config.url}/rest/v1/presupuestos?select=id&limit=100000`, { headers });
-        if (!res.ok) return;
-        const remoteList = await res.json();
-        const remoteIds = new Set((Array.isArray(remoteList) ? remoteList : []).map(r => String(r.id).trim()));
-
-        const pendientes = parsed.pedidos.filter(p => p && p.id && !remoteIds.has(String(p.id).trim()));
-        if (pendientes.length === 0) return;
-
-        console.log(`🚨 Se detectaron ${pendientes.length} presupuestos locales que NO están en la nube. Subiéndolos ahora...`);
-        if (typeof showToast === 'function') {
-            showToast(`☁️ Subiendo ${pendientes.length} presupuestos pendientes a la nube...`, 'info');
-        }
-
-        for (const p of pendientes) {
-            if (!Array.isArray(p.items) || p.items.length === 0) {
-                const cached = (typeof window.getPresupuestoItemsCache === 'function') ? window.getPresupuestoItemsCache(p.id) : null;
-                if (cached && Array.isArray(cached) && cached.length > 0) {
-                    p.items = cached;
-                }
-            }
-            if (typeof window.guardarPresupuestoEnSupabase === 'function') {
-                await window.guardarPresupuestoEnSupabase(p);
-                console.log(`✅ Presupuesto pendiente ${p.id} subido a Supabase.`);
-            }
-        }
-
-        if (typeof showToast === 'function') {
-            showToast(`✅ ${pendientes.length} presupuestos pendientes sincronizados con éxito.`, 'success');
-        }
-        if (typeof window.forzarSincronizacionSupabase === 'function') {
-            await window.forzarSincronizacionSupabase();
-        }
-    } catch(e) {
-        console.warn("Aviso en rescatarYSubirPresupuestosPendientes:", e);
-    }
+    // Desactivado: Supabase es la fuente única de verdad para respetar borrados
+    return;
 };
 
 // Auto-sincronización periódica y al regresar a la pestaña (para no depender de que el usuario recargue)
 let lastSilentPresupuestosSync = 0;
 function triggerSilentPresupuestosSync() {
     const now = Date.now();
-    if (now - lastSilentPresupuestosSync < 15000) return; // Máximo una vez cada 15 seg
+    if (now - lastSilentPresupuestosSync < 15000) return;
     lastSilentPresupuestosSync = now;
-    if (typeof window.rescatarYSubirPresupuestosPendientes === 'function') {
-        window.rescatarYSubirPresupuestosPendientes().catch(() => {});
-    }
     if (typeof window.forzarSincronizacionSupabase === 'function') {
         window.forzarSincronizacionSupabase();
     }
@@ -22535,14 +22440,79 @@ window.abrirPDFPresupuesto = async function(id = null, format = null) {
 // ====================================================================
 // MÓDULO DE REGISTRO Y SEGUIMIENTO DE FACTURACIÓN
 // ====================================================================
+window.cambiarModoVistaFacturacion = function(mode) {
+    const finalMode = (mode === 'table' || mode === 'cards') ? mode : 'cards';
+    localStorage.setItem('sg_facturacion_view_mode', finalMode);
+
+    const cardsEl = document.getElementById('facturacion-cards-container');
+    const tableEl = document.getElementById('facturacion-table-container');
+    const btnCards = document.getElementById('btn-fact-view-cards');
+    const btnTable = document.getElementById('btn-fact-view-table');
+
+    if (btnCards && btnTable) {
+        if (finalMode === 'cards') {
+            btnCards.style.background = '#38bdf8';
+            btnCards.style.color = '#0f172a';
+            btnTable.style.background = 'transparent';
+            btnTable.style.color = '#94a3b8';
+        } else {
+            btnTable.style.background = '#38bdf8';
+            btnTable.style.color = '#0f172a';
+            btnCards.style.background = 'transparent';
+            btnCards.style.color = '#94a3b8';
+        }
+    }
+
+    if (cardsEl && tableEl) {
+        if (finalMode === 'cards') {
+            cardsEl.style.display = 'grid';
+            tableEl.style.display = 'none';
+        } else {
+            cardsEl.style.display = 'none';
+            tableEl.style.display = 'block';
+        }
+    }
+};
+
 window.renderFacturacionTable = function() {
     viewMode = 'Facturacion';
     window.currentAssignmentsViewMode = 'Facturacion';
     const tbody = document.getElementById('facturacion-table-tbody');
-    if (!tbody) return;
+    const cardsContainer = document.getElementById('facturacion-cards-container');
+    if (!tbody && !cardsContainer) return;
 
     if (typeof updateTipoPresupuestoBadge === 'function') {
         updateTipoPresupuestoBadge();
+    }
+
+    // Gestionar modo de visualización activo (Fichas vs Tabla)
+    const activeMode = localStorage.getItem('sg_facturacion_view_mode') || (window.innerWidth < 1250 ? 'cards' : 'table');
+    const tableContainer = document.getElementById('facturacion-table-container');
+    const btnCards = document.getElementById('btn-fact-view-cards');
+    const btnTable = document.getElementById('btn-fact-view-table');
+
+    if (btnCards && btnTable) {
+        if (activeMode === 'cards') {
+            btnCards.style.background = '#38bdf8';
+            btnCards.style.color = '#0f172a';
+            btnTable.style.background = 'transparent';
+            btnTable.style.color = '#94a3b8';
+        } else {
+            btnTable.style.background = '#38bdf8';
+            btnTable.style.color = '#0f172a';
+            btnCards.style.background = 'transparent';
+            btnCards.style.color = '#94a3b8';
+        }
+    }
+
+    if (cardsContainer && tableContainer) {
+        if (activeMode === 'cards') {
+            cardsContainer.style.display = 'grid';
+            tableContainer.style.display = 'none';
+        } else {
+            cardsContainer.style.display = 'none';
+            tableContainer.style.display = 'block';
+        }
     }
 
     const searchVal = (document.getElementById('facturacion-search-input')?.value || '').toLowerCase().trim();
@@ -22591,10 +22561,6 @@ window.renderFacturacionTable = function() {
         const isApprovedConOc = est === 'aprobado con oc' || est.includes('con oc') || est.includes('con orden') || est === 'cargado con orden de compra';
         const isApproved = est === 'aprobado' || est === 'aprobado sin oc' || est === 'autorizado' || (est.includes('aprobado') && !est.includes('rechazado'));
 
-        // Pasan a facturación:
-        // 1. Aprobados (con o sin OC), autorizados
-        // 2. Comprobantes que tienen Avance de Obra registrado
-        // 3. Comprobantes con facturación iniciada o número de OC
         return isApprovedConOc || isApproved || hasOc || hasAvances || hasFacturacion;
     });
 
@@ -22665,9 +22631,16 @@ window.renderFacturacionTable = function() {
         return matchesSearch && matchesAprob && matchesEstado;
     });
 
-    let html = '';
+    let tableHtml = '';
+    let cardsHtml = '';
+
     if (filtered.length === 0) {
-        html = `<tr><td colspan="9" style="text-align: center; padding: 20px; color: #94a3b8;">No se encontraron registros de facturación.</td></tr>`;
+        tableHtml = `<tr><td colspan="9" style="text-align: center; padding: 25px; color: #94a3b8;">No se encontraron registros de facturación con los filtros actuales.</td></tr>`;
+        cardsHtml = `<div style="grid-column: 1 / -1; text-align: center; padding: 35px 20px; color: #94a3b8; background: rgba(30, 41, 59, 0.4); border: 1px dashed rgba(255,255,255,0.1); border-radius: 10px;">
+            <i class="fa-solid fa-file-invoice-dollar" style="font-size: 28px; margin-bottom: 8px; opacity: 0.5;"></i>
+            <div style="font-size: 13px; font-weight: 600;">No se encontraron registros de facturación</div>
+            <div style="font-size: 11.5px; opacity: 0.75; margin-top: 4px;">Pruebe limpiando los filtros o realizando otra búsqueda.</div>
+        </div>`;
     } else {
         filtered.forEach(p => {
             const nro = (typeof formatPresupuestoCodigo === 'function') ? formatPresupuestoCodigo(p) : p.id;
@@ -22679,47 +22652,96 @@ window.renderFacturacionTable = function() {
             const avanceObraPct = parseFloat(p.avance_obra_porcentaje || p.avance_porcentaje_acumulado || 0);
 
             const estAprob = resolveAprobacionEstado(p);
-            let badgeAprob = `<span class="badge" style="background: rgba(234,179,8,0.2); color: #fef08a; border: 1px solid rgba(234,179,8,0.6); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-check-double"></i> Aprobado sin OC</span>`;
+            let badgeAprob = `<span class="badge" style="background: rgba(234,179,8,0.2); color: #fef08a; border: 1px solid rgba(234,179,8,0.6); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;"><i class="fas fa-check-double"></i> Aprobado sin OC</span>`;
             if (estAprob === 'Aprobado con OC') {
                 const ocNum = String(p.oc_mano_obra || p.oc_materiales || p.meca_nro_oc || p.nro_oc || p.oc_numero || '').trim();
                 const ocExtra = (ocNum && ocNum !== '-' && ocNum.toLowerCase() !== 's/n') ? `<span style="font-size: 9.5px; opacity: 0.85; font-family: monospace;">(${ocNum})</span>` : '';
-                badgeAprob = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.6); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-check-circle"></i> Aprobado con OC ${ocExtra}</span>`;
+                badgeAprob = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.6); padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;"><i class="fas fa-check-circle"></i> Aprobado con OC ${ocExtra}</span>`;
             }
 
-            let badgeEst = `<span class="badge" style="background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Pendiente</span>`;
+            let badgeEst = `<span class="badge" style="background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; white-space: nowrap;">Pendiente</span>`;
             if (factPct >= 100 || p.estado === 'Facturado Total') {
-                badgeEst = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid #10b981; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Total</span>`;
+                badgeEst = `<span class="badge" style="background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid #10b981; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; white-space: nowrap;">Total</span>`;
             } else if (factPct > 0 || p.estado === 'Facturado Parcial') {
-                badgeEst = `<span class="badge" style="background: rgba(234,179,8,0.2); color: #fde047; border: 1px solid #eab308; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Parcial (${factPct.toFixed(1)}%)</span>`;
+                badgeEst = `<span class="badge" style="background: rgba(234,179,8,0.2); color: #fde047; border: 1px solid #eab308; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; white-space: nowrap;">Parcial (${factPct.toFixed(1)}%)</span>`;
             }
 
-            html += `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
-                    <td style="padding: 10px; font-family: monospace; font-weight: 700; color: #38bdf8;">
+            // 1. Fila de Tabla Clásica
+            tableHtml += `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.15s;">
+                    <td style="padding: 7px 10px; font-family: monospace; font-weight: 700; color: #38bdf8; white-space: nowrap;">
                         <span style="cursor: pointer; text-decoration: underline;" onclick="viewMode = 'Facturacion'; verDetallePedido('${p.id}', 'ver')" title="Ver Comprobante">${nro}</span>
                     </td>
-                    <td style="padding: 10px; font-weight: 600; color: #ffffff;">${cli}</td>
-                    <td style="padding: 10px; color: #cbd5e1;">${det}</td>
-                    <td style="padding: 10px; text-align: center;">${badgeAprob}</td>
-                    <td style="padding: 10px; text-align: right; font-family: monospace; font-weight: 700; color: #ffffff;">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-                    <td style="padding: 10px; text-align: right; font-family: monospace; font-weight: 700; color: #34d399;">$${factMonto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-                    <td style="padding: 10px; text-align: center; font-weight: 700; color: #38bdf8;">${avanceObraPct.toFixed(1)}%</td>
-                    <td style="padding: 10px; text-align: center;">${badgeEst}</td>
-                    <td style="padding: 10px; text-align: center;">
-                        <div style="display: inline-flex; gap: 4px; align-items: center; justify-content: center;">
-                            <button type="button" class="btn btn-sm" onclick="viewMode = 'Facturacion'; verDetallePedido('${p.id}', 'ver')" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: bold; padding: 3px 6px; border-radius: 6px; font-size: 11px;" title="Ver Comprobante">
+                    <td style="padding: 7px 10px; font-weight: 600; color: #ffffff; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${cli}">${cli}</td>
+                    <td style="padding: 7px 10px; color: #cbd5e1; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${det}">${det}</td>
+                    <td style="padding: 7px 10px; text-align: center; white-space: nowrap;">${badgeAprob}</td>
+                    <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #ffffff; white-space: nowrap;">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                    <td style="padding: 7px 10px; text-align: right; font-family: monospace; font-weight: 700; color: #34d399; white-space: nowrap;">$${factMonto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                    <td style="padding: 7px 10px; text-align: center; font-weight: 700; color: #38bdf8; white-space: nowrap;">${avanceObraPct.toFixed(1)}%</td>
+                    <td style="padding: 7px 10px; text-align: center; white-space: nowrap;">${badgeEst}</td>
+                    <td style="padding: 7px 10px; text-align: center; white-space: nowrap;">
+                        <div style="display: inline-flex; gap: 5px; align-items: center; justify-content: center;">
+                            <button type="button" class="btn btn-sm" onclick="viewMode = 'Facturacion'; verDetallePedido('${p.id}', 'ver')" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid #38bdf8; font-weight: bold; padding: 4px 7px; border-radius: 6px; font-size: 11px; cursor: pointer;" title="Ver Comprobante">
                                 <i class="fas fa-eye"></i>
                             </button>
-                            <button type="button" class="btn btn-sm" onclick="abrirModalRegistrarFactura('${p.id}')" style="background: #10b981; color: #ffffff; border: 1px solid #059669; font-weight: bold; padding: 3px 8px; border-radius: 6px; font-size: 11px;" title="Registrar Factura">
+                            <button type="button" class="btn btn-sm" onclick="abrirModalRegistrarFactura('${p.id}')" style="background: #10b981; color: #ffffff; border: 1px solid #059669; font-weight: bold; padding: 4px 9px; border-radius: 6px; font-size: 11px; cursor: pointer;" title="Registrar Factura">
                                 <i class="fa-solid fa-file-invoice"></i> Cargar
                             </button>
                         </div>
                     </td>
                 </tr>
             `;
+
+            // 2. Tarjeta / Ficha Responsiva (Perfecta cuando no se tiene pantalla completa)
+            cardsHtml += `
+                <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.25); transition: transform 0.15s, border-color 0.15s;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                        <span onclick="viewMode = 'Facturacion'; verDetallePedido('${p.id}', 'ver')" style="font-family: monospace; font-size: 14px; font-weight: 800; color: #38bdf8; cursor: pointer; text-decoration: underline;" title="Ver Comprobante">${nro}</span>
+                        ${badgeAprob}
+                    </div>
+
+                    <div>
+                        <div style="font-weight: 700; color: #ffffff; font-size: 13px; margin-bottom: 3px; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-building" style="color: #94a3b8; font-size: 11px;"></i>
+                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${cli}</span>
+                        </div>
+                        <div style="color: #94a3b8; font-size: 11.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;" title="${det}">
+                            ${det}
+                        </div>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
+                            <span style="color: #cbd5e1;">Facturado: <strong style="color: ${factPct >= 100 ? '#34d399' : (factPct > 0 ? '#fde047' : '#fca5a5')}">${factPct.toFixed(1)}%</strong></span>
+                            <span style="color: #38bdf8;">Avance Obra: <strong>${avanceObraPct.toFixed(1)}%</strong></span>
+                        </div>
+                        <div style="width: 100%; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 6px;">
+                            <div style="width: ${Math.min(100, factPct)}%; height: 100%; background: ${factPct >= 100 ? '#10b981' : (factPct > 0 ? '#eab308' : '#ef4444')}; border-radius: 3px;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 11.5px;">
+                            <span style="color: #94a3b8;">Total: <strong style="color: #ffffff; font-family: monospace;">$${total.toLocaleString('es-AR', {minimumFractionDigits: 2})}</strong></span>
+                            <span style="color: #34d399; font-weight: 700; font-family: monospace;">$${factMonto.toLocaleString('es-AR', {minimumFractionDigits: 2})}</span>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;">
+                        <div>${badgeEst}</div>
+                        <div style="display: flex; gap: 6px;">
+                            <button type="button" class="btn btn-sm" onclick="viewMode = 'Facturacion'; verDetallePedido('${p.id}', 'ver')" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid #38bdf8; font-weight: 700; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer;" title="Ver Comprobante">
+                                <i class="fas fa-eye"></i> Ver
+                            </button>
+                            <button type="button" class="btn btn-sm" onclick="abrirModalRegistrarFactura('${p.id}')" style="background: #10b981; color: #ffffff; border: 1px solid #059669; font-weight: 700; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;" title="Registrar Factura">
+                                <i class="fa-solid fa-file-invoice"></i> Cargar Factura
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
         });
     }
-    tbody.innerHTML = html;
+
+    if (tbody) tbody.innerHTML = tableHtml;
+    if (cardsContainer) cardsContainer.innerHTML = cardsHtml;
 };
 
 window.abrirModalRegistrarFactura = function(id) {

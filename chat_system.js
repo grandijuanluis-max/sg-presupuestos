@@ -280,6 +280,23 @@
 
     // --- CARGAR HISTORIAL DE MENSAJES Y GRUPOS DESDE SUPABASE ---
     async function loadMessagesFromDb() {
+        // Reset único de mensajes anteriores solicitado por el usuario
+        try {
+            const hasCleaned = localStorage.getItem('sg_chat_reset_v20261105');
+            if (!hasCleaned) {
+                localStorage.removeItem('sg_chat_messages_history');
+                ChatState.messages = [];
+                localStorage.setItem('sg_chat_reset_v20261105', 'true');
+                const client = getSupabase();
+                if (client) {
+                    await client.from('notificaciones').delete().eq('task_id', 'internal_chat');
+                    console.log('🧹 Chat reseteado en Supabase y localmente.');
+                }
+                renderMessages();
+                return;
+            }
+        } catch(e) {}
+
         try {
             const cached = localStorage.getItem('sg_chat_messages_history');
             if (cached) {
@@ -1403,8 +1420,28 @@
         });
     }
 
+    async function vaciarChat() {
+        if (!confirm('¿Desea vaciar todo el historial de mensajes del chat?')) return;
+        try {
+            ChatState.messages = [];
+            try { localStorage.removeItem('sg_chat_messages_history'); } catch(e) {}
+            const client = getSupabase();
+            if (client) {
+                await client.from('notificaciones').delete().eq('task_id', 'internal_chat');
+            }
+            renderMessages();
+            updateUnreadBadge();
+            if (typeof window.showToast === 'function') {
+                window.showToast('Historial del chat vaciado con éxito.', 'info');
+            }
+        } catch (e) {
+            console.error('Error vaciando chat:', e);
+        }
+    }
+
     // --- API PÚBLICA EXPUESTA EN WINDOW ---
     window.SGChat = {
+        vaciarChat: vaciarChat,
         setUser: setUser,
         toggleChat: toggleChat,
         openChat: openChat,

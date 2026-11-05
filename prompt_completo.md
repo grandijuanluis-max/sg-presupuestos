@@ -148,6 +148,7 @@ Al consultar un presupuesto con el botón **[ 👁️ Ver ]**, el usuario puede 
 - **Edición de Precios por Matriz de Permisos**: La modificación de precios unitarios está vinculada a los permisos del usuario (`menu-ingresar-edit-price` / `edit-precios`).
 - **Navegación Universal con Tecla Escape (`Esc`)**: Cierre inmediato de cualquier modal abierto y retorno limpio a la vista anterior.
 - **Acceso y Salida Limpia**: Login simplificado con botón "Ingresar" y cierre de sesión seguro mediante botón "Salir" (`#logout-btn`).
+- **Prohibición Estricta de Recarga Automática (No Auto-Refresh)**: El sistema **NUNCA debe recargarse automáticamente por sí solo** (ni ante señales remotas, sincronizaciones periódicas o detección de versiones nuevas). Una recarga forzada borra el trabajo en curso del usuario (ítems cargados, presupuestos en redacción, textos en progreso). Cualquier aviso de actualización debe presentarse exclusivamente mediante banner no intrusivo (`showSystemUpdateBanner`), permitiendo al usuario guardar su trabajo y refrescar manualmente cuando lo decida.
 
 ---
 

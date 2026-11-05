@@ -1848,19 +1848,19 @@
 
     <!-- Template: Módulo de Facturación -->
     <template id="tpl-facturacion">
-        <div class="assignments-panel" style="max-width: 1300px; margin: 0 auto; height: calc(100vh - 120px); display: flex; flex-direction: column;">
-            <div class="view-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 15px;">
+        <div class="assignments-panel" style="width: 100%; margin: 0; min-height: calc(100vh - 100px); display: flex; flex-direction: column; gap: 10px;">
+            <div class="view-header" style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                 <div>
-                    <h3 style="display: flex; align-items: center; gap: 10px; font-size: 22px; color: var(--warning); margin: 0 0 6px 0;">
+                    <h3 style="display: flex; align-items: center; gap: 10px; font-size: 20px; color: var(--warning); margin: 0;">
                         <i class="fa-solid fa-file-invoice-dollar"></i> Registros de Facturación
                     </h3>
-                    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); padding: 8px 14px; border-radius: 8px; color: var(--text-main); font-size: 13px;">
-                        💡 Controle y consulte los registros de facturación parcial o total de los comprobantes y presupuestos aprobados con Orden de Compra (OC).
-                    </div>
+                    <p style="font-size: 12px; color: var(--text-muted); margin: 3px 0 0 0;">
+                        Control y seguimiento de facturación de presupuestos y comprobantes aprobados con OC
+                    </p>
                 </div>
                 <!-- Selector y Badge de Rubro para Facturación -->
-                <div id="facturacion-rubro-badge-container" style="display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap;">
-                    <span id="facturacion-tipo-presupuesto-badge" class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-size: 12px; padding: 6px 14px; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; font-weight: 700;">
+                <div id="facturacion-rubro-badge-container" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span id="facturacion-tipo-presupuesto-badge" class="badge" style="background: rgba(234, 179, 8, 0.2); color: #fde047; font-size: 11.5px; padding: 5px 12px; border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 8px; font-weight: 700;">
                         ⚡ Presupuesto Eléctrico
                     </span>
                     <button type="button" class="btn btn-sm btn-outline" onclick="abrirModalTipoPresupuesto()" style="font-size: 11px; padding: 5px 12px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;" title="Cambiar rubro entre Eléctrico y Mecánico">
@@ -1869,58 +1869,58 @@
                 </div>
             </div>
 
-            <!-- Tarjetas Resumen de Facturación -->
-            <div id="facturacion-summary-cards" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 15px;">
+            <!-- Tarjetas Resumen de Facturación (Compactas y Flexibles) -->
+            <div id="facturacion-summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 10px;">
                 <div onclick="document.getElementById('facturacion-estado-filter').value='Pendiente'; if(window.renderFacturacionTable) window.renderFacturacionTable();" 
-                     style="cursor: pointer; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 10px; padding: 14px 16px; transition: all 0.2s;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                        <i class="fa-solid fa-clock" style="color: #fca5a5; font-size: 16px;"></i>
-                        <span style="color: #fca5a5; font-weight: 800; font-size: 13px;">PENDIENTE DE FACTURAR</span>
+                     style="cursor: pointer; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 10px; padding: 10px 14px; transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <i class="fa-solid fa-clock" style="color: #fca5a5; font-size: 14px;"></i>
+                        <span style="color: #fca5a5; font-weight: 800; font-size: 11.5px;">PENDIENTE DE FACTURAR</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                        <span id="fact-card-pendiente-count" style="color: #f8fafc; font-size: 22px; font-weight: 900;">0</span>
-                        <span id="fact-card-pendiente-monto" style="color: #fca5a5; font-size: 13px; font-family: monospace; font-weight: 700;">$0</span>
+                        <span id="fact-card-pendiente-count" style="color: #f8fafc; font-size: 19px; font-weight: 900;">0</span>
+                        <span id="fact-card-pendiente-monto" style="color: #fca5a5; font-size: 12.5px; font-family: monospace; font-weight: 700;">$0</span>
                     </div>
                 </div>
                 <div onclick="document.getElementById('facturacion-estado-filter').value='Parcial'; if(window.renderFacturacionTable) window.renderFacturacionTable();" 
-                     style="cursor: pointer; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 10px; padding: 14px 16px; transition: all 0.2s;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                        <i class="fa-solid fa-hourglass-half" style="color: #fde047; font-size: 16px;"></i>
-                        <span style="color: #fde047; font-weight: 800; font-size: 13px;">FACTURACIÓN PARCIAL</span>
+                     style="cursor: pointer; background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.35); border-radius: 10px; padding: 10px 14px; transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <i class="fa-solid fa-hourglass-half" style="color: #fde047; font-size: 14px;"></i>
+                        <span style="color: #fde047; font-weight: 800; font-size: 11.5px;">FACTURACIÓN PARCIAL</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                        <span id="fact-card-parcial-count" style="color: #f8fafc; font-size: 22px; font-weight: 900;">0</span>
-                        <span id="fact-card-parcial-monto" style="color: #fde047; font-size: 13px; font-family: monospace; font-weight: 700;">$0</span>
+                        <span id="fact-card-parcial-count" style="color: #f8fafc; font-size: 19px; font-weight: 900;">0</span>
+                        <span id="fact-card-parcial-monto" style="color: #fde047; font-size: 12.5px; font-family: monospace; font-weight: 700;">$0</span>
                     </div>
                 </div>
                 <div onclick="document.getElementById('facturacion-estado-filter').value='Total'; if(window.renderFacturacionTable) window.renderFacturacionTable();" 
-                     style="cursor: pointer; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 10px; padding: 14px 16px; transition: all 0.2s;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                        <i class="fa-solid fa-circle-check" style="color: #34d399; font-size: 16px;"></i>
-                        <span style="color: #34d399; font-weight: 800; font-size: 13px;">FACTURACIÓN TOTAL</span>
+                     style="cursor: pointer; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 10px; padding: 10px 14px; transition: all 0.2s;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <i class="fa-solid fa-circle-check" style="color: #34d399; font-size: 14px;"></i>
+                        <span style="color: #34d399; font-weight: 800; font-size: 11.5px;">FACTURACIÓN TOTAL</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                        <span id="fact-card-total-count" style="color: #f8fafc; font-size: 22px; font-weight: 900;">0</span>
-                        <span id="fact-card-total-monto" style="color: #34d399; font-size: 13px; font-family: monospace; font-weight: 700;">$0</span>
+                        <span id="fact-card-total-count" style="color: #f8fafc; font-size: 19px; font-weight: 900;">0</span>
+                        <span id="fact-card-total-monto" style="color: #34d399; font-size: 12.5px; font-family: monospace; font-weight: 700;">$0</span>
                     </div>
                 </div>
             </div>
 
-            <div class="assignments-controls" style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                <div class="search-box" style="flex: 1; min-width: 250px;">
+            <div class="assignments-controls" style="margin-bottom: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <div class="search-box" style="flex: 1 1 200px; min-width: 170px;">
                     <i class="fas fa-search search-icon" style="color: #64748b; margin-left: 10px;"></i>
                     <input type="text" id="facturacion-search-input" placeholder="Buscar por N° Presupuesto, Cliente o Detalle..." 
-                           style="width: 100%; padding: 10px 10px 10px 35px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #f8fafc;"
+                           style="width: 100%; height: 35px; padding: 6px 10px 6px 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.6); color: #f8fafc; font-size: 12px;"
                            onkeyup="if(window.renderFacturacionTable) window.renderFacturacionTable()">
                 </div>
                 <select id="facturacion-aprobacion-filter" onchange="if(window.renderFacturacionTable) window.renderFacturacionTable()"
-                        style="padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #f8fafc; min-width: 195px;">
+                        style="height: 35px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.6); color: #f8fafc; min-width: 165px; font-size: 12px;">
                     <option value="">📋 Todos (Con OC y Sin OC)</option>
                     <option value="Aprobado con OC">✅ Aprobado con OC</option>
                     <option value="Aprobado sin OC">⏳ Aprobado sin OC</option>
                 </select>
                 <select id="facturacion-estado-filter" onchange="if(window.renderFacturacionTable) window.renderFacturacionTable()"
-                        style="padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #f8fafc; min-width: 185px;">
+                        style="height: 35px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.6); color: #f8fafc; min-width: 155px; font-size: 12px;">
                     <option value="">🧾 Facturación: Todos</option>
                     <option value="Pendiente">Pendiente de Facturar</option>
                     <option value="Parcial">Facturación Parcial</option>
@@ -1929,24 +1929,42 @@
                     <option value="Aprobado sin OC">⏳ Aprobado sin OC</option>
                 </select>
                 <button onclick="if(document.getElementById('facturacion-aprobacion-filter')) document.getElementById('facturacion-aprobacion-filter').value=''; document.getElementById('facturacion-estado-filter').value=''; document.getElementById('facturacion-search-input').value=''; if(window.renderFacturacionTable) window.renderFacturacionTable();"
-                        style="padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.5); color: #94a3b8; cursor: pointer; font-size: 12px; font-weight: 600;">
+                        style="height: 35px; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.6); color: #94a3b8; cursor: pointer; font-size: 11.5px; font-weight: 600;">
                     <i class="fa-solid fa-filter-circle-xmark"></i> Limpiar
                 </button>
+
+                <!-- Selector de Modo de Visualización: Fichas vs Tabla -->
+                <div style="display: inline-flex; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 2px; margin-left: auto;">
+                    <button type="button" id="btn-fact-view-cards" onclick="window.cambiarModoVistaFacturacion('cards')" 
+                            style="padding: 5px 12px; border-radius: 6px; border: none; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; background: #38bdf8; color: #0f172a; transition: all 0.2s;" title="Vista en Fichas / Tarjetas (Óptima para pantallas no completas o laptops)">
+                        <i class="fa-solid fa-grip"></i> Fichas
+                    </button>
+                    <button type="button" id="btn-fact-view-table" onclick="window.cambiarModoVistaFacturacion('table')" 
+                            style="padding: 5px 12px; border-radius: 6px; border: none; font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 5px; background: transparent; color: #94a3b8; transition: all 0.2s;" title="Vista en Tabla Completa">
+                        <i class="fa-solid fa-table-list"></i> Tabla
+                    </button>
+                </div>
             </div>
 
-            <div class="table-container" style="flex: 1; overflow-y: auto; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; position: relative;">
-                <table class="data-table">
-                    <thead>
+            <!-- Contenedor 1: Vista Fichas / Tarjetas Responsivas (Perfecta para cualquier tamaño de ventana) -->
+            <div id="facturacion-cards-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 12px; overflow-y: auto; flex: 1; padding: 2px;">
+                <!-- Renderizado dinámico de tarjetas -->
+            </div>
+
+            <!-- Contenedor 2: Vista Tabla con Scroll Horizontal Responsivo y Cabecera Fija -->
+            <div id="facturacion-table-container" class="table-container" style="display: none; flex: 1; overflow: auto; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; position: relative;">
+                <table class="data-table" style="min-width: 980px; width: 100%; border-collapse: separate; border-spacing: 0;">
+                    <thead style="position: sticky; top: 0; z-index: 5; background: #1e293b;">
                         <tr>
-                            <th style="width: 100px;">N° Presup.</th>
-                            <th style="width: 140px;">Cliente</th>
-                            <th>Detalle / Obra</th>
-                            <th style="text-align: center; width: 140px;">Estado Presup.</th>
-                            <th style="text-align: right; width: 110px;">Total a Cobrar</th>
-                            <th style="text-align: right; width: 110px;">Ya Facturado</th>
-                            <th style="text-align: center; width: 105px;">Progreso Obra</th>
-                            <th style="text-align: center; width: 120px;">Estado Fact.</th>
-                            <th style="text-align: center; width: 110px;">Acciones</th>
+                            <th style="width: 105px; padding: 8px 10px; background: #1e293b; color: #94a3b8;">N° Presup.</th>
+                            <th style="width: 140px; padding: 8px 10px; background: #1e293b; color: #94a3b8;">Cliente</th>
+                            <th style="padding: 8px 10px; background: #1e293b; color: #94a3b8;">Detalle / Obra</th>
+                            <th style="text-align: center; width: 135px; padding: 8px 10px; background: #1e293b; color: #94a3b8;">Estado Presup.</th>
+                            <th style="text-align: right; width: 115px; padding: 8px 10px; background: #1e293b; color: #94a3b8;">Total a Cobrar</th>
+                            <th style="text-align: right; width: 115px; padding: 8px 10px; background: #1e293b; color: #94a3b8;">Ya Facturado</th>
+                            <th style="text-align: center; width: 95px; padding: 8px 10px; background: #1e293b; color: #94a3b8;">Progreso Obra</th>
+                            <th style="text-align: center; width: 120px; padding: 8px 10px; background: #1e293b; color: #94a3b8;">Estado Fact.</th>
+                            <th style="text-align: center; width: 110px; padding: 8px 10px; background: #1e293b; color: #94a3b8;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="facturacion-table-tbody">
@@ -1985,7 +2003,7 @@
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 100px 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 15px;">
                         <div>
                             <label style="display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px;">% a Facturar</label>
                             <input type="number" step="0.01" id="nueva-factura-porcentaje" placeholder="0" style="width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(15,23,42,0.8); color: #38bdf8; font-family: monospace; font-weight: bold;" oninput="if(window.calcFacturaMontoDesdePorcentaje) window.calcFacturaMontoDesdePorcentaje(this.value)">
@@ -3093,6 +3111,9 @@
                     </div>
                 </div>
                 <div class="sg-chat-header-actions">
+                    <button type="button" class="sg-chat-icon-btn" onclick="window.SGChat && window.SGChat.vaciarChat()" title="Vaciar historial del chat" style="color: #f87171; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25);">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
                     <button type="button" id="sg-chat-list-toggle-btn" class="sg-chat-icon-btn" onclick="window.SGChat && window.SGChat.showConversationsView()" title="Chats, Grupos y Colegas" style="background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8;">
                         <i class="fa-solid fa-users-viewfinder"></i>
                     </button>
@@ -3146,14 +3167,19 @@
     
     <!-- Script principal de lógica de negocio -->
     <script>
-        // Limpieza de claves obsoletas
+        // Limpieza de claves obsoletas y sincronización limpia desde Supabase
         try {
             localStorage.removeItem('sg_plantas');
+            const cleanSupabaseSync = localStorage.getItem('sg_force_clean_remote_sync_v3');
+            if (!cleanSupabaseSync) {
+                localStorage.removeItem('solicitudes_pedidos_local_state');
+                localStorage.setItem('sg_force_clean_remote_sync_v3', 'true');
+            }
         } catch(e) {}
     </script>
-    <script src="app.js?v=559"></script>
+    <script src="app.js?v=561"></script>
 
     <!-- Sistema de Presencia, Grupos y Chat Interno en Tiempo Real -->
-    <script src="chat_system.js?v=7"></script>
+    <script src="chat_system.js?v=8"></script>
 </body>
 </html>
